@@ -561,19 +561,9 @@ async function performSearch() {
   try {
     var res;
     // إذا كانت جميع حقول البحث فارغة، نجلب كل البيانات من جدول "السجل اليومي"
-    if (kw === "" && sd === "" && ed === "") {
-      res = await callApi("getAAAData");
-      if (res.success && res.data && res.data.length > 1) {
-        // تحويل البيانات إلى نفس تنسيق البحث (رأس + صفوف)
-        var dataForDisplay = { data: res.data };
-        displaySearchResults(dataForDisplay, tbl);
-      } else {
-        tbl.innerHTML = "<tr><td style='text-align:center'>لا توجد بيانات<\/td></tr>";
-      }
-    } else {
-      res = await callApi("searchInTreatmentSheet", { keyword: kw, startDate: sd, endDate: ed });
-      displaySearchResults(res, tbl);
-    }
+    // استخدام نفس دالة البحث في جميع الحالات (مع أو بدون فلاتر)
+    res = await callApi("searchInTreatmentSheet", { keyword: kw, startDate: sd, endDate: ed });
+    displaySearchResults(res, tbl);
   } catch (err) {
     tbl.innerHTML = "<tr><td style='color:red'>خطأ: " + err.message + "<\/td></tr>";
     showMessage("خطأ: " + err.message, true);
@@ -681,7 +671,8 @@ document.getElementById("searchRecordBtn").onclick = function(){
   document.getElementById("searchEndDate").value = "";
   
   showOnlyCard("searchCard"); 
-  performSearch(); 
+  // لا نستدعي performSearch تلقائياً - ننتظر المستخدم يدخل كلمة بحث أو تاريخ
+  document.getElementById("searchTable").innerHTML = "<tr><td style='text-align:center;padding:20px;color:#666'>📝 أدخل كلمة بحث أو حدد نطاق تاريخ لعرض النتائج</td></tr>";
 };
   document.getElementById("backToMainBtn").onclick = showAllCards;
   var searchTimeout;
