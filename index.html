@@ -150,7 +150,7 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
       <input list="treatmentPlaceList" id="treatmentPlace" placeholder="اختر مكان العلاج">
       <datalist id="treatmentPlaceList"><option>في العيادة</option><option>خارج العيادة</option><option>وصف علاج</option><option>متنقلة</option></datalist>
       <h3>التاريخ</h3>
-      <div class="row"><input type="date" id="financialDate"></div>
+    <input type="date" id="financialDate" style="text-align:center; width:250px; margin-top: 8px; margin-bottom: 8px;">
       <h3>مدخل البيانات</h3>
       <input list="dataEntryList" id="dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="dataEntryList"></datalist>
     </div>
@@ -505,7 +505,7 @@ async function searchCase() {
 async function tempSave() {
   var data = collectFormData();
   if(!data.phone.trim()) { showMessage("❌ رقم الهاتف مطلوب", true); return; }
-  if(!data.dataEntry.trim()) { showMessage("❌ مدخل البيانات مطلوب", true); return; }
+  if(!data.dataEntry.trim()) { showMessage("❌  مطلوب", true); return; }
   try {
     var res = await callApi("saveTempData", { data: data });
     if(res.success) { showMessage(res.message, false); clearForm(); loadData(); }
@@ -517,7 +517,7 @@ async function tempUpdate() {
   var data = collectFormData();
   if(!data.caseNumber.trim()) { showMessage("❌ رقم الحالة مطلوب", true); return; }
   if(!data.phone.trim()) { showMessage("❌ رقم الهاتف مطلوب", true); return; }
-  if(!data.dataUpdater.trim()) { showMessage("❌ مدخل البيانات مطلوب", true); return; }
+  if(!data.dataUpdater.trim()) { showMessage("❌  مطلوب", true); return; }
   try {
     var res = await callApi("updateTempData", { data: data });
     if(res.success) { showMessage(res.message, false); clearForm(); loadData(); }
