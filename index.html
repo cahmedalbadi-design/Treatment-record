@@ -556,24 +556,46 @@ async function checkReceipt() {
 async function performSearch() {
   var kw = getValue("searchKeyword"), sd = getValue("searchStartDate"), ed = getValue("searchEndDate");
   var tbl = document.getElementById("searchTable");
-  tbl.innerHTML = "<tr><td style='text-align:center'>⏳ جاري جلب البيانات، انتظر قليلاً...<\/td></td>";
+  tbl.innerHTML = "<tr><td style='text-align:center'>⏳ جاري جلب البيانات، انتظر قليلاً...<\/td></tr>";
+
   try {
-    var res = await callApi("searchInTreatmentSheet", { keyword:kw, startDate:sd, endDate:ed });
-    tbl.innerHTML = "";
-    if(!res.success || !res.data || res.data.length <= 1) {
-      tbl.innerHTML = "<tr><td style='text-align:center'>لا توجد نتائج<\/td></tr>";
-      return;
+    var res;
+    // إذا كانت جميع حقول البحث فارغة، نجلب كل البيانات من جدول "السجل اليومي"
+    if (kw === "" && sd === "" && ed === "") {
+      res = await callApi("getAAAData");
+      if (res.success && res.data && res.data.length > 1) {
+        // تحويل البيانات إلى نفس تنسيق البحث (رأس + صفوف)
+        var dataForDisplay = { data: res.data };
+        displaySearchResults(dataForDisplay, tbl);
+      } else {
+        tbl.innerHTML = "<tr><td style='text-align:center'>لا توجد بيانات<\/td></tr>";
+      }
+    } else {
+      res = await callApi("searchInTreatmentSheet", { keyword: kw, startDate: sd, endDate: ed });
+      displaySearchResults(res, tbl);
     }
-    var h = "<thead><tr>";
-    res.data[0].forEach(function(c){ h+="<th>"+c+"</th>"; });
-    h += "<\/thead>";
-    var b = "<tbody>";
-    for(var i=1;i<res.data.length;i++) { b+="<tr>"; res.data[i].forEach(function(c){ b+="<td>"+(c||"")+"<\/td>"; }); b+="<\/tr>"; }
-    tbl.innerHTML = h + b + "<\/tbody>";
-  } catch(err) {
-    tbl.innerHTML = "<td><td style='color:red'>خطأ: " + err.message + "<\/td></tr>";
+  } catch (err) {
+    tbl.innerHTML = "<tr><td style='color:red'>خطأ: " + err.message + "<\/td></tr>";
     showMessage("خطأ: " + err.message, true);
   }
+}
+
+// دالة مساعدة لعرض النتائج
+function displaySearchResults(res, tbl) {
+  if (!res.success || !res.data || res.data.length <= 1) {
+    tbl.innerHTML = "<tr><td style='text-align:center'>لا توجد نتائج<\/td></tr>";
+    return;
+  }
+  var h = "<thead><tr>";
+  res.data[0].forEach(function (c) { h += "<th>" + c + "</th>"; });
+  h += "<\/thead><tbody>";
+  var b = "";
+  for (var i = 1; i < res.data.length; i++) {
+    b += "<tr>";
+    res.data[i].forEach(function (c) { b += "<td>" + (c || "") + "<\/td>"; });
+    b += "<\/tr>";
+  }
+  tbl.innerHTML = h + b + "<\/tbody>";
 }
 
 // ===== Animals Report =====
