@@ -570,14 +570,25 @@ async function performSearch() {
 // ===== Animals Report =====
 async function loadAnimalsReport() {
   var start = getValue("animalsStartDate"), end = getValue("animalsEndDate");
+  var tbl = document.getElementById("animalsReportTable");
+  tbl.innerHTML = "<tr><td style='text-align:center'>⏳ جاري جلب البيانات، انتظر قليلاً...</td></tr>";
   try {
     var res = await callApi("getAnimalsReport", { startDate:start, endDate:end });
-    var tbl = document.getElementById("animalsReportTable"); tbl.innerHTML = "";
-    if(!res.success || !res.data || res.data.length === 0) { tbl.innerHTML = "<tr><td>لا توجد بيانات</td></tr>"; return; }
-    var html = "<thead><tr>"; res.data[0].forEach(function(h){ html+="<th>"+h+"</th>"; }); html+="</tr></thead>";
-    html += "<tbody><tr>"; res.data[1].forEach(function(v){ html+="<td>"+v+"</td>"; }); html+="</tr></tbody>";
+    tbl.innerHTML = "";
+    if(!res.success || !res.data || res.data.length === 0) {
+      tbl.innerHTML = "<tr><td>لا توجد بيانات</td></tr>";
+      return;
+    }
+    var html = "<thead><tr>";
+    res.data[0].forEach(function(h){ html+="<th>"+h+"</th>"; });
+    html+="</tr></thead><tbody><tr>";
+    res.data[1].forEach(function(v){ html+="<td>"+v+"</td>"; });
+    html+="</tr></tbody>";
     tbl.innerHTML = html;
-  } catch(err) { showMessage("خطأ: " + err.message, true); }
+  } catch(err) {
+    tbl.innerHTML = "<tr><td style='color:red'>خطأ: " + err.message + "</td></tr>";
+    showMessage("خطأ: " + err.message, true);
+  }
 }
 
 // ===== Show/Hide Cards =====
