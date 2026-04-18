@@ -575,9 +575,7 @@ async function performSearch() {
     showMessage("خطأ: " + err.message, true);
   }
 }
-  document.getElementById("searchKeyword").value = "";
-document.getElementById("searchStartDate").value = "";
-document.getElementById("searchEndDate").value = "";
+
 // ===== Animals Report =====
 async function loadAnimalsReport() {
   var start = getValue("animalsStartDate"), end = getValue("animalsEndDate");
