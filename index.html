@@ -555,18 +555,29 @@ async function checkReceipt() {
 // ===== Search in treatment records =====
 async function performSearch() {
   var kw = getValue("searchKeyword"), sd = getValue("searchStartDate"), ed = getValue("searchEndDate");
-  if(!kw && !sd && !ed) { document.getElementById("searchTable").innerHTML = ""; return; }
+  var tbl = document.getElementById("searchTable");
+  tbl.innerHTML = "<tr><td style='text-align:center'>⏳ جاري جلب البيانات، انتظر قليلاً...<\/td></td>";
   try {
     var res = await callApi("searchInTreatmentSheet", { keyword:kw, startDate:sd, endDate:ed });
-    var tbl = document.getElementById("searchTable"); tbl.innerHTML = "";
-    if(!res.success || !res.data || res.data.length <= 1) { tbl.innerHTML = "<tr><td>لا توجد نتائج</td></tr>"; return; }
-    var h = "<thead><tr>"; res.data[0].forEach(function(c){ h+="<th>"+c+"</th>"; }); h += "</tr></thead>";
+    tbl.innerHTML = "";
+    if(!res.success || !res.data || res.data.length <= 1) {
+      tbl.innerHTML = "<tr><td style='text-align:center'>لا توجد نتائج<\/td></tr>";
+      return;
+    }
+    var h = "<thead><tr>";
+    res.data[0].forEach(function(c){ h+="<th>"+c+"</th>"; });
+    h += "<\/thead>";
     var b = "<tbody>";
-    for(var i=1;i<res.data.length;i++) { b+="<tr>"; res.data[i].forEach(function(c){ b+="<td>"+(c||"")+"</td>"; }); b+="</tr>"; }
-    tbl.innerHTML = h + b + "</tbody>";
-  } catch(err) { showMessage("خطأ في البحث: " + err.message, true); }
+    for(var i=1;i<res.data.length;i++) { b+="<tr>"; res.data[i].forEach(function(c){ b+="<td>"+(c||"")+"<\/td>"; }); b+="<\/tr>"; }
+    tbl.innerHTML = h + b + "<\/tbody>";
+  } catch(err) {
+    tbl.innerHTML = "<td><td style='color:red'>خطأ: " + err.message + "<\/td></tr>";
+    showMessage("خطأ: " + err.message, true);
+  }
 }
-
+  document.getElementById("searchKeyword").value = "";
+document.getElementById("searchStartDate").value = "";
+document.getElementById("searchEndDate").value = "";
 // ===== Animals Report =====
 async function loadAnimalsReport() {
   var start = getValue("animalsStartDate"), end = getValue("animalsEndDate");
@@ -643,7 +654,15 @@ function bindEvents() {
   });
 
   // Search card
-  document.getElementById("searchRecordBtn").onclick = function(){ showOnlyCard("searchCard"); };
+document.getElementById("searchRecordBtn").onclick = function(){ 
+  // مسح الحقول السابقة
+  document.getElementById("searchKeyword").value = "";
+  document.getElementById("searchStartDate").value = "";
+  document.getElementById("searchEndDate").value = "";
+  
+  showOnlyCard("searchCard"); 
+  performSearch(); 
+};
   document.getElementById("backToMainBtn").onclick = showAllCards;
   var searchTimeout;
   document.getElementById("searchKeyword").addEventListener("input", function(){ clearTimeout(searchTimeout); searchTimeout=setTimeout(performSearch,400); });
