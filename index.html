@@ -254,6 +254,38 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
 var API_URL = "https://script.google.com/macros/s/AKfycbx8Mi4YJhzgYpAWj4o8ityyfInYhMA5RpEHB5UOLGoqDHsa2lNWPeAKjzWm4OPgGHTrlQ/exec";
 document.getElementById("setupOverlay").style.display = "none";
 
+
+// التحقق من وجود رقم الهاتف في السجل العلاجي
+async function trcheckPhoneInRecords(phone) {
+  if (!phone || phone.trim() === "") return;
+  try {
+    var res = await trcallApi("trcheckPhoneExistence", { phone: phone });
+    if (res.success && res.count > 0) {
+      trshowMessage("📞 رقم الهاتف موجود في السجل العلاجي (" + res.count + " حالة)", false);
+    } else if (res.success && res.count === 0) {
+      // لا حاجة لعرض رسالة في حالة عدم الوجود
+    } else {
+      // إذا لم تكن الخدمة متاحة، نحاول البحث باستخدام واجهة البحث العامة (تراجع)
+      trfallbackPhoneCheck(phone);
+    }
+  } catch(err) {
+    // في حالة فشل API، نستخدم طريقة بديلة
+    trfallbackPhoneCheck(phone);
+  }
+}
+
+// طريقة بديلة: استخدام البحث العام في السجل (قد يكون بطيئاً لكنه يعمل)
+async function trfallbackPhoneCheck(phone) {
+  try {
+    var res = await trcallApi("trsearchInTreatmentSheet", { keyword: phone, startDate: "", endDate: "" });
+    if (res.success && res.data && res.data.length > 1) {
+      var count = res.data.length - 1; // ناقص صف العناوين
+      trshowMessage("📞 رقم الهاتف موجود في السجل العلاجي (" + count + " حالة)", false);
+    }
+  } catch(e) { /* تجاهل */ }
+}
+
+  
 async function trcallApi(action, payload) {
   if (!API_URL) throw new Error("رابط الخدمة غير مُعدّ");
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
@@ -333,7 +365,11 @@ function trsetSpecialNote(val) {
 // ===== Fetch breeder =====
 async function trfetchBreederData(phone) {
   var ids = ["nameInput","possessionInput","regionInput","civilInput","quickNotesInput"];
-  if (!phone) { ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.value="";el.classList.remove("warning-expired");} }); _expiredWarning=null; trsetSpecialNote(""); return; }
+  if (!phone) { 
+    ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.value="";el.classList.remove("warning-expired");} }); 
+    _expiredWarning=null; trsetSpecialNote(""); 
+    return; 
+  }
   try {
     var res = await trcallApi("trgetBreederData", { phone: phone });
     if (res.success && res.data && res.data.length > 0) {
@@ -344,14 +380,19 @@ async function trfetchBreederData(phone) {
       _expiredWarning=null; trsetSpecialNote("");
       trshowMessage("لم يتم العثور على بيانات لهذا الرقم", true);
     }
-    // Unpaid cases
+    // جلب عدد الحالات غير المسددة (كما هو موجود)
     var ucRes = await trcallApi("trgetUnpaidCasesCount", { phone: phone });
     if (ucRes.success && ucRes.count > 0) {
       trsetSpecialNote("⛔ تم علاج " + ucRes.count + " حالات لهذا المربي دون وجود حيازة حيوانية.");
     } else trsetSpecialNote("");
-  } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-}
 
+    // === إضافة التحقق من وجود الرقم في السجل العلاجي ===
+    await trcheckPhoneInRecords(phone);
+
+  } catch(err) { 
+    trshowMessage("خطأ: " + err.message, true); 
+  }
+}
 // ===== Fill / Clear / Collect =====
 function trfillFormWithData(data) {
   try {
