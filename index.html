@@ -254,7 +254,17 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
 var API_URL = "https://script.google.com/macros/s/AKfycbyENHgV--Hxq3OnNFK4XKjoOLDpxZubSYk_LBXgRvWBn5UClYdaMu4UY8rsQPMz6D6nUw/exec";
 document.getElementById("setupOverlay").style.display = "none";
 
-
+// ===== Block/Unblock All Buttons =====
+function trblockButtons() {
+  document.querySelectorAll("button").forEach(function(btn) {
+    btn.disabled = true;
+  });
+}
+function trunblockButtons() {
+  document.querySelectorAll("button").forEach(function(btn) {
+    btn.disabled = false;
+  });
+}
 // التحقق من وجود رقم الهاتف في السجل اليومي (الجدول المعروض)
 function trcheckPhoneInRecords(phone) {
   _phoneNote = "";
