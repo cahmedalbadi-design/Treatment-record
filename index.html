@@ -27,6 +27,13 @@ href="data:image/svg+xml;utf8,
 #amount {
   margin-bottom: 18px;
 }
+#searchCard.active-view,
+#animalsReportCard.active-view {
+  display: flex !important;
+  grid-column: 1 / -1;
+}
+
+  
 *{box-sizing:border-box}
 body{font-family:Tahoma,Arial;margin:0;padding:10px;background:#d9d9d9;direction:rtl}
 
@@ -730,25 +737,24 @@ async function trloadAnimalsReport() {
 
 // ===== Show/Hide Cards =====
 function trshowOnlyCard(id) {
-  // إخفاء جميع البطاقات
   document.querySelectorAll(".right-panel .card").forEach(function(c) {
     c.style.display = "none";
+    c.classList.remove("active-view");
   });
-  
-  // إظهار البطاقة المطلوبة بعرض كامل
   var card = document.getElementById(id);
-  if (card) {
-    card.style.display = "flex";
-    card.style.gridColumn = "1 / -1"; // امتداد على كل الأعمدة
-  }
+  if (card) card.classList.add("active-view");
 }
+
 function trshowAllCards() {
   document.querySelectorAll(".right-panel .card").forEach(function(c) {
+    c.classList.remove("active-view");
     if (c.id !== "searchCard" && c.id !== "animalsReportCard") {
       c.style.display = "flex";
-      c.style.gridColumn = ""; // إعادة القيمة الافتراضية
+    } else {
+      c.style.display = "none";
     }
   });
+}
   
   var searchCard = document.getElementById("searchCard");
   var animalsCard = document.getElementById("animalsReportCard");
