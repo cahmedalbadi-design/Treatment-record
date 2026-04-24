@@ -2,7 +2,17 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml"
+href="data:image/svg+xml;utf8,
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+  <rect width='100' height='100' fill='%2300b8d9' rx='20'/>
+  <path d='M50 20 L50 80 M20 50 L80 50'
+        stroke='white'
+        stroke-width='12'
+        stroke-linecap='round'/>
+</svg>">
+
+<!-- Title -->
 <title>سجل العلاج</title>
 <style>
 /* التحكم في حقل التاريخ داخل البطاقة */
@@ -123,7 +133,6 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
   <button type="button" id="topAlertBadge" title="انقر لعرض التنبيهات">
     <span class="badge-icon">⚠️</span><span id="topAlertText">تنبيه</span>
   </button>
-  <div><button onclick="trchangeApiUrl()" style="background:#7f8c8d;color:#fff;padding:4px 10px;font-size:11px;">⚙️ الرابط</button></div>
 </div>
 
 <div class="main-container">
@@ -244,19 +253,6 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
 // ===== API Setup =====
 var API_URL = "https://script.google.com/macros/s/AKfycbx8Mi4YJhzgYpAWj4o8ityyfInYhMA5RpEHB5UOLGoqDHsa2lNWPeAKjzWm4OPgGHTrlQ/exec";
 document.getElementById("setupOverlay").style.display = "none";
-
-function trsaveApiUrl() {
-  var url = document.getElementById("apiUrlInput").value.trim();
-  if (!url) { alert("الرجاء إدخال الرابط"); return; }
-  localStorage.setItem("treatment_api_url", url);
-  API_URL = url;
-  document.getElementById("setupOverlay").style.display = "none";
-  trinit();
-}
-function trchangeApiUrl() {
-  document.getElementById("apiUrlInput").value = API_URL;
-  document.getElementById("setupOverlay").style.display = "flex";
-}
 
 async function trcallApi(action, payload) {
   if (!API_URL) throw new Error("رابط الخدمة غير مُعدّ");
