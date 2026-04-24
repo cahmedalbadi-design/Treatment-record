@@ -433,10 +433,12 @@ function trsetSpecialNote(val) {
 
 // ===== Fetch breeder =====
 async function trfetchBreederData(phone) {
+  trblockButtons();
   var ids = ["nameInput","possessionInput","regionInput","civilInput","quickNotesInput"];
   if (!phone) { 
     ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.value="";el.classList.remove("warning-expired");} }); 
     _expiredWarning=null; trsetSpecialNote(""); 
+    trunblockButtons();
     return; 
   }
   try {
@@ -458,6 +460,8 @@ async function trfetchBreederData(phone) {
     trcheckPhoneInRecords(phone);
   } catch(err) { 
     trshowMessage("خطأ: " + err.message, true); 
+  } finally {
+    trunblockButtons();
   }
 }
 // ===== Fill / Clear / Collect =====
@@ -567,6 +571,7 @@ function trupdateMirrorCaseNumber() { var v=trgetValue("caseNumber"); if(v) docu
 
 // ===== Load daily table =====
 async function trloadData() {
+  trblockButtons();
   try {
     var res = await trcallApi("trgetAAAData");
     var tbl = document.getElementById("dataTable"); tbl.innerHTML = "";
@@ -584,10 +589,12 @@ async function trloadData() {
     b += "</tbody>";
     tbl.innerHTML = h + b;
   } catch(err) { trshowMessage("خطأ في تحميل الجدول: " + err.message, true); }
+  finally { trunblockButtons(); }
 }
 
 // ===== Load dropdowns =====
 async function trloadDropdowns() {
+  trblockButtons();
   try {
     var results = await Promise.all([
       trcallApi("trgetPhoneNumbers"), trcallApi("trgetDiseases"), trcallApi("trgetDrugs"), trcallApi("trgetDataEntryOptions")
@@ -604,11 +611,13 @@ async function trloadDropdowns() {
       fillDL("dataUpdaterList", results[3].data);
     }
   } catch(err) { trshowMessage("خطأ في تحميل القوائم: " + err.message, true); }
+  finally { trunblockButtons(); }
 }
 
 // ===== CRUD =====
 async function trsaveData() {
   trshowConfirm("هل تريد حفظ البيانات؟", async function() {
+    trblockButtons();
     trshowMessage("⏳ جاري حفظ البيانات...", false);
     var data = trcollectFormData();
     var btn = document.getElementById("saveBtn"), orig = btn.textContent;
@@ -618,13 +627,14 @@ async function trsaveData() {
       if(res.success) { trshowMessage("✅ تم الحفظ بنجاح", false); trclearForm(); trloadData(); }
       else trshowMessage(res.message, true);
     } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-    finally { btn.textContent = orig; btn.disabled = false; }
+    finally { btn.textContent = orig; trunblockButtons(); }
   });
 }
 
 async function trupdateData() {
   if(!trgetValue("caseNumber")) { trshowMessage("الرجاء إدخال رقم الحالة", true); return; }
   trshowConfirm("هل تريد تحديث البيانات؟", async function() {
+    trblockButtons();
     trshowMessage("⏳ جاري تحديث البيانات...", false);
     var data = trcollectFormData();
     var btn = document.getElementById("updateBtn"), orig = btn.textContent;
@@ -634,13 +644,14 @@ async function trupdateData() {
       if(res.success) { trshowMessage("✅ تم التحديث بنجاح", false); trclearForm(); trloadData(); }
       else trshowMessage(res.message, true);
     } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-    finally { btn.textContent = orig; btn.disabled = false; }
+    finally { btn.textContent = orig; trunblockButtons(); }
   });
 }
 async function trdeleteCase() {
   var cn = trgetValue("caseNumber");
   if(!cn) { trshowMessage("الرجاء إدخال رقم الحالة", true); return; }
   trshowConfirm("هل أنت متأكد من حذف الحالة " + cn + "؟", async function() {
+    trblockButtons();
     trshowMessage("⏳ جاري حذف البيانات...", false);
     var btn = document.getElementById("deleteBtn"), orig = btn.textContent;
     btn.textContent = "جاري الحذف..."; btn.disabled = true;
@@ -649,18 +660,20 @@ async function trdeleteCase() {
       if(res.success) { trshowMessage("✅ تم الحذف بنجاح", false); trclearForm(); trloadData(); }
       else trshowMessage(res.message, true);
     } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-    finally { btn.textContent = orig; btn.disabled = false; }
+    finally { btn.textContent = orig; trunblockButtons(); }
   });
 }
 async function trsearchCase() {
   var cn = trgetValue("caseNumber");
   if(!cn) { trshowMessage("الرجاء إدخال رقم الحالة", true); return; }
+  trblockButtons();
   trshowMessage("⏳ جاري الجلب...", false);
   try {
     var res = await trcallApi("trsearchCaseData", { caseNumber: cn });
     if(res.success) { trfillFormWithData(res); trloadData(); trshowMessage("✅ تم التحميل بنجاح", false); }
     else trshowMessage(res.message, true);
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
+  finally { trunblockButtons(); }
 }
 
 // Temp save/update
@@ -668,6 +681,7 @@ async function trtempSave() {
   var data = trcollectFormData();
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
   if(!data.dataEntry.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
+  trblockButtons();
   trshowMessage("⏳ جاري حفظ البيانات مؤقتاً...", false);
   var btn = document.getElementById("tempSaveBtn"), orig = btn.textContent;
   btn.textContent = "جاري الحفظ..."; btn.disabled = true;
@@ -676,7 +690,7 @@ async function trtempSave() {
     if(res.success) { trshowMessage(res.message, false); trclearForm(); trloadData(); }
     else trshowMessage(res.message, true);
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-  finally { btn.textContent = orig; btn.disabled = false; }
+  finally { btn.textContent = orig; trunblockButtons(); }
 }
 
 async function trtempUpdate() {
@@ -684,6 +698,7 @@ async function trtempUpdate() {
   if(!data.caseNumber.trim()) { trshowMessage("❌ رقم الحالة مطلوب", true); return; }
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
   if(!data.dataUpdater.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
+  trblockButtons();
   trshowMessage("⏳ جاري تحديث البيانات مؤقتاً...", false);
   var btn = document.getElementById("tempUpdateBtn"), orig = btn.textContent;
   btn.textContent = "جاري التحديث..."; btn.disabled = true;
@@ -692,12 +707,13 @@ async function trtempUpdate() {
     if(res.success) { trshowMessage(res.message, false); trclearForm(); trloadData(); }
     else trshowMessage(res.message, true);
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-  finally { btn.textContent = orig; btn.disabled = false; }
+  finally { btn.textContent = orig; trunblockButtons(); }
 }
 
 // Receipt check
 async function trcheckReceipt() {
   var rn = trgetValue("receipt"); if(!rn) return;
+  trblockButtons();
   try {
     var res = await trcallApi("trcheckReceiptNumber", { receiptNumber: rn });
     if(res.exists) {
@@ -707,12 +723,14 @@ async function trcheckReceipt() {
       setTimeout(function(){ el.style.backgroundColor=""; el.style.border=""; }, 5000);
     }
   } catch(err) {}
+  finally { trunblockButtons(); }
 }
 
 // ===== Search in treatment records =====
 async function trperformSearch() {
   var kw = trgetValue("searchKeyword"), sd = trgetValue("searchStartDate"), ed = trgetValue("searchEndDate");
   if(!kw && !sd && !ed) { document.getElementById("searchTable").innerHTML = ""; return; }
+  trblockButtons();
   try {
     var res = await trcallApi("trsearchInTreatmentSheet", { keyword:kw, startDate:sd, endDate:ed });
     var tbl = document.getElementById("searchTable"); tbl.innerHTML = "";
@@ -729,10 +747,12 @@ async function trperformSearch() {
     b += "</tbody>";
     tbl.innerHTML = h + b;
   } catch(err) { trshowMessage("خطأ في البحث: " + err.message, true); }
+  finally { trunblockButtons(); }
 }
 
 // ===== Animals Report =====
 async function trloadAnimalsReport() {
+  trblockButtons();
   var start = trgetValue("animalsStartDate"), end = trgetValue("animalsEndDate");
   try {
     var res = await trcallApi("trgetAnimalsReport", { startDate:start, endDate:end });
@@ -746,6 +766,7 @@ async function trloadAnimalsReport() {
     html += "</tr></tbody>";
     tbl.innerHTML = html;
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
+  finally { trunblockButtons(); }
 }
 
 // ===== Show/Hide Cards =====
@@ -817,6 +838,7 @@ function trbindEvents() {
     var cell = row.cells[0]; if(!cell) return;
     var cn = cell.textContent.trim(); if(!cn) return;
     
+    trblockButtons();
     trclearFormExcept(null);
     document.getElementById("caseNumber").value = cn;
     trupdateMirrorCaseNumber();
@@ -833,6 +855,9 @@ function trbindEvents() {
       }
     } catch(err) { 
       trshowMessage("خطأ: " + err.message, true); 
+    }
+    finally {
+      trunblockButtons();
     }
   });
 
