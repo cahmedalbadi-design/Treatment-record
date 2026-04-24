@@ -503,7 +503,50 @@ function trclearForm() {
   _phoneNote = "";
 trrefreshTopBadge();
 }
-
+// تفريغ كل الحقول ما عدا الحقل المُحدَّد (لتجهيز الاستقبال)
+function trclearFormExcept(exceptId) {
+  var fieldsToClear = [
+    "caseNumber", "mirrorCaseNumber", "dataUpdaterInput",
+    "phoneInput", "nameInput", "possessionInput", "regionInput", 
+    "civilInput", "quickNotesInput", "specialNotesInput",
+    "treatmentPlace", "notes", "dataEntryInput", 
+    "receipt", "amount", "financialDate",
+    "animal_goat", "animal_sheep", "animal_cow", "animal_camel",
+    "animal_horse", "animal_cat", "animal_dog", "animal_poultry"
+  ];
+  
+  fieldsToClear.forEach(function(id) {
+    if (id === exceptId) return;
+    var el = document.getElementById(id);
+    if (el) {
+      el.value = "";
+      el.classList.remove("warning-expired");
+    }
+  });
+  
+  // تفريغ صفوف التشخيص
+  document.querySelectorAll(".diagnosis-row").forEach(function(r) {
+    r.querySelectorAll("input").forEach(function(i) { i.value = ""; });
+  });
+  
+  // تفريغ صفوف الأدوية
+  document.querySelectorAll(".drug-row").forEach(function(r) {
+    var di = r.querySelector(".drug-input"), qi = r.querySelector(".drug-qty");
+    if (di) di.value = "";
+    if (qi) qi.value = "";
+  });
+  
+  // إعادة تعيين التاريخ لليوم الحالي
+  if (exceptId !== "financialDate") {
+    document.getElementById("financialDate").value = new Date().toLocaleDateString("en-CA");
+  }
+  
+  // مسح التنبيهات
+  _expiredWarning = null;
+  _specialNote = "";
+  _phoneNote = "";
+  trrefreshTopBadge();
+}
 function trcollectFormData() {
   var data = {
     caseNumber:trgetValue("caseNumber"), mirrorCaseNumber:trgetValue("mirrorCaseNumber"),
@@ -709,32 +752,51 @@ function trbindEvents() {
   document.getElementById("tempUpdateBtn").onclick = trtempUpdate;
   document.getElementById("receipt").addEventListener("blur", trcheckReceipt);
 
-  document.getElementById("phoneInput").addEventListener("change", function() {
-    trshowMessage("⏳ جاري جلب بيانات المربي...", false);
-    trfetchBreederData(this.value.trim());
-  });
+document.getElementById("phoneInput").addEventListener("change", function() {
+  var phoneValue = this.value.trim();
+  trclearFormExcept("phoneInput");
+  this.value = phoneValue; // الاحتفاظ بقيمة الهاتف
+  if (!phoneValue) return;
+  trshowMessage("⏳ جاري جلب بيانات المربي...", false);
+  trfetchBreederData(phoneValue);
+});
 
-  document.getElementById("caseNumber").addEventListener("input", trupdateMirrorCaseNumber);
-  document.getElementById("caseNumber").addEventListener("change", function() {
-    trupdateMirrorCaseNumber();
-    var cn = this.value.trim(); if(!cn) return;
-    trshowMessage("⏳ جاري الجلب...", false);
-    trsearchCase();
-  });
+document.getElementById("caseNumber").addEventListener("input", trupdateMirrorCaseNumber);
+document.getElementById("caseNumber").addEventListener("change", function() {
+  var cn = this.value.trim();
+  if (!cn) return;
+  trclearFormExcept("caseNumber");
+  this.value = cn; // الاحتفاظ برقم الحالة
+  trupdateMirrorCaseNumber();
+  trshowMessage("⏳ جاري الجلب...", false);
+  trsearchCase();
+});
 
   // Daily table row click
-  document.getElementById("dataTable").addEventListener("click", async function(e) {
-    var row = e.target.closest("tr"); if(!row) return;
-    var cell = row.cells[0]; if(!cell) return;
-    var cn = cell.textContent.trim(); if(!cn) return;
-    document.getElementById("caseNumber").value = cn;
-    trshowMessage("⏳ جاري الجلب...", false);
-    try {
-      var res = await trcallApi("trsearchCaseData", { caseNumber: cn });
-      if(res.success) { trfillFormWithData(res); trloadData(); trshowMessage("✅ تم التحميل", false); }
-      else trshowMessage(res.message, true);
-    } catch(err) { trshowMessage("خطأ: " + err.message, true); }
-  });
+document.getElementById("dataTable").addEventListener("click", async function(e) {
+  var row = e.target.closest("tr"); if(!row) return;
+  var cell = row.cells[0]; if(!cell) return;
+  var cn = cell.textContent.trim(); if(!cn) return;
+  
+  // تفريغ جميع الحقول أولاً
+  trclearFormExcept(null);
+  document.getElementById("caseNumber").value = cn;
+  trupdateMirrorCaseNumber();
+  
+  trshowMessage("⏳ جاري الجلب...", false);
+  try {
+    var res = await trcallApi("trsearchCaseData", { caseNumber: cn });
+    if(res.success) { 
+      trfillFormWithData(res); 
+      trloadData(); 
+      trshowMessage("✅ تم التحميل", false); 
+    } else {
+      trshowMessage(res.message, true);
+    }
+  } catch(err) { 
+    trshowMessage("خطأ: " + err.message, true); 
+  }
+});
 
   // Search card
   document.getElementById("searchRecordBtn").onclick = function(){ trshowOnlyCard("searchCard"); };
