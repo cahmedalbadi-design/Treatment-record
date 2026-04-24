@@ -355,19 +355,68 @@ function trcheckQuickNotesDate(dateStr) {
   var field = document.getElementById("quickNotesInput");
   if (field) field.classList.remove("warning-expired");
   _expiredWarning = null;
-  if (!dateStr || dateStr.trim() === "") { trrefreshTopBadge(); return; }
-  var parts = dateStr.trim().split("/");
-  if (parts.length !== 3) { trrefreshTopBadge(); return; }
-  var expireDate = new Date(parseInt(parts[2],10), parseInt(parts[1],10)-1, parseInt(parts[0],10));
-  if (isNaN(expireDate.getTime())) { trrefreshTopBadge(); return; }
-  var today = new Date(); today.setHours(0,0,0,0);
+  
+  if (!dateStr || dateStr.toString().trim() === "") { 
+    trrefreshTopBadge(); 
+    return; 
+  }
+  
+  var cleanStr = dateStr.toString().trim();
+  var expireDate = null;
+  
+  // محاولة 1: صيغة DD/MM/YYYY
+  if (cleanStr.indexOf("/") > -1) {
+    var parts = cleanStr.split("/");
+    if (parts.length === 3) {
+      var day = parseInt(parts[0], 10);
+      var month = parseInt(parts[1], 10);
+      var year = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        expireDate = new Date(year, month - 1, day);
+      }
+    }
+  }
+  // محاولة 2: صيغة YYYY-MM-DD
+  else if (cleanStr.indexOf("-") > -1) {
+    var parts2 = cleanStr.split("-");
+    if (parts2.length === 3) {
+      // تمييز بين YYYY-MM-DD و DD-MM-YYYY
+      if (parts2[0].length === 4) {
+        expireDate = new Date(parseInt(parts2[0],10), parseInt(parts2[1],10)-1, parseInt(parts2[2],10));
+      } else {
+        expireDate = new Date(parseInt(parts2[2],10), parseInt(parts2[1],10)-1, parseInt(parts2[0],10));
+      }
+    }
+  }
+  // محاولة 3: تاريخ JavaScript عادي
+  else {
+    var parsed = new Date(cleanStr);
+    if (!isNaN(parsed.getTime())) expireDate = parsed;
+  }
+  
+  if (!expireDate || isNaN(expireDate.getTime())) { 
+    console.warn("تعذر قراءة تاريخ الحيازة:", cleanStr);
+    trrefreshTopBadge(); 
+    return; 
+  }
+  
+  expireDate.setHours(0, 0, 0, 0);
+  var today = new Date(); 
+  today.setHours(0, 0, 0, 0);
+  
   var diffDays = Math.ceil((expireDate.getTime() - today.getTime()) / 86400000);
-if (diffDays < 0) {
+  
+  if (diffDays < 0) {
     if (field) field.classList.add("warning-expired");
     _expiredWarning = "⛔ تاريخ الحيازة منتهٍ منذ " + Math.abs(diffDays) + " يوم";
+  } else if (diffDays <= 30) {
+    // تنبيه إضافي: الحيازة ستنتهي قريباً
+    if (field) field.classList.add("warning-expired");
+    _expiredWarning = "⚠️ تاريخ الحيازة سينتهي خلال " + diffDays + " يوم";
   } else {
     _expiredWarning = null;
   }
+  
   trrefreshTopBadge();
 }
 
