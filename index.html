@@ -258,14 +258,14 @@ document.getElementById("setupOverlay").style.display = "none";
 // التحقق من وجود رقم الهاتف في السجل العلاجي
 async function trcheckPhoneInRecords(phone) {
   if (!phone || phone.trim() === "") {
-    _phoneNote = "";
+    _phoneNote = "قام المربي بزيارة العيادة اليوم، وتم تقديم خدمة العلاج له.";
     trrefreshTopBadge();
     return;
   }
   try {
     var res = await trcallApi("trcheckPhoneExistence", { phone: phone });
     if (res.success && res.count > 0) {
-      _phoneNote = "📞 رقم الهاتف موجود في السجل العلاجي (" + res.count + " حالة)";
+      _phoneNote = "";
     } else if (res.success && res.count === 0) {
       _phoneNote = "";
     } else {
@@ -284,7 +284,7 @@ async function trfallbackPhoneCheck(phone) {
     var res = await trcallApi("trsearchInTreatmentSheet", { keyword: phone, startDate: "", endDate: "" });
     if (res.success && res.data && res.data.length > 1) {
       var count = res.data.length - 1;
-      _phoneNote = "📞 رقم الهاتف موجود في السجل العلاجي (" + count + " حالة)";
+      _phoneNote = "قام المربي بزيارة العيادة اليوم، وتم تقديم خدمة العلاج له.";
     } else {
       _phoneNote = "";
     }
