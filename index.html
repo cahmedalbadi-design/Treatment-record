@@ -730,15 +730,36 @@ async function trloadAnimalsReport() {
 
 // ===== Show/Hide Cards =====
 function trshowOnlyCard(id) {
-  document.querySelectorAll(".right-panel .card").forEach(function(c){ c.style.display="none"; });
-  document.getElementById(id).style.display = "block";
+  // إخفاء جميع البطاقات
+  document.querySelectorAll(".right-panel .card").forEach(function(c) {
+    c.style.display = "none";
+  });
+  
+  // إظهار البطاقة المطلوبة بعرض كامل
+  var card = document.getElementById(id);
+  if (card) {
+    card.style.display = "flex";
+    card.style.gridColumn = "1 / -1"; // امتداد على كل الأعمدة
+  }
 }
 function trshowAllCards() {
-  document.querySelectorAll(".right-panel .card").forEach(function(c){
-    if(c.id!=="searchCard" && c.id!=="animalsReportCard") c.style.display="flex";
+  document.querySelectorAll(".right-panel .card").forEach(function(c) {
+    if (c.id !== "searchCard" && c.id !== "animalsReportCard") {
+      c.style.display = "flex";
+      c.style.gridColumn = ""; // إعادة القيمة الافتراضية
+    }
   });
-  document.getElementById("searchCard").style.display = "none";
-  document.getElementById("animalsReportCard").style.display = "none";
+  
+  var searchCard = document.getElementById("searchCard");
+  var animalsCard = document.getElementById("animalsReportCard");
+  if (searchCard) {
+    searchCard.style.display = "none";
+    searchCard.style.gridColumn = "";
+  }
+  if (animalsCard) {
+    animalsCard.style.display = "none";
+    animalsCard.style.gridColumn = "";
+  }
 }
 
 // ===== Bind Events =====
