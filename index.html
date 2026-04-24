@@ -659,23 +659,30 @@ async function trtempSave() {
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
   if(!data.dataEntry.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
   trshowMessage("⏳ جاري حفظ البيانات مؤقتاً...", false);
+  var btn = document.getElementById("tempSaveBtn"), orig = btn.textContent;
+  btn.textContent = "جاري الحفظ..."; btn.disabled = true;
   try {
     var res = await trcallApi("trsaveTempData", { data: data });
     if(res.success) { trshowMessage(res.message, false); trclearForm(); trloadData(); }
     else trshowMessage(res.message, true);
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
+  finally { btn.textContent = orig; btn.disabled = false; }
 }
+
 async function trtempUpdate() {
   var data = trcollectFormData();
   if(!data.caseNumber.trim()) { trshowMessage("❌ رقم الحالة مطلوب", true); return; }
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
-  if(!data.dataUpdater.trim()) { trshowMessage("❌ مدخل البيانات(التحديث) مطلوب", true); return; }
+  if(!data.dataUpdater.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
   trshowMessage("⏳ جاري تحديث البيانات مؤقتاً...", false);
+  var btn = document.getElementById("tempUpdateBtn"), orig = btn.textContent;
+  btn.textContent = "جاري التحديث..."; btn.disabled = true;
   try {
     var res = await trcallApi("trupdateTempData", { data: data });
     if(res.success) { trshowMessage(res.message, false); trclearForm(); trloadData(); }
     else trshowMessage(res.message, true);
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
+  finally { btn.textContent = orig; btn.disabled = false; }
 }
 
 // Receipt check
