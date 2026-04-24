@@ -258,14 +258,14 @@ document.getElementById("setupOverlay").style.display = "none";
 // التحقق من وجود رقم الهاتف في السجل العلاجي
 async function trcheckPhoneInRecords(phone) {
   if (!phone || phone.trim() === "") {
-    _phoneNote = "قام المربي بزيارة العيادة اليوم، وتم تقديم خدمة العلاج له.";
+    _phoneNote = "";
     trrefreshTopBadge();
     return;
   }
   try {
     var res = await trcallApi("trcheckPhoneExistence", { phone: phone });
     if (res.success && res.count > 0) {
-      _phoneNote = "";
+      _phoneNote = "📞 رقم الهاتف موجود في السجل العلاجي (" + res.count + " حالة)";
     } else if (res.success && res.count === 0) {
       _phoneNote = "";
     } else {
@@ -284,7 +284,7 @@ async function trfallbackPhoneCheck(phone) {
     var res = await trcallApi("trsearchInTreatmentSheet", { keyword: phone, startDate: "", endDate: "" });
     if (res.success && res.data && res.data.length > 1) {
       var count = res.data.length - 1;
-      _phoneNote = "قام المربي بزيارة العيادة اليوم، وتم تقديم خدمة العلاج له.";
+      _phoneNote = "📞 رقم الهاتف موجود في السجل العلاجي (" + count + " حالة)";
     } else {
       _phoneNote = "";
     }
@@ -364,9 +364,11 @@ function trcheckQuickNotesDate(dateStr) {
   if (isNaN(expireDate.getTime())) { trrefreshTopBadge(); return; }
   var today = new Date(); today.setHours(0,0,0,0);
   var diffDays = Math.ceil((expireDate.getTime() - today.getTime()) / 86400000);
-  if (diffDays < 0) {
+if (diffDays < 0) {
     if (field) field.classList.add("warning-expired");
     _expiredWarning = "⛔ تاريخ الحيازة منتهٍ منذ " + Math.abs(diffDays) + " يوم";
+  } else {
+    _expiredWarning = null;
   }
   trrefreshTopBadge();
 }
