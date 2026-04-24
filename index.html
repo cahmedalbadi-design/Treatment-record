@@ -713,7 +713,6 @@ async function trtempUpdate() {
 // Receipt check
 async function trcheckReceipt() {
   var rn = trgetValue("receipt"); if(!rn) return;
-  trblockButtons();
   try {
     var res = await trcallApi("trcheckReceiptNumber", { receiptNumber: rn });
     if(res.exists) {
@@ -723,7 +722,6 @@ async function trcheckReceipt() {
       setTimeout(function(){ el.style.backgroundColor=""; el.style.border=""; }, 5000);
     }
   } catch(err) {}
-  finally { trunblockButtons(); }
 }
 
 // ===== Search in treatment records =====
