@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>سجل العلاج</title>
 <style>
+/* التحكم في حقل التاريخ داخل البطاقة */
+#financialDate {
+  display: block;
+  margin: 1px auto 12px auto;   /* أعلى 8px، سفلي 15px (زيادة المسافة) */
+  width: fit-content;           /* العرض حسب المحتوى */
+  min-width: 150px;             /* عرض مناسب للتاريخ */
+  text-align: center;
+}
+/* زيادة المسافة أسفل حقل المبلغ */
+#amount {
+  margin-bottom: 18px;
+}
 *{box-sizing:border-box}
 body{font-family:Tahoma,Arial;margin:0;padding:10px;background:#d9d9d9;direction:rtl}
 
@@ -100,7 +112,9 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
     <button onclick="trsaveApiUrl()">حفظ والمتابعة</button>
   </div>
 </div>
-
+<div id="loadingOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:10000;">
+  <div style="background:#fff; padding:20px; border-radius:8px; font-size:18px; font-weight:bold;">⏳ جاري تحميل الصفحة...</div>
+</div>
 <div class="top-bar">
   <div class="top-group">
     <label>🔍 إدخل رقم الحالة العلاجية</label>
@@ -228,8 +242,8 @@ input[readonly]{background-color:#f0f0f0;cursor:default}
 "use strict";
 
 // ===== API Setup =====
-var API_URL = localStorage.getItem("treatment_api_url") || "";
-if (!API_URL) document.getElementById("setupOverlay").style.display = "flex";
+var API_URL = "https://script.google.com/macros/s/AKfycbx8Mi4YJhzgYpAWj4o8ityyfInYhMA5RpEHB5UOLGoqDHsa2lNWPeAKjzWm4OPgGHTrlQ/exec";
+document.getElementById("setupOverlay").style.display = "none";
 
 function trsaveApiUrl() {
   var url = document.getElementById("apiUrlInput").value.trim();
@@ -447,6 +461,7 @@ async function trloadDropdowns() {
 // ===== CRUD =====
 async function trsaveData() {
   trshowConfirm("هل تريد حفظ البيانات؟", async function() {
+    trshowMessage("⏳ جاري حفظ البيانات...", false);  // <-- أضف هذا السطر
     var data = trcollectFormData();
     var btn = document.getElementById("saveBtn"), orig = btn.textContent;
     btn.textContent = "جاري الحفظ..."; btn.disabled = true;
@@ -462,6 +477,7 @@ async function trsaveData() {
 async function trupdateData() {
   if(!trgetValue("caseNumber")) { trshowMessage("الرجاء إدخال رقم الحالة", true); return; }
   trshowConfirm("هل تريد تحديث البيانات؟", async function() {
+    trshowMessage("⏳ جاري تحديث البيانات...", false);  // <-- أضف هذا السطر
     var data = trcollectFormData();
     var btn = document.getElementById("updateBtn"), orig = btn.textContent;
     btn.textContent = "جاري التحديث..."; btn.disabled = true;
@@ -473,11 +489,11 @@ async function trupdateData() {
     finally { btn.textContent = orig; btn.disabled = false; }
   });
 }
-
 async function trdeleteCase() {
   var cn = trgetValue("caseNumber");
   if(!cn) { trshowMessage("الرجاء إدخال رقم الحالة", true); return; }
   trshowConfirm("هل أنت متأكد من حذف الحالة " + cn + "؟", async function() {
+    trshowMessage("⏳ جاري حذف البيانات...", false);  // <-- أضف هذا السطر
     var btn = document.getElementById("deleteBtn"), orig = btn.textContent;
     btn.textContent = "جاري الحذف..."; btn.disabled = true;
     try {
@@ -488,7 +504,6 @@ async function trdeleteCase() {
     finally { btn.textContent = orig; btn.disabled = false; }
   });
 }
-
 async function trsearchCase() {
   var cn = trgetValue("caseNumber");
   if(!cn) { trshowMessage("الرجاء إدخال رقم الحالة", true); return; }
@@ -505,18 +520,19 @@ async function trtempSave() {
   var data = trcollectFormData();
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
   if(!data.dataEntry.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
+  trshowMessage("⏳ جاري حفظ البيانات مؤقتاً...", false);  // <-- أضف هذا السطر
   try {
     var res = await trcallApi("trsaveTempData", { data: data });
     if(res.success) { trshowMessage(res.message, false); trclearForm(); trloadData(); }
     else trshowMessage(res.message, true);
   } catch(err) { trshowMessage("خطأ: " + err.message, true); }
 }
-
 async function trtempUpdate() {
   var data = trcollectFormData();
   if(!data.caseNumber.trim()) { trshowMessage("❌ رقم الحالة مطلوب", true); return; }
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
   if(!data.dataUpdater.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
+  trshowMessage("⏳ جاري تحديث البيانات مؤقتاً...", false);  // <-- أضف هذا السطر
   try {
     var res = await trcallApi("trupdateTempData", { data: data });
     if(res.success) { trshowMessage(res.message, false); trclearForm(); trloadData(); }
@@ -635,10 +651,24 @@ function trbindEvents() {
 }
 
 // ===== Init =====
-function trinit() {
+async function trinit() {
   trbindEvents();
   document.getElementById("financialDate").value = new Date().toLocaleDateString("en-CA");
-  if (API_URL) { trloadDropdowns(); trloadData(); }
+  if (API_URL) {
+    try {
+      await trloadDropdowns();   // انتظار تحميل القوائم
+      await trloadData();        // انتظار تحميل الجدول
+    } catch(err) {
+      trshowMessage("خطأ في التحميل: " + err.message, true);
+    } finally {
+      // إخفاء رسالة التحميل
+      var loadingDiv = document.getElementById("loadingOverlay");
+      if (loadingDiv) loadingDiv.style.display = "none";
+    }
+  } else {
+    var loadingDiv = document.getElementById("loadingOverlay");
+    if (loadingDiv) loadingDiv.style.display = "none";
+  }
 }
 
 if (API_URL) trinit();
