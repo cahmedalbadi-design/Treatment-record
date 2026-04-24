@@ -669,7 +669,7 @@ async function trtempUpdate() {
   var data = trcollectFormData();
   if(!data.caseNumber.trim()) { trshowMessage("❌ رقم الحالة مطلوب", true); return; }
   if(!data.phone.trim()) { trshowMessage("❌ رقم الهاتف مطلوب", true); return; }
-  if(!data.dataUpdater.trim()) { trshowMessage("❌ مدخل البيانات مطلوب", true); return; }
+  if(!data.dataUpdater.trim()) { trshowMessage("❌ مدخل البيانات(التحديث) مطلوب", true); return; }
   trshowMessage("⏳ جاري تحديث البيانات مؤقتاً...", false);
   try {
     var res = await trcallApi("trupdateTempData", { data: data });
@@ -687,7 +687,7 @@ async function trcheckReceipt() {
       trshowMessage("❌ رقم الإيصال موجود مسبقاً", true);
       var el = document.getElementById("receipt");
       el.style.backgroundColor = "#ffcccc"; el.style.border = "2px solid red";
-      setTimeout(function(){ el.style.backgroundColor=""; el.style.border=""; }, 3000);
+      setTimeout(function(){ el.style.backgroundColor=""; el.style.border=""; }, 5000);
     }
   } catch(err) {}
 }
