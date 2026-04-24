@@ -257,20 +257,24 @@ document.getElementById("setupOverlay").style.display = "none";
 
 // التحقق من وجود رقم الهاتف في السجل العلاجي
 async function trcheckPhoneInRecords(phone) {
-  if (!phone || phone.trim() === "") return;
+  if (!phone || phone.trim() === "") {
+    _phoneNote = "";
+    trrefreshTopBadge();
+    return;
+  }
   try {
     var res = await trcallApi("trcheckPhoneExistence", { phone: phone });
     if (res.success && res.count > 0) {
-      trshowMessage("📞 رقم الهاتف موجود في السجل العلاجي (" + res.count + " حالة)", false);
+      _phoneNote = "📞 رقم الهاتف موجود في السجل العلاجي (" + res.count + " حالة)";
     } else if (res.success && res.count === 0) {
-      // لا حاجة لعرض رسالة في حالة عدم الوجود
+      _phoneNote = "";
     } else {
-      // إذا لم تكن الخدمة متاحة، نحاول البحث باستخدام واجهة البحث العامة (تراجع)
-      trfallbackPhoneCheck(phone);
+      await trfallbackPhoneCheck(phone);
+      return;
     }
+    trrefreshTopBadge();
   } catch(err) {
-    // في حالة فشل API، نستخدم طريقة بديلة
-    trfallbackPhoneCheck(phone);
+    await trfallbackPhoneCheck(phone);
   }
 }
 
@@ -279,12 +283,17 @@ async function trfallbackPhoneCheck(phone) {
   try {
     var res = await trcallApi("trsearchInTreatmentSheet", { keyword: phone, startDate: "", endDate: "" });
     if (res.success && res.data && res.data.length > 1) {
-      var count = res.data.length - 1; // ناقص صف العناوين
-      trshowMessage("📞 رقم الهاتف موجود في السجل العلاجي (" + count + " حالة)", false);
+      var count = res.data.length - 1;
+      _phoneNote = "📞 رقم الهاتف موجود في السجل العلاجي (" + count + " حالة)";
+    } else {
+      _phoneNote = "";
     }
-  } catch(e) { /* تجاهل */ }
+    trrefreshTopBadge();
+  } catch(e) {
+    _phoneNote = "";
+    trrefreshTopBadge();
+  }
 }
-
   
 async function trcallApi(action, payload) {
   if (!API_URL) throw new Error("رابط الخدمة غير مُعدّ");
@@ -317,20 +326,26 @@ function trsafeSet(id, val) { var el = document.getElementById(id); if (el) el.v
 function trgetValue(id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; }
 
 // ===== Alerts =====
-var _expiredWarning = null, _specialNote = "";
+var _expiredWarning = null, _specialNote = "", _phoneNote = "";
 
 function trrefreshTopBadge() {
   var badge = document.getElementById("topAlertBadge"), txt = document.getElementById("topAlertText");
   var msgs = [];
   if (_expiredWarning) msgs.push(_expiredWarning);
   if (_specialNote) msgs.push("تنبية: " + _specialNote);
-  if (msgs.length > 0) { txt.textContent = msgs.length === 1 ? msgs[0] : "تنبيهات (" + msgs.length + ")"; badge.classList.add("visible"); }
-  else badge.classList.remove("visible");
+  if (_phoneNote) msgs.push(_phoneNote);
+  if (msgs.length > 0) {
+    txt.textContent = msgs.length === 1 ? msgs[0] : "تنبيهات (" + msgs.length + ")";
+    badge.classList.add("visible");
+  } else {
+    badge.classList.remove("visible");
+  }
 }
 document.getElementById("topAlertBadge").addEventListener("click", function() {
   var msgs = [];
   if (_expiredWarning) msgs.push(_expiredWarning);
-  if (_specialNote) msgs.push("\n" + _specialNote);
+  if (_specialNote) msgs.push(_specialNote);
+  if (_phoneNote) msgs.push(_phoneNote);          // ← أضف هذا السطر
   if (msgs.length === 0) return;
   var modal = document.createElement("div"); modal.className = "custom-modal";
   modal.innerHTML = '<div class="modal-box"><h3>⚠️ تنبيهات</h3><p>'+msgs.join("\n\n")+'</p><div class="modal-buttons"><button class="confirm-btn" style="background:#3498db">حسناً</button></div></div>';
@@ -436,6 +451,8 @@ function trclearForm() {
   document.querySelectorAll(".drug-row").forEach(function(r){ var di=r.querySelector(".drug-input"),qi=r.querySelector(".drug-qty"); if(di)di.value=""; if(qi)qi.value=""; });
   ["treatmentPlace","notes","dataEntryInput","receipt","amount"].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=""; });
   ["animal_goat","animal_sheep","animal_cow","animal_camel","animal_horse","animal_cat","animal_dog","animal_poultry"].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=""; });
+  _phoneNote = "";
+trrefreshTopBadge();
 }
 
 function trcollectFormData() {
