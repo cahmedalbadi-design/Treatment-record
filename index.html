@@ -1192,7 +1192,22 @@ function showPage(pageId) {
   
   console.log('[resetAllPagesData] ✅ تم مسح جميع بيانات الصفحات');
 }
+const BOOT_CACHE_KEY = 'boot_cache_v1';
+const BOOT_CACHE_TTL = 1000 * 60 * 30; // 30 دقيقة
 
+function bootCacheGet() {
+  try {
+    var raw = localStorage.getItem(BOOT_CACHE_KEY);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (Date.now() - obj.ts > BOOT_CACHE_TTL) return null;
+    return obj.data;
+  } catch(e) { return null; }
+}
+
+function bootCacheSet(data) {
+  try { localStorage.setItem(BOOT_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch(e) {}
+}
 // ============================================================
 //  Boot — التحميل الأولي التسلسلي بعد تسجيل الدخول
 // ============================================================
@@ -1267,7 +1282,7 @@ async function bootRetry(fn, tries) {
     try { return await fn(); }
     catch (err) {
       lastErr = err;
-      await new Promise(function (r) { setTimeout(r, 800 * (i + 1)); });
+  await new Promise(function (r) { setTimeout(r, 400 * (i + 1)); });
     }
   }
   throw lastErr || new Error('فشل غير معروف');
@@ -1322,6 +1337,33 @@ async function bootLoadAll() {
       function () { window._bootRunning = false; ov.close(); },
       function () { window._bootRunning = false; ov.close(); });
     return;
+  }
+
+  // ── محاولة استرجاع الكاش أولاً ──
+  var cached = bootCacheGet();
+  if (cached) {
+    ov.set(30, '⏳ جاري استعادة البيانات المخزنة...');
+    try {
+      if (cached.phoneLists) {
+        cached.phoneLists.forEach(function(item) {
+          var dl = document.getElementById(item.id);
+          if (dl && !dl.querySelectorAll('option').length) {
+            dl.innerHTML = '';
+            item.values.forEach(function(v) { var o = document.createElement('option'); o.value = v; dl.appendChild(o); });
+          }
+        });
+      }
+      if (cached.dataLists) {
+        cached.dataLists.forEach(function(item) {
+          var dl = document.getElementById(item.id);
+          if (dl && !dl.querySelectorAll('option').length) {
+            dl.innerHTML = '';
+            item.values.forEach(function(v) { var o = document.createElement('option'); o.value = v; dl.appendChild(o); });
+          }
+        });
+      }
+      ov.set(60, '✅ تم استعادة القوائم من الذاكرة المؤقتة');
+    } catch(e) {}
   }
 
   var steps = [
@@ -1427,12 +1469,31 @@ async function bootLoadAll() {
   ];
 
   var failed = [];
-var firstSteps = steps.slice(0, 4);
-var restSteps = steps.slice(4);
-await Promise.all(firstSteps.map(st => bootRetry(st.fn, 2)));
-  for (var i = 0; i < steps.length; i++) {
-    var st = steps[i];
-    ov.set(Math.max(0, st.pct - 12), st.msg);
+
+  // ── التحميل المتوازي للخطوات المستقلة (1-4) ──
+  ov.set(10, 'جاري التحميل المتوازي للبيانات الأساسية...');
+  var firstBatch = steps.slice(0, 4);
+  var secondBatch = steps.slice(4);
+
+  try {
+    await Promise.all(firstBatch.map(function(st) {
+      return bootRetry(st.fn, 2).catch(function(err) {
+        failed.push(st.name + ' — ' + (err.message || err));
+      });
+    }));
+  } catch(e) {}
+
+  firstBatch.forEach(function(st) {
+    if (st.check && !st.check()) {
+      failed.push(st.name + ' — القوائم عادت فارغة');
+    }
+    ov.set(st.pct, st.msg);
+  });
+
+  // ── التحميل المتسلسل للخطوات التابعة (5-6) ──
+  for (var i = 0; i < secondBatch.length; i++) {
+    var st = secondBatch[i];
+    ov.set(Math.max(0, st.pct - 5), st.msg);
     try {
       await bootRetry(st.fn, 2);
     } catch (err) {
@@ -1445,6 +1506,30 @@ await Promise.all(firstSteps.map(st => bootRetry(st.fn, 2)));
       if (!st.check()) failed.push(st.name + ' — القوائم عادت فارغة');
     }
     ov.set(st.pct, st.msg);
+  }
+
+  // ── حفظ الكاش ──
+  if (failed.length < 3) {
+    try {
+      var cacheData = { phoneLists: [], dataLists: [] };
+      var phoneListIds = ['tr_phoneList','bd_phoneList','vacc_phoneList','phoneList'];
+      var dataListIds = ['tr_dataEntryList','tr_dataUpdaterList','bd_dataEntryList','bd_dataUpdaterList','vacc_dataEntryList','vacc_dataUpdaterList','dataEntryList','dataUpdaterList'];
+      phoneListIds.forEach(function(id) {
+        var dl = document.getElementById(id);
+        if (dl && dl.querySelectorAll('option').length) {
+          var vals = Array.from(dl.querySelectorAll('option')).map(function(o) { return o.value; });
+          cacheData.phoneLists.push({ id: id, values: vals });
+        }
+      });
+      dataListIds.forEach(function(id) {
+        var dl = document.getElementById(id);
+        if (dl && dl.querySelectorAll('option').length) {
+          var vals = Array.from(dl.querySelectorAll('option')).map(function(o) { return o.value; });
+          cacheData.dataLists.push({ id: id, values: vals });
+        }
+      });
+      bootCacheSet(cacheData);
+    } catch(e) {}
   }
 
   if (failed.length) {
@@ -1461,7 +1546,7 @@ await Promise.all(firstSteps.map(st => bootRetry(st.fn, 2)));
   }
 
   ov.set(100, '✅ تم تحميل جميع البيانات بنجاح');
-  await new Promise(function (r) { setTimeout(r, 600); });
+  await new Promise(function (r) { setTimeout(r, 400); });
   finish('✅ النظام جاهز للاستخدام', 'success');
 }
 
@@ -1497,15 +1582,17 @@ function lockNav() {
   });
 }
 
+// ============================================================
+//  unlockNav() – تُستدعى بعد نجاح تسجيل الدخول
+// ============================================================
 function unlockNav() {
   window._isLoggedIn = true;
 
-  // 1. إظهار جميع الأزرار مؤقتاً (سيتم إخفاء غير المسموح لاحقاً)
+  // 1. إظهار جميع الأزرار
   document.querySelectorAll("nav button").forEach(function(btn) {
     btn.disabled = false;
     btn.style.opacity = '';
     btn.style.cursor = '';
-    // إزالة أي إخفاء سابق وإظهار الكل
     btn.style.setProperty('display', 'inline-block', 'important');
     var originalText = btn.getAttribute('data-original-text');
     if (originalText) {
@@ -1514,7 +1601,7 @@ function unlockNav() {
     }
   });
 
-  // 2. تطبيق صلاحيات المستخدم
+  // 2. تطبيق الصلاحيات
   window._userAllowedPages = null;
   var username = window._currentUser || '';
   if (username && typeof PERM !== 'undefined') {
@@ -1535,101 +1622,8 @@ function unlockNav() {
       if (!allowed) btn.classList.remove('nav-active');
     });
   }
-  // 3. تحميل الصفحات (المنطق الأصلي – لم يتغير)
-  var initQueue = [
-    { delay: 1000, fn: function () {
-      if (!window._breederInitialized) {
-        window._breederInitialized = true;
-        bd_API_URL = window._activeApiUrl || "";
-        if (typeof bd_init === 'function') bd_init();
-      }
-    }},
-    { delay: 1500, fn: function () {
-      if (!window._treatmentInitialized) {
-        window._treatmentInitialized = true;
-        var ov = document.getElementById('loadingOverlay');
-        if (ov) ov.style.display = 'none';
-        if (typeof trinit === 'function') trinit();
-      }
-    }},
-    { delay: 2500, fn: function () {
-      if (!window._vaccinationInitialized) {
-        window._vaccinationInitialized = true;
-        var ov = document.getElementById('vacc_loadingOverlay');
-        if (ov) ov.style.display = 'none';
-        if (typeof vaccInit === 'function') vaccInit();
-      }
-    }},
-    { delay: 3500, fn: function () {
-      if (!window._vrInitialized) {
-        window._vrInitialized = true;
-        if (typeof vr_loadData === 'function') vr_loadData();
-      }
-    }},
-    { delay: 4500, fn: function () {
-      if (typeof ani_loadData === 'function') ani_loadData();
-    }},
-    { delay: 5000, fn: function () {
-      if (typeof dim_loadData === 'function') dim_loadData();
-    }},
-    { delay: 5500, fn: function () {
-      if (typeof rpt_loadReport === 'function') rpt_loadReport();
-    }},
-    { delay: 7000, fn: function () {
-      var today = fin_localToday();
-      var ff = document.getElementById('fin_dateFrom');
-      var ft = document.getElementById('fin_dateTo');
-      if (ff) ff.value = today;
-      if (ft) ft.value = today;
-      fin_isFirstLoad = false;
-      if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
-    }},
-    { delay: 7500, fn: function () {
-      if (typeof dtr_loadDiseaseList === 'function') {
-        dtr_loadDiseaseList().then(function() {
-          document.getElementById('dtr_dateFrom').value = '';
-          document.getElementById('dtr_dateTo').value = '';
-          if (typeof dtr_loadData === 'function') dtr_loadData();
-        });
-      }
-      document.getElementById('dtr_diseaseSelect').addEventListener('change', function() {
-        dtr_userClick = true;
-        dtr_loadData();
-      });
-    }},
-    { delay: 8000, fn: function () {
-      if (typeof ani_loadData === 'function') ani_loadData();
-      var af = document.getElementById('ani_dateFrom');
-      var at = document.getElementById('ani_dateTo');
-      if (af) af.addEventListener('change', function() {
-        var to = document.getElementById('ani_dateTo').value;
-        if (!to) return;
-        if (this.value > to) {
-          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
-          this.value = '';
-          return;
-        }
-        ani_loadData();
-      });
-      if (at) at.addEventListener('change', function() {
-        var from = document.getElementById('ani_dateFrom').value;
-        if (!from) {
-          showToast('⚠️ الرجاء إدخال تاريخ البداية أولاً', 'warning');
-          this.value = '';
-          return;
-        }
-        if (from > this.value) {
-          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
-          this.value = '';
-          return;
-        }
-        ani_loadData();
-      });
-    }}
-  ];
 
-// ⛔ لم يعد التحميل يعتمد على مؤقتات ثابتة — انظر bootLoadAll()
-  void initQueue;
+  // 3. تشغيل التحميل السريع فوراً — بدون مؤقتات
   bootLoadAll();
 }
 
