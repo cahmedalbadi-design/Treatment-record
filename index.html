@@ -16,6 +16,12 @@ href="data:image/svg+xml;utf8,
 <!-- Title -->
 <title>سجل العلاج في العيادة البيطرية</title>
 <style>
+nav button {
+  display: none !important;
+}
+nav button[onclick*="'login'"] {
+  display: inline-block !important;
+}
 /* ============================================================
    ١. RESET & BOX MODEL
    ============================================================ */
@@ -784,7 +790,6 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
   body > .page      { display: none !important; }
   body > .page.active { display: block !important; }
   button, .back-button, .initial-loading-overlay { display: none !important; }
-#fin_dateRow { display: none !important; }
   /* #dashboard — طباعة نموذج العينة */
   body > #dashboard.active { display: block !important; }
   #dashboard .top-bar       { display: none !important; }
@@ -1025,64 +1030,469 @@ function showPage(pageId) {
     showToast('يرجى تسجيل الدخول أولاً', 'warning');
     return;
   }
-  
+    // منع فتح أي صفحة قبل اكتمال التحميل الأولي
+  if (window._bootRunning && publicPages.indexOf(pageId) === -1) {
+    showToast('⏳ جاري تحميل بيانات النظام، انتظر قليلاً', 'info');
+    return;
+  }
   // التحقق من الصلاحيات
   if (window._isLoggedIn && window._userAllowedPages && publicPages.indexOf(pageId) === -1) {
-    if (window._userAllowedPages.indexOf(pageId) === -1) {
+    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home') {
       showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
       return;
     }
   }
+  
+  // إظهار الصفحة المطلوبة وإخفاء الباقي
   document.querySelectorAll(".page").forEach(function(p) {
     p.classList.remove("active");
   });
   var page = document.getElementById(pageId);
   if (page) page.classList.add("active");
 
+  // 🔹 التعديل الأساسي: إزالة التأثير من جميع الأزرار أولاً
   document.querySelectorAll("nav button").forEach(function(btn) {
     btn.classList.remove("nav-active");
   });
+
+  // ثم إضافة التأثير للزر النشط (إذا كان مرئياً)
   var activeBtn = document.querySelector('nav button[onclick="showPage(\'' + pageId + '\')"]');
-  if (activeBtn) activeBtn.classList.add("nav-active");
-// تشغيل تنبيه العينات عند التنقل (ما عدا login و settings)
+  if (activeBtn && activeBtn.style.display !== 'none') {
+    activeBtn.classList.add("nav-active");
+  }
+
+  // باقي الكود كما هو (فحص العينات المتأخرة، تهيئة الصفحات)
   var excludedPages = ['login', 'settings', 'home'];
   if (excludedPages.indexOf(pageId) === -1 && typeof foCheckOverdueSamples === 'function') {
     setTimeout(foCheckOverdueSamples, 500);
   }
   
-if (pageId === 'treatment' && !window._treatmentInitialized) {
-  window._treatmentInitialized = true;
-  var trOverlay = document.getElementById('tr_loadingOverlay');
-  if (trOverlay) trOverlay.style.display = 'none';
-  if (typeof trinit === 'function') trinit();
-}
-if (pageId === 'breeder' && !window._breederInitialized) {
-  window._breederInitialized = true;
-  if (typeof bd_init === 'function') bd_init();
-}
-
-if (pageId === 'samples' && !window._samplesInitialized) {
-  window._samplesInitialized = true;
-  if (typeof foinit === 'function') foinit();
-}
-if (pageId === 'vaccination' && !window._vaccinationInitialized) {
+  if (pageId === 'treatment' && !window._treatmentInitialized) {
+    window._treatmentInitialized = true;
+    var trOverlay = document.getElementById('tr_loadingOverlay');
+    if (trOverlay) trOverlay.style.display = 'none';
+    if (typeof trinit === 'function') trinit();
+  }
+  if (pageId === 'breeder' && !window._breederInitialized) {
+    window._breederInitialized = true;
+    if (typeof bd_init === 'function') bd_init();
+  }
+  if (pageId === 'samples' && !window._samplesInitialized) {
+    window._samplesInitialized = true;
+    if (typeof foinit === 'function') foinit();
+  }
+  if (pageId === 'vaccination' && !window._vaccinationInitialized) {
     window._vaccinationInitialized = true;
     if (typeof vaccInit === 'function') vaccInit();
   }
-
   if (pageId === 'vaccinationRequests' && !window._vrInitialized) {
     window._vrInitialized = true;
     if (typeof vr_loadData === 'function') vr_loadData();
   }
 }
+  function resetAllPagesData() {
+  // مسح جدول العلاج اليومي
+  var trTable = document.getElementById('tr_dataTable');
+  if (trTable) trTable.innerHTML = '';
+  
+  // مسح حقول نموذج العلاج
+  var trInputs = document.querySelectorAll('#treatment input, #treatment select, #treatment textarea');
+  trInputs.forEach(function(el) {
+    if (el.type !== 'button' && el.type !== 'submit') el.value = '';
+  });
+  document.querySelectorAll('#treatment .diagnosis-row input').forEach(function(el){ el.value=''; });
+  document.querySelectorAll('#treatment .drug-row input').forEach(function(el){ el.value=''; });
+  
+  // مسح جداول المربي
+  var bdBody = document.getElementById('bd_searchResultsBody');
+  if (bdBody) bdBody.innerHTML = '';
+  var bdHeader = document.getElementById('bd_searchResultsHeader');
+  if (bdHeader) bdHeader.innerHTML = '';
+  var bdContainer = document.getElementById('bd_searchResultsContainer');
+  if (bdContainer) bdContainer.style.display = 'none';
+  document.querySelectorAll('#breeder input:not([type=button]), #breeder select, #breeder textarea').forEach(function(el){ el.value=''; });
+  
+  // مسح نموذج التحصين
+  document.querySelectorAll('#vaccination input:not([type=button]), #vaccination select, #vaccination textarea').forEach(function(el){ el.value=''; });
+  var vaccDisplay = document.getElementById('vacc_vaccinationDataDisplay');
+  if (vaccDisplay) vaccDisplay.innerHTML = '';
+  
+  // مسح جدول طلبات التحصين
+  var vrBody = document.getElementById('vr_searchResultsBody');
+  if (vrBody) vrBody.innerHTML = '';
+  var vrTable = document.getElementById('vr_searchResultsTable');
+  if (vrTable) vrTable.style.display = 'none';
+  window.vr_allData = [];
+  window.vr_dataLoaded = false;
+  
+  // مسح العينات
+  document.querySelectorAll('#samples input:not([type=button]), #samples select, #samples textarea').forEach(function(el){ el.value=''; });
+  var samplesContainer = document.getElementById('searchResultsContainer');
+  if (samplesContainer) samplesContainer.innerHTML = '<p style="text-align:center;color:#666;padding:20px">أدخل رقم الهاتف أو رقم العينة واضغط بحث</p>';
+  
+  // مسح الجرد المالي
+  var finBody = document.getElementById('fin_searchResultsBody');
+  if (finBody) finBody.innerHTML = '';
+  var finTotal = document.getElementById('fin_annualTotal');
+  if (finTotal) finTotal.value = '';
+  
+  // مسح تقرير الأدوية
+  var dimBody = document.getElementById('dim_searchResultsBody');
+  if (dimBody) dimBody.innerHTML = '';
+  
+  // مسح تتبع المرض
+  var dtrBody = document.getElementById('dtr_searchResultsBody');
+  if (dtrBody) dtrBody.innerHTML = '';
+  if (window.dtr_chartInstance) { 
+    try { window.dtr_chartInstance.destroy(); window.dtr_chartInstance = null; } catch(e) {}
+  }
+  
+  // مسح توزيع الحيوانات
+  var aniBody = document.getElementById('ani_searchResultsBody');
+  if (aniBody) aniBody.innerHTML = '';
+  var aniContainer = document.getElementById('ani_searchResultsContainer');
+  if (aniContainer) aniContainer.style.display = 'none';
+  
+  // مسح التقرير الشامل
+  ['rpt_tb1','rpt_tb2','rpt_tb3','rpt_tb4','rpt_tb5'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  
+  // مسح أداء الأطباء
+  window.dp_RAW = { treat: [], vacc: [], sample: [] };
+  var dpTables = ['t_tb','v_tb','s_tb'];
+  dpTables.forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  
+  // مسح datalists القوائم المنسدلة
+  ['tr_phoneList','tr_diseaseList','tr_drugList','tr_dataEntryList','tr_dataUpdaterList',
+   'bd_phoneList','bd_regionList','bd_dataEntryList','bd_dataUpdaterList',
+   'vacc_phoneList','vacc_dataEntryList','vacc_dataUpdaterList',
+   'phoneList','dataEntryList','dataUpdaterList','testList','sampleTypeList'].forEach(function(id){
+    var dl = document.getElementById(id);
+    if (dl) dl.innerHTML = '';
+  });
+  
+  // مسح شارة الحالات غير المكتملة
+  var incBadge = document.getElementById('tr_incompleteCountBadge');
+  if (incBadge) incBadge.style.display = 'none';
+  var incText = document.getElementById('tr_incompleteCountText');
+  if (incText) incText.textContent = '0 حالة غير مكتملة';
+  
+  // مسح إحصاءات العينات
+  var uniqueDisplay = document.getElementById('uniqueCountDisplay');
+  if (uniqueDisplay) uniqueDisplay.textContent = '0';
+  var lastSample = document.getElementById('lastSampleDisplay');
+  if (lastSample) lastSample.textContent = '—';
+  
+  // إعادة تعيين الكاش
+  
+  console.log('[resetAllPagesData] ✅ تم مسح جميع بيانات الصفحات');
+}
+
+// ============================================================
+//  Boot — التحميل الأولي التسلسلي بعد تسجيل الدخول
+// ============================================================
+function bootShowOverlay() {
+  var old = document.getElementById('bootLoadingOverlay');
+  if (old) old.remove();
+  var ov = document.createElement('div');
+  ov.id = 'bootLoadingOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.98);display:flex;' +
+    'align-items:center;justify-content:center;z-index:99999;font-family:Tahoma,Arial,sans-serif;direction:rtl;';
+  ov.innerHTML =
+    '<div style="text-align:center;max-width:440px;">' +
+      '<div id="bootSpinner" style="width:70px;height:70px;border:7px solid #e0e0e0;' +
+      'border-top:7px solid #00b8d9;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div>' +
+      '<div style="font-size:19px;font-weight:bold;color:#00b8d9;margin-bottom:10px;">⏳ جاري تجهيز النظام</div>' +
+      '<div id="bootStep" style="font-size:14px;color:#666;margin-bottom:18px;min-height:22px;">جاري الاتصال بالخادم...</div>' +
+      '<div style="width:320px;height:10px;background:#e0e0e0;border-radius:20px;overflow:hidden;margin:0 auto;">' +
+        '<div id="bootBar" style="height:100%;width:0%;background:#00b8d9;border-radius:20px;transition:width .4s ease;"></div>' +
+      '</div>' +
+      '<div id="bootPct" style="font-size:13px;color:#00b8d9;margin-top:8px;font-weight:bold;">0%</div>' +
+      '<div id="bootError" style="display:none;margin-top:18px;background:#fdecea;border:1px solid #f5c6c1;' +
+      'border-radius:8px;padding:12px 14px;font-size:13px;color:#7a0000;text-align:right;line-height:1.9;"></div>' +
+      '<div id="bootActions" style="display:none;margin-top:14px;gap:10px;justify-content:center;">' +
+        '<button id="bootRetryBtn" style="background:#00b8d9;color:#fff;border:none;border-radius:6px;' +
+        'padding:9px 24px;font-weight:bold;cursor:pointer;font-family:inherit;font-size:13px;">🔄 إعادة المحاولة</button>' +
+        '<button id="bootSkipBtn" style="background:#95a5a6;color:#fff;border:none;border-radius:6px;' +
+        'padding:9px 24px;font-weight:bold;cursor:pointer;font-family:inherit;font-size:13px;">متابعة رغم ذلك</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  return {
+    set: function (pct, msg) {
+      var s = document.getElementById('bootStep');
+      var b = document.getElementById('bootBar');
+      var p = document.getElementById('bootPct');
+      if (s && msg) s.textContent = msg;
+      if (b) b.style.width = pct + '%';
+      if (p) p.textContent = pct + '%';
+    },
+    fail: function (list, onRetry, onSkip) {
+      var sp = document.getElementById('bootSpinner');
+      if (sp) sp.style.display = 'none';
+      var e = document.getElementById('bootError');
+      if (e) {
+        e.style.display = 'block';
+        e.innerHTML = '⚠️ تعذّر تحميل البيانات التالية:<br>• ' + list.join('<br>• ');
+      }
+      var a = document.getElementById('bootActions');
+      if (a) a.style.display = 'flex';
+      var rb = document.getElementById('bootRetryBtn');
+      var sb = document.getElementById('bootSkipBtn');
+      if (rb) rb.onclick = onRetry;
+      if (sb) sb.onclick = onSkip;
+    },
+    close: function () {
+      ov.style.transition = 'opacity .4s ease';
+      ov.style.opacity = '0';
+      setTimeout(function () { if (ov.parentNode) ov.remove(); }, 400);
+    }
+  };
+}
+
+function bootListCount(id) {
+  var dl = document.getElementById(id);
+  return dl ? dl.querySelectorAll('option').length : 0;
+}
+
+async function bootRetry(fn, tries) {
+  tries = tries || 2;
+  var lastErr = null;
+  for (var i = 0; i < tries; i++) {
+    try { return await fn(); }
+    catch (err) {
+      lastErr = err;
+      await new Promise(function (r) { setTimeout(r, 800 * (i + 1)); });
+    }
+  }
+  throw lastErr || new Error('فشل غير معروف');
+}
+
+function bootBindOnce() {
+  if (window._bootListenersBound) return;
+  window._bootListenersBound = true;
+
+  var ds = document.getElementById('dtr_diseaseSelect');
+  if (ds) ds.addEventListener('change', function () {
+    if (typeof dtr_loadData === 'function') { window.dtr_userClick = true; dtr_loadData(); }
+  });
+
+  var af = document.getElementById('ani_dateFrom');
+  var at = document.getElementById('ani_dateTo');
+  if (af) af.addEventListener('change', function () {
+    var to = (document.getElementById('ani_dateTo') || {}).value;
+    if (!to) return;
+    if (this.value > to) {
+      showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
+      this.value = ''; return;
+    }
+    if (typeof ani_loadData === 'function') ani_loadData();
+  });
+  if (at) at.addEventListener('change', function () {
+    var from = (document.getElementById('ani_dateFrom') || {}).value;
+    if (!from) { showToast('⚠️ الرجاء إدخال تاريخ البداية أولاً', 'warning'); this.value = ''; return; }
+    if (from > this.value) {
+      showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
+      this.value = ''; return;
+    }
+    if (typeof ani_loadData === 'function') ani_loadData();
+  });
+}
+
+async function bootLoadAll() {
+  if (window._bootRunning) return;
+  window._bootRunning = true;
+
+  var ov = bootShowOverlay();
+
+  function finish(msg, type) {
+    window._bootRunning = false;
+    ov.close();
+    if (msg) showToast(msg, type || 'success');
+  }
+
+  if (!window._activeApiUrl) {
+    ov.set(0, 'رابط الخدمة غير معرّف');
+    ov.fail(['رابط الخدمة (api_url) غير معرّف لهذا المستخدم'],
+      function () { window._bootRunning = false; ov.close(); },
+      function () { window._bootRunning = false; ov.close(); });
+    return;
+  }
+
+  var steps = [
+    {
+      name: 'سجل المربي', pct: 18, msg: 'جاري تحميل سجل المربي...',
+      fn: async function () {
+        if (window._breederInitialized) {
+          if (typeof bd_refreshDropdowns === 'function') await bd_refreshDropdowns();
+          return;
+        }
+        window._breederInitialized = true;
+        window.bd_API_URL = window._activeApiUrl;
+        if (typeof bd_init === 'function') await bd_init();
+      },
+      check: function () { return bootListCount('bd_phoneList') > 0; }
+    },
+    {
+      name: 'سجل العلاج', pct: 38, msg: 'جاري تحميل سجل العلاج والقوائم...',
+      fn: async function () {
+        if (window._treatmentInitialized) {
+          if (typeof trloadDropdowns === 'function') await trloadDropdowns();
+          return;
+        }
+        window._treatmentInitialized = true;
+        window.TR_API_URL = window._activeApiUrl;
+        if (typeof trinit === 'function') await trinit();
+      },
+      check: function () {
+        return bootListCount('tr_phoneList') > 0 &&
+               bootListCount('tr_diseaseList') > 0 &&
+               bootListCount('tr_drugList') > 0 &&
+               bootListCount('tr_dataEntryList') > 0;
+      }
+    },
+    {
+      name: 'سجل التحصين', pct: 55, msg: 'جاري تحميل سجل التحصين...',
+      fn: async function () {
+        if (window._vaccinationInitialized) {
+          if (typeof vaccLoadDropdowns === 'function') await vaccLoadDropdowns();
+          return;
+        }
+        window._vaccinationInitialized = true;
+        if (typeof vaccInit === 'function') await vaccInit();
+      },
+      check: function () {
+        return bootListCount('vacc_phoneList') > 0 && bootListCount('vacc_dataEntryList') > 0;
+      }
+    },
+    {
+      name: 'نموذج العينات', pct: 70, msg: 'جاري تحميل قوائم العينات والفحوصات...',
+      fn: async function () {
+        if (window._samplesInitialized) {
+          if (typeof foloadDropdowns === 'function') await foloadDropdowns();
+          return;
+        }
+        window._samplesInitialized = true;
+        if (typeof foinit === 'function') await foinit();
+      },
+      check: function () {
+        return bootListCount('phoneList') > 0 &&
+               bootListCount('testList') > 0 &&
+               bootListCount('sampleTypeList') > 0;
+      }
+    },
+    {
+      name: 'طلبات التحصين', pct: 82, msg: 'جاري تحميل طلبات التحصين...',
+      fn: async function () {
+        window._vrInitialized = true;
+        if (typeof vr_loadData === 'function') await vr_loadData();
+      },
+      check: function () { return window.vr_dataLoaded === true; }
+    },
+    {
+      name: 'التقارير والإحصاءات', pct: 100, msg: 'جاري تحميل التقارير والإحصاءات...',
+      fn: async function () {
+        var today = (typeof fin_localToday === 'function')
+          ? fin_localToday() : new Date().toLocaleDateString('en-CA');
+        var ff = document.getElementById('fin_dateFrom');
+        var ft = document.getElementById('fin_dateTo');
+        if (ff) ff.value = today;
+        if (ft) ft.value = today;
+        window.fin_isFirstLoad = false;
+
+        await Promise.allSettled([
+          (typeof ani_loadData          === 'function') ? ani_loadData()          : Promise.resolve(),
+          (typeof dim_loadData          === 'function') ? dim_loadData()          : Promise.resolve(),
+          (typeof rpt_loadReport        === 'function') ? rpt_loadReport()        : Promise.resolve(),
+          (typeof fin_loadFinancialData === 'function') ? fin_loadFinancialData() : Promise.resolve()
+        ]);
+
+        if (typeof dtr_loadDiseaseList === 'function') {
+          await dtr_loadDiseaseList();
+          var df = document.getElementById('dtr_dateFrom');
+          var dt = document.getElementById('dtr_dateTo');
+          if (df) df.value = '';
+          if (dt) dt.value = '';
+          if (typeof dtr_loadData === 'function') await dtr_loadData();
+        }
+        bootBindOnce();
+      },
+      check: null
+    }
+  ];
+
+  var failed = [];
+var firstSteps = steps.slice(0, 4);
+var restSteps = steps.slice(4);
+await Promise.all(firstSteps.map(st => bootRetry(st.fn, 2)));
+  for (var i = 0; i < steps.length; i++) {
+    var st = steps[i];
+    ov.set(Math.max(0, st.pct - 12), st.msg);
+    try {
+      await bootRetry(st.fn, 2);
+    } catch (err) {
+      failed.push(st.name + ' — ' + (err.message || err));
+      ov.set(st.pct, st.msg);
+      continue;
+    }
+    if (st.check && !st.check()) {
+      try { await st.fn(); } catch (e) {}
+      if (!st.check()) failed.push(st.name + ' — القوائم عادت فارغة');
+    }
+    ov.set(st.pct, st.msg);
+  }
+
+  if (failed.length) {
+    ov.fail(failed,
+      function () {
+        window._bootRunning = false;
+        ov.close();
+        setTimeout(bootLoadAll, 400);
+      },
+      function () {
+        finish('⚠️ تم فتح النظام مع بيانات ناقصة', 'warning');
+      });
+    return;
+  }
+
+  ov.set(100, '✅ تم تحميل جميع البيانات بنجاح');
+  await new Promise(function (r) { setTimeout(r, 600); });
+  finish('✅ النظام جاهز للاستخدام', 'success');
+}
+
+// ============================================================
+//  unlockNav() – تُستدعى بعد نجاح تسجيل الدخول
+// ============================================================
 function lockNav() {
   window._isLoggedIn = false;
+  window._treatmentInitialized = false;
+  window._vaccinationInitialized = false;
+  window._vrInitialized = false;
+  window._breederInitialized = false;
+  window._samplesInitialized = false;
+  if (typeof bd_clearForm === 'function') bd_clearForm();
+  resetAllPagesData();
+
+  // إخفاء جميع الأزرار باستثناء زر تسجيل الدخول
   document.querySelectorAll("nav button").forEach(function(btn) {
     var onclick = btn.getAttribute('onclick') || '';
     if (onclick.indexOf("'login'") === -1) {
       btn.disabled = true;
       btn.style.opacity = '0.4';
       btn.style.cursor = 'not-allowed';
+      // إخفاء باستخدام !important لتجاوز أي CSS
+      btn.style.setProperty('display', 'none', 'important');
+    } else {
+      // إظهار زر تسجيل الدخول
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.style.setProperty('display', 'inline-block', 'important');
     }
   });
 }
@@ -1090,10 +1500,13 @@ function lockNav() {
 function unlockNav() {
   window._isLoggedIn = true;
 
+  // 1. إظهار جميع الأزرار مؤقتاً (سيتم إخفاء غير المسموح لاحقاً)
   document.querySelectorAll("nav button").forEach(function(btn) {
     btn.disabled = false;
     btn.style.opacity = '';
     btn.style.cursor = '';
+    // إزالة أي إخفاء سابق وإظهار الكل
+    btn.style.setProperty('display', 'inline-block', 'important');
     var originalText = btn.getAttribute('data-original-text');
     if (originalText) {
       btn.textContent = originalText;
@@ -1101,103 +1514,123 @@ function unlockNav() {
     }
   });
 
+  // 2. تطبيق صلاحيات المستخدم
   window._userAllowedPages = null;
-
   var username = window._currentUser || '';
-  if (username && typeof permApplyForUser === 'function') {
-    permApplyForUser(username);
+  if (username && typeof PERM !== 'undefined') {
+    document.querySelectorAll("nav button").forEach(function(btn) {
+      var onclick = btn.getAttribute('onclick') || '';
+      var match = onclick.match(/showPage\(['"](\w+)['"]\)/);
+      if (!match) return;
+      var pageId = match[1];
+      if (pageId === 'login') {
+        btn.style.setProperty('display', 'inline-block', 'important');
+        return;
+      }
+      var allowed = PERM.isPageAllowed(pageId);
+      btn.style.setProperty('display', allowed ? 'inline-block' : 'none', 'important');
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      if (!allowed) btn.classList.remove('nav-active');
+    });
   }
-
-  // تحميل الصفحات لجميع المستخدمين بعد تسجيل الدخول
+  // 3. تحميل الصفحات (المنطق الأصلي – لم يتغير)
   var initQueue = [
+    { delay: 1000, fn: function () {
+      if (!window._breederInitialized) {
+        window._breederInitialized = true;
+        bd_API_URL = window._activeApiUrl || "";
+        if (typeof bd_init === 'function') bd_init();
+      }
+    }},
     { delay: 1500, fn: function () {
-        if (!window._treatmentInitialized) {
-          window._treatmentInitialized = true;
-          var ov = document.getElementById('loadingOverlay');
-          if (ov) ov.style.display = 'none';
-          if (typeof trinit === 'function') trinit();
-        }
+      if (!window._treatmentInitialized) {
+        window._treatmentInitialized = true;
+        var ov = document.getElementById('loadingOverlay');
+        if (ov) ov.style.display = 'none';
+        if (typeof trinit === 'function') trinit();
+      }
     }},
     { delay: 2500, fn: function () {
-        if (!window._vaccinationInitialized) {
-          window._vaccinationInitialized = true;
-          var ov = document.getElementById('vacc_loadingOverlay');
-          if (ov) ov.style.display = 'none';
-          if (typeof vaccInit === 'function') vaccInit();
-        }
+      if (!window._vaccinationInitialized) {
+        window._vaccinationInitialized = true;
+        var ov = document.getElementById('vacc_loadingOverlay');
+        if (ov) ov.style.display = 'none';
+        if (typeof vaccInit === 'function') vaccInit();
+      }
     }},
     { delay: 3500, fn: function () {
-        if (!window._vrInitialized) {
-          window._vrInitialized = true;
-          if (typeof vr_loadData === 'function') vr_loadData();
-        }
+      if (!window._vrInitialized) {
+        window._vrInitialized = true;
+        if (typeof vr_loadData === 'function') vr_loadData();
+      }
     }},
     { delay: 4500, fn: function () {
-        if (typeof ani_loadData === 'function') ani_loadData();
+      if (typeof ani_loadData === 'function') ani_loadData();
     }},
     { delay: 5000, fn: function () {
-        if (typeof dim_loadData === 'function') dim_loadData();
+      if (typeof dim_loadData === 'function') dim_loadData();
     }},
     { delay: 5500, fn: function () {
-        if (typeof rpt_loadReport === 'function') rpt_loadReport();
+      if (typeof rpt_loadReport === 'function') rpt_loadReport();
     }},
     { delay: 7000, fn: function () {
-        var today = fin_localToday();
-        var ff = document.getElementById('fin_dateFrom');
-        var ft = document.getElementById('fin_dateTo');
-        if (ff) ff.value = today;
-        if (ft) ft.value = today;
-        fin_isFirstLoad = false;
-        if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
+      var today = fin_localToday();
+      var ff = document.getElementById('fin_dateFrom');
+      var ft = document.getElementById('fin_dateTo');
+      if (ff) ff.value = today;
+      if (ft) ft.value = today;
+      fin_isFirstLoad = false;
+      if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
     }},
     { delay: 7500, fn: function () {
-        if (typeof dtr_loadDiseaseList === 'function') {
-          dtr_loadDiseaseList().then(function() {
-            document.getElementById('dtr_dateFrom').value = '';
-            document.getElementById('dtr_dateTo').value = '';
-            if (typeof dtr_loadData === 'function') dtr_loadData();
-          });
-        }
-        document.getElementById('dtr_diseaseSelect').addEventListener('change', function() {
-          dtr_userClick = true;
-          dtr_loadData();
+      if (typeof dtr_loadDiseaseList === 'function') {
+        dtr_loadDiseaseList().then(function() {
+          document.getElementById('dtr_dateFrom').value = '';
+          document.getElementById('dtr_dateTo').value = '';
+          if (typeof dtr_loadData === 'function') dtr_loadData();
         });
+      }
+      document.getElementById('dtr_diseaseSelect').addEventListener('change', function() {
+        dtr_userClick = true;
+        dtr_loadData();
+      });
     }},
     { delay: 8000, fn: function () {
-        if (typeof ani_setDefaultDates === 'function') ani_setDefaultDates();
-        if (typeof ani_loadData === 'function') ani_loadData();
-        var af = document.getElementById('ani_dateFrom');
-        var at = document.getElementById('ani_dateTo');
-        if (af) af.addEventListener('change', function() {
-          var to = document.getElementById('ani_dateTo').value;
-          if (!to) return;
-          if (this.value > to) {
-            showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
-            this.value = '';
-            return;
-          }
-          ani_loadData();
-        });
-        if (at) at.addEventListener('change', function() {
-          var from = document.getElementById('ani_dateFrom').value;
-          if (!from) {
-            showToast('⚠️ الرجاء إدخال تاريخ البداية أولاً', 'warning');
-            this.value = '';
-            return;
-          }
-          if (from > this.value) {
-            showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
-            this.value = '';
-            return;
-          }
-          ani_loadData();
-        });
+      if (typeof ani_loadData === 'function') ani_loadData();
+      var af = document.getElementById('ani_dateFrom');
+      var at = document.getElementById('ani_dateTo');
+      if (af) af.addEventListener('change', function() {
+        var to = document.getElementById('ani_dateTo').value;
+        if (!to) return;
+        if (this.value > to) {
+          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
+          this.value = '';
+          return;
+        }
+        ani_loadData();
+      });
+      if (at) at.addEventListener('change', function() {
+        var from = document.getElementById('ani_dateFrom').value;
+        if (!from) {
+          showToast('⚠️ الرجاء إدخال تاريخ البداية أولاً', 'warning');
+          this.value = '';
+          return;
+        }
+        if (from > this.value) {
+          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
+          this.value = '';
+          return;
+        }
+        ani_loadData();
+      });
     }}
   ];
 
-  initQueue.forEach(function (item) {
-    setTimeout(item.fn, item.delay);
-  });
+// ⛔ لم يعد التحميل يعتمد على مؤقتات ثابتة — انظر bootLoadAll()
+  void initQueue;
+  bootLoadAll();
 }
 
 // تأمين التنقل عند التحميل
@@ -1223,10 +1656,10 @@ lockNav();
       style="width:100%;padding:8px 10px;border:2px solid #ddd;border-radius:5px;
              font-size:14px;font-family:inherit;margin-bottom:12px;color:#333;">
       <option value="">— اختر الولاية —</option>
-      <option value="https://script.google.com/macros/s/AKfycbywu3iD-C4C2hJ2-_OR8KkfWde6jDH6FS9XoRjUx9knDs5wur9ny76th_gJNdxs7H1k1A/exec">شناص</option>
+      <option value="https://script.google.com/macros/s/AKfycbwi9CkCDB_0-TEEzYNm0OHzaQeJGmAn2XBgWdu0whh1RcYz9pCF8RA94O7jMMHUSpAUIw/exec">شناص</option>
       <option value="https://script.google.com/macros/s/AKfycbzEUVgUVBiK3diev7vq-pYQ51zB-Ujq88f_xdAKGX2PXUzE1Io3FZEaWPi3xHUF5ckXGg/exec">لوى</option>
       <option value="https://script.google.com/macros/s/AKfycbyz2zN7GFcvLTRBa7r2qbu8B1Q8i9EQdmOwwxRGCWzJrxPZp2h3b6f5jpNLcq-Mfc9q/exec">صحم</option>
-      <option value="https://script.google.com/macros/s/AKfycbya25-eO1duXpG-KagtlH5DSwlNQ7xy__znjQAbPZwLLSeWQfkTtd_AjQCpucSO6gKG/exec">صحار</option>
+      <option value="https://script.google.com/macros/s/AKfycbzN0d0fPRzmfhaxKLbZnK0WAIKlLam0bZEUrJPUnEKOYQvsPXVA7-db7sQw9sWJhR7k/exec">صحار</option>
       <option value="https://script.google.com/macros/s/AKfycbwnCUYiFL6j9yenFS6jmA9Dqktha6nyb-vKGtWKHpopFy6TtU8IQjdgTfCi7dcUMy1q/exec">الخابورة</option>
       <option value="https://script.google.com/macros/s/AKfycbyYcOAj-NeT18g_f4TZ4SsZK-7YCFHWDHRu0FZPfoqOKpfawx3jTqiBXTA5Xoq_w_YL/exec">السويق</option>
        <option value="https://script.google.com/macros/s/AKfycbzCHdhVnEJU5nq-OYZXTH_wLo-wDfx8pzsIYRosMaWyUsE1mepgAyonUAZ85rqp0i4S/exec">دائرة الثروة الحيوانية</option>
@@ -1541,7 +1974,9 @@ showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
   window._vrInitialized           = false;
   window._breederInitialized      = false;
   window._samplesInitialized      = false;
-
+  if (typeof bd_clearForm === 'function') bd_clearForm();
+  if (window.BreederCache && window.BreederCache._doClear) window.BreederCache._doClear();
+   resetAllPagesData();
   // إعادة تحميل الصفحات التي لا تحتاج init
   vr_allData    = [];
   vr_dataLoaded = false;
@@ -1554,11 +1989,7 @@ showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
   if (typeof rpt_loadReport      === 'function') rpt_loadReport();
   if (typeof dtr_loadData        === 'function') dtr_loadData();
  if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
-window._breederInitialized = false;
-if (typeof bd_init === 'function') {
-  window._breederInitialized = true;
-  bd_init();
-}
+
 }
 </script>
   <!-- زر المظهر مستقل عن نظام التبويبات -->
@@ -2170,14 +2601,17 @@ if(m){
   lCU={...m, _u:u};
   window._currentUser = u;
 
-  // ===== قراءة رابط الولاية من الشيت =====
+// ===== قراءة رابط الولاية من الشيت =====
   const urlKey = Object.keys(m).find(k => k.toLowerCase().trim() === 'api_url');
-  if (urlKey && m[urlKey] && m[urlKey].trim() !== '') {
-    window._activeApiUrl = m[urlKey].trim();
-    console.log('[API] رابط الولاية:', m['wilayat'] || '—');
+  const apiUrlVal = urlKey ? (m[urlKey] || '').trim() : '';
+  if (!apiUrlVal || apiUrlVal.indexOf('http') !== 0) {
+    lAlert('l_loginErr','l_loginErrIco','l_loginErrTx','error',
+      '⛔ لا يوجد رابط خدمة (api_url) صالح لهذا المستخدم. راجع المسؤول.');
+    return;
   }
+  window._activeApiUrl = apiUrlVal;
+  console.log('[API] رابط الولاية:', m['wilayat'] || '—', apiUrlVal);
   // =========================================
-
 PERM.init(u, m);
 
   // ===== تهيئة الصفحات بعد تسجيل الدخول =====
@@ -2261,6 +2695,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', ()=>{
   document.getElementById('l_username').value='';
   document.getElementById('l_password').value='';
   document.getElementById('l_loginErr').style.display='none';
+  if (typeof bd_clearForm === 'function') bd_clearForm();
   lShow(lViews.login);
   lockNav();
 
@@ -2387,7 +2822,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', ()=>{
             <div class="dept">المديرية العامة للثروة الحيوانية</div>
           </div>
           <div class="header-center">
-            <img src="https://l.top4top.io/p_3755nykb41.png" alt="شعار سلطنة عمان" class="print-logo">
+            <img src="https://drive.google.com/thumbnail?id=1nLjdSu4S3f8B4RVsUBBY2tDAIr6VCAUI&sz=w1000" alt="شعار سلطنة عمان" class="print-logo">
             <div class="form-title">استمارة العينات</div>
             <div class="form-title">Animal Specimen Submission Form</div>
             <div class="form-title">المختبر المركزي للصحة الحيوانية</div>
@@ -2433,7 +2868,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', ()=>{
       </div>
 
       <!-- أزرار التحكم -->
-      <div class="top-bar" style="justify-content:center;gap:12px;background:#eef7ff">
+        <div class="top-bar" style="justify-content:center;gap:12px;background:#eef7ff">
         <button class="clear" id="db_clearBtn">مسح</button>
         <button class="search" id="db_searchBtn">بحث</button>
         <button class="print" id="db_printBtn">🖨️ طباعة</button>
@@ -2452,7 +2887,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', ()=>{
         <div>المُـديـريـة العـامـة للثـروة الحَيَوانيـة</div>
       </div>
       <div class="pa-header-center">
-        <img src="https://k.top4top.io/p_3767zmoxi1.png" class="pa-logo" alt="شعار سلطنة عمان">
+        <img src="https://drive.google.com/thumbnail?id=1nLjdSu4S3f8B4RVsUBBY2tDAIr6VCAUI&sz=w1000" class="pa-logo" alt="شعار سلطنة عمان">
         <div class="pa-form-title">استمارة العينات</div>
         <div class="pa-form-title">Animal Specimen Submission Form</div>
         <div class="pa-form-title">المختبر المركزي للصحة الحيوانية</div>
@@ -2702,7 +3137,7 @@ var DB__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycb
         <div>التاريخ : <input type="text" id="dateField" style="width:100px"></div>
       </div>
       <div class="logo-section">
-        <img src="https://a.top4top.io/p_3820zi52a1.png" class="oman-emblem" alt="شعار سلطنة عمان">
+        <img src="https://drive.google.com/thumbnail?id=1oZqrrr86Pg1oe0kXGXhOWrJgIghxgJRh&sz=w1000" class="oman-emblem" alt="شعار سلطنة عمان">
         <h1>المشروع الوطني لتحصين الثروة الحيوانية</h1>
         <h2>شهادة تحصين</h2>
       </div>
@@ -2753,9 +3188,15 @@ var DB__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycb
     </table>
 
     <div class="bottom-section">
-      <div class="notes-section">
+         <div class="notes-section">
         <div><strong>ملاحظات :</strong></div>
         <input type="text" id="set_notes">
+        <div style="margin-top:8px;font-size:11pt;">
+          تاريخ الجرعة الأولى :
+          <input type="text" id="set_dose1Date" style="border:none;border-bottom:1px dotted #666;font-family:inherit;font-size:11pt;width:110px;text-align:center;background:transparent;">
+          &nbsp;&nbsp; تاريخ الجرعة الثانية :
+          <input type="text" id="set_dose2Date" style="border:none;border-bottom:1px dotted #666;font-family:inherit;font-size:11pt;width:110px;text-align:center;background:transparent;">
+        </div>
         <div class="footer-notes" style="margin-top:15px">
           <div>
             <div><strong>ملاحظة :</strong></div>
@@ -2833,7 +3274,23 @@ function fillFormDataMultiRows(rows, data) {
   document.getElementById('ownerPhone').value    = first.phone      || '';
   document.getElementById('village').value       = first.village    || '';
   document.getElementById('set_notes').value     = first.notes      || '';
- 
+
+// ── تواريخ الجرعات من العمود AA: الصف الأول = جرعة أولى، الثاني = جرعة ثانية ──
+  var fmtDose = function(v) {
+    if (!v) return '';
+    var s = String(v).trim();
+    // إذا كانت أصلاً بصيغة dd/MM/yyyy اتركها كما هي
+if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return s;
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+    return String(d.getDate()).padStart(2,'0') + '/' +
+           String(d.getMonth()+1).padStart(2,'0') + '/' +
+           d.getFullYear();
+  };
+var dose1El = document.getElementById('set_dose1Date');
+  var dose2El = document.getElementById('set_dose2Date');
+  if (dose1El) dose1El.value = (rows[0] && rows[0].date) ? fmtDose(rows[0].date) : '';
+  if (dose2El) dose2El.value = (rows[1] && rows[1].date) ? fmtDose(rows[1].date) : '';
   // ---------------------------------------------------------------
   // مساعد: قراءة قيمة عددية بأمان
   var num = function(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; };
@@ -2998,10 +3455,11 @@ function clearAllData() {
   document.getElementById('set_clinicPhone').value=''; document.getElementById('serialNum').value='';
   document.getElementById('set_ownerName').value=''; document.getElementById('ownerPhone').value='';
   document.getElementById('village').value=''; document.getElementById('set_notes').value='';
+  document.getElementById('set_dose1Date').value=''; document.getElementById('set_dose2Date').value='';
   document.querySelectorAll('.data-table input').forEach(function(f){ f.value=''; });
 }
 function clearFormData() {
-  ['set_ownerName','ownerPhone','village','set_notes'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['set_ownerName','ownerPhone','village','set_notes','set_dose1Date','set_dose2Date'].forEach(function(id){ document.getElementById(id).value=''; });
   document.querySelectorAll('.data-table input').forEach(function(f){ f.value=''; });
 }
 function printCertificateLandscape() {
@@ -3229,6 +3687,7 @@ function dim_printTable() {
       <button class="clear" id="tr_clearBtn">مسح</button>
       <button id="tr_deleteBtn" style="background:#e65050;color:#fff">حذف البيانات</button>
       <button id="tr_searchBtn" style="background:#bf84e9;color:#fff">بحث</button>
+      <button id="tr_refreshBtn" style="background:#607d8b;color:#fff" onclick="trinit()">🔄 تحديث الصفحة</button>
       <button id="tr_mainMenuBtn" style="background:#7f6000;color:#fff">إجمالي الحيوانات المعالجة</button>
       <button id="tr_searchRecordBtn" style="background:#9b59b6;color:#fff">البحث في سجل العلاج</button>
     </div>
@@ -3780,6 +4239,23 @@ async function trfetchBreederData(phone) {
 
 /** حفظ حالة جديدة */
 async function trsaveData() {
+  // فحص تكرار الإيصال قبل الحفظ
+  var receiptEl = document.getElementById("tr_receipt");
+  if (receiptEl && receiptEl.value.trim()) {
+    var receiptVal = receiptEl.value.trim();
+    var table = document.getElementById("tr_dataTable");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (tbody) {
+      var isDup = false;
+      tbody.querySelectorAll("tr").forEach(function(row) {
+        var cells = row.querySelectorAll("td");
+        if (cells.length >= 4 && (cells[3].textContent || "").trim() === receiptVal) isDup = true;
+      });
+if (isDup) {
+  trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
+}
+    }
+  }
   trshowConfirm("هل تريد حفظ البيانات؟", async () => {
     trblockButtons();
     trshowMessage("⏳ جاري حفظ البيانات...", false);
@@ -3794,9 +4270,12 @@ async function trsaveData() {
       const res = await trcallApi("trsaveData", { data });
       if (res.success) {
         trshowMessage("✅ تم الحفظ بنجاح", false);
-        trclearForm();
-        trloadData();
-        trloadIncompleteCount();
+      trclearForm();
+// تنفيذ عمليات التحميل بشكل متوازٍ لتقليل وقت الانتظار
+await Promise.all([
+  trloadData(),
+  trloadIncompleteCount()
+]);
       } else {
         trshowMessage(res.message, true);
       }
@@ -3936,6 +4415,24 @@ function trvalidateTempData(data, requireCaseNumber, requireUpdater) {
 async function trtempSave() {
   const data = trcollectFormData();
   if (!trvalidateTempData(data, false, false)) return;
+  // فحص تكرار الإيصال
+  var receiptEl = document.getElementById("tr_receipt");
+  if (receiptEl && receiptEl.value.trim()) {
+    var receiptVal = receiptEl.value.trim();
+    var table = document.getElementById("tr_dataTable");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (tbody) {
+      var isDup = false;
+      tbody.querySelectorAll("tr").forEach(function(row) {
+        var cells = row.querySelectorAll("td");
+        if (cells.length >= 4 && (cells[3].textContent || "").trim() === receiptVal) isDup = true;
+      });
+if (isDup) {
+  trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
+  await new Promise(r => setTimeout(r, 1500));
+}
+    }
+  }
 
   trblockButtons();
   trshowMessage("⏳ جاري حفظ البيانات مؤقتاً...", false);
@@ -4095,12 +4592,13 @@ async function trperformSearch() {
 
   trblockButtons();
   try {
-    const res = await trcallApi("trsearchInTreatmentSheet", {
-      keyword:   kw,
-      startDate: sd,
-      endDate:   ed,
-    });
-
+var res = await trcallApi("trsearchInTreatmentSheet", {
+  keyword:   kw,
+  startDate: sd,
+  endDate:   ed,
+  limit: 100,    // تحديد عدد النتائج لتقليل حجم البيانات
+  offset: 0
+});
     const tbl = document.getElementById("tr_searchTable");
     tbl.innerHTML = "";
 
@@ -4448,12 +4946,11 @@ function trinit() {
   trloadIncompleteCount();
   
   // ④ تحديث دوري كل دقيقتين
-  setInterval(trloadIncompleteCount, 120000);
-  
+// setInterval(trloadIncompleteCount, 120000); // تم التعليق لتقليل طلبات الخادم  
   const overlay = document.getElementById("tr_loadingOverlay");
   if (overlay) overlay.style.display = "flex";
 
-  Promise.all([trloadDropdowns(), trloadData()])
+return Promise.all([trloadDropdowns(), trloadData()])
     .catch(err => trshowMessage("خطأ في التحميل: " + err.message, true))
     .finally(() => { if (overlay) overlay.style.display = "none"; });
 }
@@ -4544,66 +5041,46 @@ async function trSelectIncompleteCase(caseNumber) {
 (function () {
   "use strict";
 
+  // الرقم المحسوب من آخر صف في الجدول اليومي
+  var _tableReceipt = 0;
+  // الرقم الذي يجب أن يظهر بعد الحفظ (الحالي + 1)
   var _nextReceipt = 0;
 
-  function captureReceiptBeforeSave() {
-    var el = document.getElementById("tr_receipt");
-    if (!el) return;
-    var v = parseInt(el.value, 10);
-    _nextReceipt = (!isNaN(v) && v > 0) ? v + 1 : 0;
-  }
-
-  function restoreNextReceipt() {
-    if (_nextReceipt <= 0) return;
-    var el = document.getElementById("tr_receipt");
-    if (el) el.value = _nextReceipt;
-    _nextReceipt = 0;
-  }
-
-  // ─── الدالة الجديدة لتحديث رقم الإيصال من الجدول اليومي ───
+  /* ─── تحديث _tableReceipt من الجدول اليومي ─── */
   function updateReceiptFromTable() {
     try {
       var table = document.getElementById("tr_dataTable");
       if (!table) return;
       var tbody = table.querySelector("tbody");
       if (!tbody) return;
-
       var rows = tbody.querySelectorAll("tr");
-      var maxReceipt = 0;
+      if (!rows.length) return;
 
-      rows.forEach(function (row) {
-        var cells = row.cells;
-        if (cells.length >= 4) {
-          var receiptText = cells[3].textContent.trim();
-          var receiptNum = parseInt(receiptText, 10);
-          if (!isNaN(receiptNum) && receiptNum > maxReceipt) {
-            maxReceipt = receiptNum;
-          }
-        }
-      });
+      var lastRow = rows[rows.length - 1];
+      var cells = lastRow.cells;
+      if (!cells || cells.length < 4) return;
 
-      var receiptField = document.getElementById("tr_receipt");
-      if (receiptField) {
-        // إذا لم توجد إيصالات سابقة → نبدأ من 1
-        // وإلا نضع آخر رقم + 1
-        receiptField.value = maxReceipt > 0 ? (maxReceipt + 1) : 1;
+      var receiptNum = parseInt(cells[3].textContent.trim(), 10);
+      _tableReceipt = (!isNaN(receiptNum) && receiptNum > 0) ? receiptNum + 1 : 1;
+
+      // حدّث الحقل فقط إذا لم يكن هناك حالة محملة حالياً
+      // (أي الحقل لا يحتوي على رقم إيصال حالة مُحمَّلة)
+      var el = document.getElementById("tr_receipt");
+      var cn = (document.getElementById("tr_caseNumber") || {}).value || "";
+      if (el && !cn.trim()) {
+        el.value = _tableReceipt;
       }
-    } catch (e) {
-      // تجاهل الأخطاء (مثلاً عند عدم وجود الجدول بعد)
-    }
+    } catch (e) {}
   }
 
-  // ─── ربط الدالة مع تحميل الجدول ───
+  /* ─── ربط مع trloadData ─── */
   if (window.trloadData) {
     var origTrloadData = window.trloadData;
     window.trloadData = function () {
       var result = origTrloadData.apply(this, arguments);
       if (result && typeof result.then === "function") {
-        result.then(function () {
-          setTimeout(updateReceiptFromTable, 300);
-        }).catch(function () {
-          setTimeout(updateReceiptFromTable, 500);
-        });
+        result.then(function () { setTimeout(updateReceiptFromTable, 300); })
+              .catch(function () { setTimeout(updateReceiptFromTable, 500); });
       } else {
         setTimeout(updateReceiptFromTable, 300);
       }
@@ -4611,16 +5088,17 @@ async function trSelectIncompleteCase(caseNumber) {
     };
   }
 
-  // ─── ربط مع دالة التهيئة (لضمان التحديث بعد تحميل الصفحة) ───
+  /* ─── ربط مع trinit ─── */
   if (window.trinit) {
     var origTrinit = window.trinit;
-    window.trinit = function () {
-      origTrinit.apply(this, arguments);
+   window.trinit = function () {
+      var _r = origTrinit.apply(this, arguments);
       setTimeout(updateReceiptFromTable, 1500);
+      return _r;
     };
   }
 
-  // ─── ربط مع نظام المزامنة بين الأجهزة ───
+  /* ─── ربط مع المزامنة ─── */
   if (window.remoteSyncApply) {
     var origSyncApply = window.remoteSyncApply;
     window.remoteSyncApply = function (topic, action) {
@@ -4631,53 +5109,78 @@ async function trSelectIncompleteCase(caseNumber) {
     };
   }
 
-  // ─── استدعاء أولي بعد فترة قصيرة (لحالة تسجيل الدخول المباشر) ───
   setTimeout(updateReceiptFromTable, 3000);
 
-  // ─── الدوال الأصلية الخاصة بالحفظ والمسح ───
+  /* ─── trclearForm: استعد الرقم الصحيح دائماً ─── */
   function patchClearForm() {
     if (!window.trclearForm || window.trclearForm._recPatch) return;
     var _orig = window.trclearForm;
     window.trclearForm = function () {
       _orig.apply(this, arguments);
-      if (_nextReceipt > 0) {
-        document.getElementById("tr_receipt").value = _nextReceipt;
+      // بعد الحفظ: استخدم _nextReceipt، وإلا استخدم _tableReceipt
+      var restoreVal = (_nextReceipt > 0) ? _nextReceipt : _tableReceipt;
+      if (restoreVal > 0) {
+        var el = document.getElementById("tr_receipt");
+        if (el) el.value = restoreVal;
       }
+      _nextReceipt = 0;
     };
     window.trclearForm._recPatch = true;
   }
 
+  /* ─── trclearFormExcept: احفظ رقم الإيصال قبل المسح وأعده بعده ─── */
   function patchClearFormExcept() {
     if (!window.trclearFormExcept || window.trclearFormExcept._recPatch) return;
     var _orig = window.trclearFormExcept;
     window.trclearFormExcept = function (exceptId) {
       var receipt = document.getElementById("tr_receipt");
       var savedReceipt = receipt ? receipt.value : "";
-      _nextReceipt = 0;
       _orig.apply(this, arguments);
-      if (receipt && savedReceipt) receipt.value = savedReceipt;
+      if (receipt && savedReceipt) {
+        receipt.value = savedReceipt;
+      }
     };
     window.trclearFormExcept._recPatch = true;
   }
 
+  /* ─── trsaveData: احفظ الرقم+1 قبل الحفظ ─── */
   function patchSave() {
     if (!window.trsaveData || window.trsaveData._recPatch) return;
     var _orig = window.trsaveData;
     window.trsaveData = async function () {
-      captureReceiptBeforeSave();
-      var result = await _orig.apply(this, arguments);
-      return result;
+      var el = document.getElementById("tr_receipt");
+      if (el) {
+        var v = parseInt(el.value, 10);
+        _nextReceipt = (!isNaN(v) && v > 0) ? v + 1 : 0;
+      }
+      return await _orig.apply(this, arguments);
     };
     window.trsaveData._recPatch = true;
   }
 
+  /* ─── trupdateData: بعد التحديث أعد رقم الجدول ─── */
+  function patchUpdate() {
+    if (!window.trupdateData || window.trupdateData._recPatch) return;
+    var _orig = window.trupdateData;
+    window.trupdateData = async function () {
+      // عند التحديث: لا نزيد الرقم، نعود لرقم الجدول بعد المسح
+      _nextReceipt = 0;
+      return await _orig.apply(this, arguments);
+    };
+    window.trupdateData._recPatch = true;
+  }
+
+  /* ─── trtempSave ─── */
   function patchTempSave() {
     if (!window.trtempSave || window.trtempSave._recPatch) return;
     var _orig = window.trtempSave;
     window.trtempSave = async function () {
-      captureReceiptBeforeSave();
-      var result = await _orig.apply(this, arguments);
-      return result;
+      var el = document.getElementById("tr_receipt");
+      if (el) {
+        var v = parseInt(el.value, 10);
+        _nextReceipt = (!isNaN(v) && v > 0) ? v + 1 : 0;
+      }
+      return await _orig.apply(this, arguments);
     };
     window.trtempSave._recPatch = true;
   }
@@ -4686,9 +5189,12 @@ async function trSelectIncompleteCase(caseNumber) {
     patchClearForm();
     patchClearFormExcept();
     patchSave();
+    patchUpdate();
     patchTempSave();
-    var allDone = window.trclearForm && window.trclearFormExcept &&
-                  window.trsaveData && window.trtempSave;
+    var allDone =
+      window.trclearForm    && window.trclearFormExcept &&
+      window.trsaveData     && window.trupdateData &&
+      window.trtempSave;
     if (!allDone) setTimeout(tryPatch, 500);
   }
 
@@ -4761,7 +5267,7 @@ async function trSelectIncompleteCase(caseNumber) {
         <input type="text" id="bd_globalSearchInput" placeholder="اكتب للبحث..." style="width:250px;padding:5px">
 <button onclick="bd_fetchAll()" style="background:#00b8d9;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;">⬇️ جلب الكل</button>
 <span id="bd_fetchAllCount" style="display:none;background:#2bb673;color:#fff;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:bold;margin-right:6px;"></span>
-<button onclick="bd_analyzeInactive()" style="background:#e67e22;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">🔍 غير نشطين (6 أشهر)</button>
+<button onclick="bd_analyzeInactive()" style="background:#e67e22;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📊 تصنيف نشاط المربين</button>        
       </div>
       <div id="bd_searchResultsContainer" style="display:none;max-height:300px;overflow:auto">
         <table id="bd_searchResultsTable" style="width:100%;border-collapse:collapse">
@@ -4790,14 +5296,13 @@ async function trSelectIncompleteCase(caseNumber) {
 <script>
 "use strict";
 
-var bd_API_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
-var storedUrl = localStorage.getItem("breeders_api_url");
-if (storedUrl) bd_API_URL = storedUrl;
+var bd_API_URL = "";
 var bd_isClearing = false;
 async function bd_callApi(action, payload) {
-  if (!bd_API_URL) throw new Error("رابط الخدمة غير مُعدّ");
+  var url = window._activeApiUrl || bd_API_URL;
+  if (!url) throw new Error("رابط الخدمة غير مُعدّ");
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(bd_API_URL, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });
+  var r = await fetch(url, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });
   if (!r.ok) throw new Error("HTTP " + r.status);
   return await r.json();
 }
@@ -4837,6 +5342,13 @@ function bd_fillFormWithData(data) {
 
 function bd_clearForm() {
   bd_isClearing = true;  // ← أضف هذا السطر
+ // إخفاء شارة عدد المربين
+var bdCountBadge = document.getElementById("bd_fetchAllCount");
+  if (bdCountBadge) { 
+    bdCountBadge.style.display = "none"; 
+    bdCountBadge.textContent = ""; 
+    bdCountBadge.removeAttribute("data-visible");
+  }
   ["bd_caseNumber","bd_nameInput","bd_possessionInput","bd_regionInput","bd_civilInput","bd_newPhoneInput",
    "bd_notes","bd_dataEntryInput","bd_dataUpdaterInput","bd_financialDate","bd_phoneInput","bd_private","bd_globalSearchInput",
    "bd_animal_goat","bd_animal_sheep","bd_animal_cow","bd_animal_camel","bd_animal_horse","bd_animal_cat","bd_animal_dog","bd_animal_poultry"
@@ -5074,7 +5586,11 @@ async function bd_deleteVaccination() {
 }
 
 function bd_bindEvents() {
-  document.getElementById("bd_saveBtn").onclick=bd_saveData;
+  var saveBtn = document.getElementById('bd_saveBtn');
+  if (!saveBtn || saveBtn._bound) return;
+  saveBtn._bound = true;
+
+  document.getElementById('bd_saveBtn').onclick=bd_saveData;
   document.getElementById("bd_updateBtn").onclick=bd_updateData;
   document.getElementById("bd_clearBtn").onclick=bd_clearForm;
   document.getElementById("bd_deleteBtn").onclick=bd_deleteData;
@@ -5106,8 +5622,25 @@ function bd_hideLoading() {
 }
 
 function bd_init(){
+  bd_API_URL = window._activeApiUrl || "";
+
+  var ov = document.getElementById("bd_pageLoadingOverlay");
+  if (ov) {
+    ov.style.display = "flex";
+    ov.style.opacity = "1";
+    ov.classList.remove("hidden");
+    ov.style.pointerEvents = "";
+  }
+
+  var saveBtn = document.getElementById('bd_saveBtn');
+  if (saveBtn) delete saveBtn._bound;
+
   bd_bindEvents();
-  bd_refreshDropdowns().then(function(){ bd_hideLoading(); }).catch(function(){ bd_hideLoading(); });
+
+var safeHide = setTimeout(function(){ bd_hideLoading(); }, 5000);
+  return bd_refreshDropdowns()
+    .then(function(){ clearTimeout(safeHide); bd_hideLoading(); })
+    .catch(function(){ clearTimeout(safeHide); bd_hideLoading(); });
 }
 
 async function bd_fetchAll() {
@@ -5133,32 +5666,55 @@ async function bd_fetchAll() {
     }).join("");
     bd_showMessage("✅ تم جلب " + res.data.length + " مربي", false);
     var countBadge = document.getElementById("bd_fetchAllCount");
-    if (countBadge) { countBadge.textContent = res.data.length + " مربي"; countBadge.style.display = "inline"; }
+    if (countBadge) { countBadge.textContent = res.data.length + " مربي"; countBadge.style.display = "inline-block"; countBadge.setAttribute("data-visible","1"); }
   } catch(err) {
     tbody.innerHTML = "<tr><td colspan='100' style='text-align:center;color:red'>خطأ: "+err.message+"</td></tr>";
   }
 }
-  /* ══════════════════════════════════════════════════════════
-   bd_analyzeInactive — تحليل المربين غير النشطين (6 أشهر)
+/* ══════════════════════════════════════════════════════════
+   تصنيف المربين حسب النشاط
+   نشط     = لديه سجل واحد على الأقل في أي من سجلات النظام
+   غير نشط = لا يوجد له أي سجل إطلاقاً
    ══════════════════════════════════════════════════════════ */
-async function bd_analyzeInactive() {
-  var SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
-  var cutoff = new Date(Date.now() - SIX_MONTHS_MS);
+window._bdActivity     = { active: [], inactive: [], total: 0 };
+window._bdActivityMode = 'active';
 
-  /* ── شاشة تحميل ── */
+function bd_fmtDate(d) {
+  if (!d) return '—';
+  return String(d.getDate()).padStart(2,'0') + '/' +
+         String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+}
+
+function bd_daysPhrase(n) {
+  if (n <= 0)  return 'اليوم';
+  if (n === 1) return 'قبل يوم واحد';
+  if (n === 2) return 'قبل يومين';
+  if (n <= 10) return 'قبل ' + n + ' أيام';
+  return 'قبل ' + n + ' يومًا';
+}
+
+function bd_daysColor(n) {
+  if (n <= 30)  return { bg:'#e8f8f0', txt:'#1b5e20' };
+  if (n <= 90)  return { bg:'#eaf4fd', txt:'#0d47a1' };
+  if (n <= 180) return { bg:'#fffbe6', txt:'#7f4f00' };
+  return { bg:'#fff5f5', txt:'#7a0000' };
+}
+
+async function bd_analyzeInactive() {
   var existingModal = document.getElementById('bd_inactiveModal');
   if (existingModal) existingModal.remove();
 
   var modal = document.createElement('div');
   modal.id = 'bd_inactiveModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
-  modal.innerHTML = '<div style="background:#fff;border:4px solid #e67e22;border-radius:12px;padding:30px 40px;width:92%;max-width:900px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
-      '<h3 style="color:#e67e22;font-size:1.2rem;margin:0;">⏳ جاري التحليل...</h3>' +
-      '<button onclick="document.getElementById(\'bd_inactiveModal\').remove()" style="background:#e65050;color:#fff;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-family:inherit;font-size:13px;">✕ إغلاق</button>' +
-    '</div>' +
-    '<div id="bd_inactiveContent" style="text-align:center;padding:20px;color:#888;">⏳ جاري جلب البيانات من جميع السجلات...</div>' +
-  '</div>';
+  modal.innerHTML =
+    '<div style="background:#fff;border:4px solid #00b8d9;border-radius:12px;padding:24px 30px;width:94%;max-width:960px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+        '<h3 style="color:#00b8d9;font-size:1.2rem;margin:0;">⏳ جاري التحليل...</h3>' +
+        '<button onclick="document.getElementById(\'bd_inactiveModal\').remove()" style="background:#e65050;color:#fff;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-family:inherit;font-size:13px;">✕ إغلاق</button>' +
+      '</div>' +
+      '<div id="bd_inactiveContent" style="text-align:center;padding:20px;color:#888;">⏳ جاري جلب البيانات من جميع السجلات...</div>' +
+    '</div>';
   document.body.appendChild(modal);
 
   try {
@@ -5176,32 +5732,34 @@ async function bd_analyzeInactive() {
     var bdRes = await bd_callApi('bd_getAllBreeders');
     if (!bdRes || !bdRes.success || !bdRes.data || !bdRes.data.length)
       throw new Error('تعذّر جلب سجل المربين');
-    var breeders = bdRes.data; /* [{phone, name, ...}] */
+    var breeders = bdRes.data;
 
-    /* ── ٢. جلب سجلات العلاج ── */
-    var lastActivity = {}; /* phone → Date أحدث نشاط */
+    /* ── ٢. تجميع آخر نشاط لكل رقم هاتف ── */
+    var lastActivity = {};
 
     function _registerDate(phone, dateStr) {
-      if (!phone || !dateStr) return;
+      if (!phone) return;
       var ph = String(phone).trim();
       if (!ph) return;
-      /* دعم صيغ: DD/MM/YYYY أو YYYY-MM-DD أو MM/DD/YYYY */
+      /* وجود السجل نفسه كافٍ لاعتباره نشطاً حتى لو كان التاريخ غير صالح */
+      if (!(ph in lastActivity)) lastActivity[ph] = null;
+      if (!dateStr) return;
+      var s = String(dateStr).trim();
       var d;
-      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-        d = new Date(dateStr.substring(0, 10));
-      } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
-        var pts = dateStr.split('/');
-        /* نحاول DD/MM/YYYY أولاً */
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        d = new Date(s.substring(0, 10));
+      } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+        var pts = s.split('/');
         d = new Date(pts[2] + '-' + pts[1].padStart(2,'0') + '-' + pts[0].padStart(2,'0'));
         if (isNaN(d)) d = new Date(pts[2] + '-' + pts[0].padStart(2,'0') + '-' + pts[1].padStart(2,'0'));
       } else {
-        d = new Date(dateStr);
+        d = new Date(s);
       }
       if (isNaN(d)) return;
       if (!lastActivity[ph] || d > lastActivity[ph]) lastActivity[ph] = d;
     }
 
-    /* علاج */
+    /* سجل العلاج */
     try {
       var tr = null;
       try { tr = await _callUrl('trsearchInTreatmentSheet', { keyword:'', startDate:'2020-01-01', endDate:'2099-12-31' }); } catch(e) {}
@@ -5221,9 +5779,9 @@ async function bd_analyzeInactive() {
           _registerDate(row[phoneIdx], row[dateIdx]);
         });
       }
-    } catch(e) { console.warn('[inactive] علاج:', e.message); }
+    } catch(e) { console.warn('[activity] علاج:', e.message); }
 
-    /* تحصين */
+    /* سجل التحصين */
     try {
       var vr = await _callUrl('searchVaccinationRecords', { filters:{} });
       if (vr && vr.success) {
@@ -5238,99 +5796,142 @@ async function bd_analyzeInactive() {
           if (!Array.isArray(row)) return;
           var rn = parseInt(row[0]);
           if (isNaN(rn) || rn === 0) return;
-          _registerDate(row[1], row[26]); /* phone=1, date=26 */
+          _registerDate(row[1], row[26]);
         });
       }
-    } catch(e) { console.warn('[inactive] تحصين:', e.message); }
+    } catch(e) { console.warn('[activity] تحصين:', e.message); }
 
-    /* عينات */
+    /* سجل العينات */
     try {
       var sr = await _callUrl('fosearchSamplesData', { showAll: true });
       if (sr && sr.success && Array.isArray(sr.data)) {
         sr.data.forEach(function(r) {
-          var ph = String(r.phone || '').trim();
-          var dt = r.sampleSentDate || r.samplesentdate || r.diseaseDate || '';
-          _registerDate(ph, dt);
+          _registerDate(r.phone, r.sampleSentDate || r.samplesentdate || r.diseaseDate || '');
         });
       }
-    } catch(e) { console.warn('[inactive] عينات:', e.message); }
+    } catch(e) { console.warn('[activity] عينات:', e.message); }
 
-    /* ── ٣. تصفية المربين غير النشطين ── */
-    var inactive = [];
+    /* ── ٣. التصنيف: وجود سجل من عدمه ── */
+    var nowMs = Date.now();
+    var active = [], inactive = [];
+
     breeders.forEach(function(b) {
       var ph = String(b.phone || '').trim();
       if (!ph) return;
-      var last = lastActivity[ph];
-      /* غير نشط إذا: لم يُسجَّل له أي نشاط، أو آخر نشاط قبل الحد */
-      if (!last || last < cutoff) {
-        inactive.push({
-          phone: ph,
-          name:  b.name || '',
-          lastDate: last ? last.toLocaleDateString('ar-SA') : 'لا يوجد سجل',
-          daysSince: last ? Math.floor((Date.now() - last) / 86400000) : null
-        });
+      var rec = { phone: ph, name: b.name || '', region: b.region || '' };
+      if (ph in lastActivity) {
+        var last = lastActivity[ph];
+        rec.last = last;
+        rec.days = last ? Math.max(0, Math.floor((nowMs - last.getTime()) / 86400000)) : null;
+        active.push(rec);
+      } else {
+        inactive.push(rec);
       }
     });
 
-    /* ── ٤. عرض النتائج ── */
-    var cutoffStr = cutoff.toLocaleDateString('ar-SA');
-    var content = document.getElementById('bd_inactiveContent');
-    if (!inactive.length) {
-      content.innerHTML = '<div style="color:#27ae60;font-size:1.1rem;padding:20px;">✅ جميع المربين لديهم نشاط خلال الـ 6 أشهر الأخيرة</div>';
-      return;
-    }
+    /* النشطون: الأحدث نشاطاً أولاً | غير النشطين: أبجدياً */
+    active.sort(function(a, b) {
+      if (a.days === null) return 1;
+      if (b.days === null) return -1;
+      return a.days - b.days;
+    });
+    inactive.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ar'); });
 
-    /* ترتيب: الأطول غياباً أولاً */
-    inactive.sort(function(a,b){ return (b.daysSince || 99999) - (a.daysSince || 99999); });
+    window._bdActivity = { active: active, inactive: inactive, total: breeders.length };
 
-    var rows_html = inactive.map(function(r, i) {
-      var rowColor = (r.daysSince === null || r.daysSince > 365) ? '#fff5f5' : (r.daysSince > 180 ? '#fffbe6' : '#f8f8f8');
-      return '<tr style="background:' + rowColor + ';">' +
-        '<td style="border:1px solid #ccc;padding:6px;text-align:center;font-weight:bold;">' + (i+1) + '</td>' +
-        '<td style="border:1px solid #ccc;padding:6px;direction:ltr;text-align:center;">' + r.phone + '</td>' +
-        '<td style="border:1px solid #ccc;padding:6px;text-align:right;">' + r.name + '</td>' +
-        '<td style="border:1px solid #ccc;padding:6px;text-align:center;">' + r.lastDate + '</td>' +
-        '<td style="border:1px solid #ccc;padding:6px;text-align:center;">' + (r.daysSince !== null ? r.daysSince + ' يوم' : '—') + '</td>' +
-        '<td style="border:1px solid #ccc;padding:6px;text-align:center;">' +
-          '<button onclick="document.getElementById(\'bd_inactiveModal\').remove();document.getElementById(\'bd_phoneInput\').value=\'' + r.phone + '\';bd_loadCaseData(\'' + r.phone + '\');" ' +
-          'style="background:#00b8d9;color:#fff;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:12px;">📂 فتح</button>' +
-        '</td>' +
-      '</tr>';
-    }).join('');
-
-    content.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">' +
-        '<div>' +
-          '<span style="background:#e67e22;color:#fff;border-radius:20px;padding:4px 14px;font-weight:bold;font-size:13px;">⚠️ ' + inactive.length + ' مربي غير نشط</span>' +
-          '<span style="margin-right:10px;font-size:12px;color:#888;">من أصل ' + breeders.length + ' مربي | الحد: ' + cutoffStr + '</span>' +
-        '</div>' +
-        '<div>' +
-          '<input id="bd_inactiveFilter" type="text" placeholder="بحث بالاسم أو الهاتف..." ' +
-          'style="padding:5px 8px;border:2px solid #e67e22;border-radius:4px;font-size:13px;width:200px;font-family:inherit;" ' +
-          'oninput="bd_filterInactiveTable(this.value)">' +
-        '</div>' +
+    /* ── ٤. الواجهة: زرا تبديل ── */
+    modal.querySelector('h3').textContent = '📊 تصنيف المربين حسب النشاط';
+    document.getElementById('bd_inactiveContent').innerHTML =
+      '<div style="display:flex;gap:10px;justify-content:center;margin-bottom:14px;flex-wrap:wrap;">' +
+        '<button id="bd_tabActive" onclick="bd_showActivityList(\'active\')" style="padding:8px 20px;border:2px solid #27ae60;border-radius:6px;font-family:inherit;font-size:13px;font-weight:bold;cursor:pointer;">✅ المربون النشطون (' + active.length + ')</button>' +
+        '<button id="bd_tabInactive" onclick="bd_showActivityList(\'inactive\')" style="padding:8px 20px;border:2px solid #e67e22;border-radius:6px;font-family:inherit;font-size:13px;font-weight:bold;cursor:pointer;">⛔ المربون غير النشطين (' + inactive.length + ')</button>' +
       '</div>' +
-      '<div style="overflow-x:auto;">' +
-        '<table id="bd_inactiveTable" style="width:100%;border-collapse:collapse;font-size:12px;">' +
-          '<thead><tr>' +
-            '<th style="background:#e67e22;color:#fff;border:1px solid #ccc;padding:7px;">#</th>' +
-            '<th style="background:#e67e22;color:#fff;border:1px solid #ccc;padding:7px;">رقم الهاتف</th>' +
-            '<th style="background:#e67e22;color:#fff;border:1px solid #ccc;padding:7px;">اسم المربي</th>' +
-            '<th style="background:#e67e22;color:#fff;border:1px solid #ccc;padding:7px;">آخر نشاط</th>' +
-            '<th style="background:#e67e22;color:#fff;border:1px solid #ccc;padding:7px;">الأيام الماضية</th>' +
-            '<th style="background:#e67e22;color:#fff;border:1px solid #ccc;padding:7px;">إجراء</th>' +
-          '</tr></thead>' +
-          '<tbody id="bd_inactiveTbody">' + rows_html + '</tbody>' +
-        '</table>' +
-      '</div>';
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' +
+        '<span id="bd_activityNote" style="font-size:12px;color:#666;"></span>' +
+        '<input id="bd_inactiveFilter" type="text" placeholder="بحث بالاسم أو الهاتف..." oninput="bd_filterInactiveTable(this.value)" style="padding:5px 8px;border:2px solid #00b8d9;border-radius:4px;font-size:13px;width:210px;font-family:inherit;">' +
+      '</div>' +
+      '<div id="bd_activityTableWrap" style="overflow-x:auto;"></div>';
 
-    /* ── تحديث عنوان الـ modal ── */
-    modal.querySelector('h3').textContent = '🔍 المربون غير النشطين خلال 6 أشهر';
+    bd_showActivityList('active');
 
   } catch(err) {
     var c = document.getElementById('bd_inactiveContent');
     if (c) c.innerHTML = '<div style="color:red;padding:20px;">❌ خطأ: ' + (err.message || err) + '</div>';
   }
+}
+
+function bd_showActivityList(mode) {
+  window._bdActivityMode = mode;
+  var A    = window._bdActivity || { active: [], inactive: [], total: 0 };
+  var rows = (mode === 'active') ? A.active : A.inactive;
+
+  var btnA = document.getElementById('bd_tabActive');
+  var btnI = document.getElementById('bd_tabInactive');
+  if (btnA) { btnA.style.background = (mode === 'active')   ? '#27ae60' : '#fff'; btnA.style.color = (mode === 'active')   ? '#fff' : '#27ae60'; }
+  if (btnI) { btnI.style.background = (mode === 'inactive') ? '#e67e22' : '#fff'; btnI.style.color = (mode === 'inactive') ? '#fff' : '#e67e22'; }
+
+  var note = document.getElementById('bd_activityNote');
+  if (note) {
+    note.textContent = (mode === 'active')
+      ? 'لديهم سجل واحد على الأقل في العلاج أو التحصين أو العينات — من أصل ' + A.total + ' مربي'
+      : 'لا يوجد لهم أي سجل في النظام — من أصل ' + A.total + ' مربي';
+  }
+
+  var wrap = document.getElementById('bd_activityTableWrap');
+  if (!wrap) return;
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:26px;color:#27ae60;font-size:1.05rem;">' +
+      (mode === 'active' ? '⚠️ لا يوجد مربون لديهم نشاط مسجل' : '✅ جميع المربين لديهم نشاط مسجل') + '</div>';
+    return;
+  }
+
+  var color = (mode === 'active') ? '#27ae60' : '#e67e22';
+  var head  = (mode === 'active')
+    ? ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ آخر نشاط','آخر نشاط','إجراء']
+    : ['#','رقم الهاتف','اسم المربي','المنطقة','الحالة','إجراء'];
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
+    head.map(function(h){ return '<th style="background:' + color + ';color:#fff;border:1px solid #ccc;padding:7px;">' + h + '</th>'; }).join('') +
+    '</tr></thead><tbody id="bd_inactiveTbody">';
+
+  var td = 'border:1px solid #ccc;padding:6px;';
+
+  rows.forEach(function(r, i) {
+    var openBtn = '<button onclick="document.getElementById(\'bd_inactiveModal\').remove();' +
+      'document.getElementById(\'bd_phoneInput\').value=\'' + r.phone + '\';bd_loadCaseData(\'' + r.phone + '\');" ' +
+      'style="background:#00b8d9;color:#fff;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:12px;">📂 فتح</button>';
+
+    if (mode === 'active') {
+      var c = bd_daysColor(r.days === null ? 9999 : r.days);
+      html += '<tr style="background:' + c.bg + ';">' +
+        '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i+1) + '</td>' +
+        '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
+        '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
+        '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+        '<td style="' + td + 'text-align:center;">' + bd_fmtDate(r.last) + '</td>' +
+        '<td style="' + td + 'text-align:center;font-weight:bold;color:' + c.txt + ';">' +
+          (r.days === null ? 'سجل بدون تاريخ' : bd_daysPhrase(r.days)) + '</td>' +
+        '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
+      '</tr>';
+    } else {
+      html += '<tr style="background:#fff8f0;">' +
+        '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i+1) + '</td>' +
+        '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
+        '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
+        '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+        '<td style="' + td + 'text-align:center;">' +
+          '<span style="background:#e67e22;color:#fff;border-radius:12px;padding:2px 10px;font-size:11px;font-weight:bold;">لا يوجد أي سجل</span></td>' +
+        '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
+      '</tr>';
+    }
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  var f = document.getElementById('bd_inactiveFilter');
+  if (f && f.value) bd_filterInactiveTable(f.value);
 }
 
 function bd_filterInactiveTable(val) {
@@ -5344,7 +5945,6 @@ function bd_filterInactiveTable(val) {
     tr.style.display = (!q || phone.indexOf(q) >= 0 || name.indexOf(q) >= 0) ? '' : 'none';
   });
 }
-  // bd_init() تُستدعى من showPage فقط — لا تشغّل هنا
 </script>
 
 </div>
@@ -6176,12 +6776,13 @@ async function vaccInit() {
 
     <div class="toolbar">
       <label>بحث:</label>
-      <input type="text" id="vr_searchInput" placeholder="رقم الهاتف أو الاسم " style="width:260px" oninput="if(vr_dataLoaded) vr_render()">
+      <input type="text" id="vr_searchInput" placeholder="رقم الهاتف أو الاسم أو المنطقة" style="width:260px" oninput="if(vr_dataLoaded) vr_render()">
       <label>الحالة:</label>
 <select id="vr_statusFilter" onchange="vr_onStatusChange()">
   <option value="all">الكل</option>
   <option value="vacc">المحصنون فقط</option>
   <option value="not">غير المحصنين فقط</option>
+  <option value="refused">رفض التحصين فقط</option>
 </select>
 <div id="vr_vaccineFilterWrap" style="display:none;align-items:center;gap:6px;">
   <label style="font-size:13px;font-weight:bold;color:#006080;">نوع اللقاح:</label>
@@ -6198,20 +6799,21 @@ async function vaccInit() {
       <label>الفرز:</label>
       <select id="vr_sortBy">
         <option value="name">حسب الاسم</option>
-        <option value="phone">حسب الهاتف</option>
+        <option value="count">حسب أكبر عدد حيوانات</option>
         <option value="area">حسب المنطقة</option>
         <option value="status">حسب الحالة</option>
         <option value="date">حسب تاريخ الإدخال</option>
       </select>
       <button onclick="vr_loadData()" style="background:#00b8d9;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🔄 تحديث</button>
       <button onclick="vr_printTable()" style="background:#8e44ad;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🖨️ طباعة</button>
+      <button onclick="vr_bulkUpdateBreeders()" style="background:#2bb673;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🔃 تحديث بيانات المربين</button>
     </div>
 
     <div class="stats">
       <span class="stat-box stat-total">الإجمالي: <span id="vr_statTotal">0</span></span>
       <span class="stat-box stat-vacc">المحصنون: <span id="vr_statVacc">0</span></span>
       <span class="stat-box stat-not">غير المحصنين: <span id="vr_statNot">0</span></span>
-    </div>
+      <span class="stat-box" style="background:#8e44ad">رفض التحصين: <span id="vr_statRefused">0</span></span>    </div>
 
     <div id="vr_searchResultsContainer" style="max-height:70vh; overflow:auto; position:relative;">
       <div class="no-results" id="vr_loadingMsg" style="display:none;"></div>
@@ -6226,6 +6828,7 @@ async function vaccInit() {
             <th style="background:#00b8d9;color:#fff;position:sticky;top:0;z-index:2;border:1px solid #ccc;padding:6px 8px;">تاريخ الإدخال</th>
             <th style="background:#00b8d9;color:#fff;position:sticky;top:0;z-index:2;border:1px solid #ccc;padding:6px 8px;">الحالة</th>
             <th style="background:#00b8d9;color:#fff;position:sticky;top:0;z-index:2;border:1px solid #ccc;padding:6px 8px;">اللقاحات والحيوانات المحصنة</th>
+            <th style="background:#00b8d9;color:#fff;position:sticky;top:0;z-index:2;border:1px solid #ccc;padding:6px 8px;">إجمالي الحيوانات</th>
           </tr>
         </thead>
         <tbody id="vr_searchResultsBody"></tbody>
@@ -6277,7 +6880,31 @@ function vr_hideMsg() {
   var el = document.getElementById('vr_loadingMsg');
   if (el) el.style.display = 'none';
 }
+function vr_animalTotal(r) {
+  var n = function(v) {
+    if (v === null || v === undefined) return 0;
+    var x = parseFloat(String(v).replace(/,/g, "").trim());
+    return isNaN(x) ? 0 : x;
+  };
+  return n(r.goat) + n(r.sheep) + n(r.cow) + n(r.camel);
+}
 
+function vr_animalCell(r) {
+  var total = vr_animalTotal(r);
+  var parts = [];
+  var add = function(label, v) {
+    var x = parseFloat(String(v == null ? '' : v).replace(/,/g, '').trim());
+    if (!isNaN(x) && x > 0) parts.push(label + ': ' + x);
+  };
+  add('ماعز', r.goat); add('أغنام', r.sheep);
+  add('أبقار', r.cow); add('جمال', r.camel);
+  var title = parts.length ? parts.join(' | ') : 'لا توجد أعداد مسجلة';
+  var bg    = total === 0 ? '#eceff1' : (total >= 100 ? '#2bb673' : (total >= 30 ? '#00b8d9' : '#7fb3c8'));
+  var color = total === 0 ? '#607d8b' : '#fff';
+  return '<span title="' + title + '" style="display:inline-block;min-width:42px;background:' + bg +
+         ';color:' + color + ';border-radius:12px;padding:2px 10px;font-weight:bold;font-size:12px;">' +
+         total + '</span>';
+}
 function vr_escapeHtml(s) {
   if (s === null || s === undefined) return "";
   return String(s)
@@ -6367,6 +6994,11 @@ function vr_parseDate(val) {
   }
   if (vr_dataLoaded) vr_render();
 }
+  function vr_isRefused(r) {
+  var notes = (r.notes || '').toString();
+  var keywords = ['رفض', 'لا يرغب', 'عدم رغبة', 'غير راغب', 'لا يريد', 'عدم الرغبة'];
+  return keywords.some(function(k) { return notes.indexOf(k) !== -1; });
+}
 function vr_render() {
   var q      = (document.getElementById("vr_searchInput").value || '').trim();
   var status = document.getElementById("vr_statusFilter").value;
@@ -6379,6 +7011,7 @@ function vr_render() {
     rows = rows.filter(function(r) {
       if (r.phone     && r.phone.indexOf(q)     !== -1) return true;
       if (r.name      && r.name.indexOf(q)      !== -1) return true;
+      if (r.area      && r.area.indexOf(q)      !== -1) return true;
       if (r.entryDate && r.entryDate.indexOf(q) !== -1) return true;
       if (r.records   && r.records.some(function(rec) {
         return rec.date && rec.date.indexOf(q) !== -1;
@@ -6412,15 +7045,22 @@ function vr_render() {
     } else {
       rows = rows.filter(function(r) { return r.vaccinated; });
     }
-  } else if (status === "not") {
-    rows = rows.filter(function(r) { return !r.vaccinated; });
+} else if (status === "not") {
+    rows = rows.filter(function(r) { return !r.vaccinated && !vr_isRefused(r); });
+  } else if (status === "refused") {
+    rows = rows.filter(function(r) { return vr_isRefused(r); });
   }
-
   // الترتيب
   rows.sort(function(a, b) {
-    if (sortBy === "phone")  return (a.phone  || "").localeCompare(b.phone  || "");
-    if (sortBy === "status") return (b.vaccinated ? 1 : 0) - (a.vaccinated ? 1 : 0);
-    // ✅ الجديد (مقارنة زمنية رقمية)
+    if (sortBy === "count")  return vr_animalTotal(b) - vr_animalTotal(a);
+    if (sortBy === "status") {
+      var rank = function(r) {
+    if (r.vaccinated) return 2;        // المحصنون أولاً
+    if (vr_isRefused(r)) return 0;     // رفض التحصين أخيراً
+        return 1;                          // غير المحصنين في الوسط
+      };
+      return rank(b) - rank(a);
+    }    // ✅ الجديد (مقارنة زمنية رقمية)
 if (sortBy === "date") {
   var da = vr_parseDate(a.entryDate);
   var db = vr_parseDate(b.entryDate);
@@ -6451,25 +7091,34 @@ if (sortBy === "date") {
   } else {
     filterNote.style.display = "none";
   }
-  document.getElementById("vr_statTotal").textContent = total;
-  document.getElementById("vr_statVacc").textContent  = vacc;
-  document.getElementById("vr_statNot").textContent   = total - vacc;
+ var refused = rows.filter(function(r) { return vr_isRefused(r); }).length;
+  document.getElementById("vr_statTotal").textContent   = total;
+  document.getElementById("vr_statVacc").textContent    = vacc;
+  document.getElementById("vr_statNot").textContent     = total - vacc - refused;
+  document.getElementById("vr_statRefused").textContent = refused;
 
   // رسم الجدول
   var tbody = document.getElementById("vr_searchResultsBody");
   tbody.innerHTML = "";
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-results">لا توجد نتائج مطابقة</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="no-results">لا توجد نتائج مطابقة</td></tr>';
     return;
   }
 
   rows.forEach(function(r, i) {
     var tr = document.createElement("tr");
     tr.className = r.vaccinated ? "row-vacc" : "row-not";
-    var badge = r.vaccinated
-      ? '<span class="badge badge-vacc">محصن ✓</span>'
-      : '<span class="badge badge-not">غير محصن ✗</span>';
+var badge;
+    if (vr_isRefused(r)) {
+      badge = '<span class="badge" style="background:#8e44ad">رفض التحصين ⛔</span>';
+      tr.className = '';
+      tr.style.background = '#f3e5f5';
+    } else if (r.vaccinated) {
+      badge = '<span class="badge badge-vacc">محصن ✓</span>';
+    } else {
+      badge = '<span class="badge badge-not">غير محصن ✗</span>';
+    }
 var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.phone.toString().trim());
     var nameCellStyle = isRegistered
       ? 'border:1px solid #ccc;padding:6px 8px;text-align:center;'
@@ -6486,7 +7135,8 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(r.area) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(vr_formatDate(r.entryDate)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + badge + '</td>' +
-      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + vr_escapeHtml(r.summary || "—") + '</td>';
+      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + vr_escapeHtml(r.summary || "—") + '</td>' +
+      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
     tbody.appendChild(tr);
   });
 }
@@ -6585,6 +7235,287 @@ async function vr_saveToBreeder(r) {
     showToast('❌ خطأ: ' + err.message, 'error');
   }
 }
+  /* ══════════════════════════════════════════════════════════
+   تحديث بيانات المربين المسجَّلين من أحدث بيانات التحصين
+   ══════════════════════════════════════════════════════════ */
+
+/* اتصال مباشر بالـ API — يتجاوز طبقة الكاش لتفادي تحديثها بعد كل عملية */
+async function vr__api(action, payload) {
+  var url  = window._activeApiUrl || VR_API_URL;
+  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
+  var r = await fetch(url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:body, redirect:'follow' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return await r.json();
+}
+
+function vr__txt(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim().replace(/^'/, '').replace(/\s+/g, ' ');
+}
+
+function vr__num(v) {
+  var s = vr__txt(v);
+  if (s === '') return '';
+  var n = parseFloat(s.replace(/,/g, ''));
+  return isNaN(n) ? s : String(n);
+}
+
+function vr__date(v) {
+  var s = vr__txt(v);
+  if (!s) return '';
+  var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + String(+m[2]).padStart(2,'0') + '-' + String(+m[3]).padStart(2,'0');
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3] + '-' + String(+m[2]).padStart(2,'0') + '-' + String(+m[1]).padStart(2,'0');
+  var d = new Date(s);
+  if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return s;
+}
+
+function vr__confirm(title, html) {
+  return new Promise(function(resolve) {
+    var m = document.createElement('div');
+    m.className = 'custom-modal';
+    m.innerHTML =
+      '<div class="modal-box" style="max-width:520px;">' +
+        '<h3 style="color:#2bb673;margin-bottom:10px;">' + title + '</h3>' +
+        '<p style="font-size:13px;color:#444;line-height:1.9;text-align:right;direction:rtl;">' + html + '</p>' +
+        '<div class="modal-buttons">' +
+          '<button class="confirm-btn">✅ نعم، ابدأ التحديث</button>' +
+          '<button class="cancel-btn">إلغاء</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+    m.querySelector('.confirm-btn').onclick = function(){ m.remove(); resolve(true);  };
+    m.querySelector('.cancel-btn').onclick  = function(){ m.remove(); resolve(false); };
+    m.onclick = function(e){ if (e.target === m) { m.remove(); resolve(false); } };
+  });
+}
+
+function vr__progressBox(title) {
+  var el = document.createElement('div');
+  el.id = 'vr_bulkOverlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;z-index:99999;direction:rtl;font-family:Tahoma,Arial,sans-serif;';
+  el.innerHTML =
+    '<div style="text-align:center;min-width:340px;">' +
+      '<div style="width:64px;height:64px;border:7px solid #e0e0e0;border-top:7px solid #2bb673;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 18px;"></div>' +
+      '<div style="font-size:18px;font-weight:bold;color:#2bb673;margin-bottom:10px;">' + title + '</div>' +
+      '<div id="vr_bulkStep" style="font-size:13px;color:#666;margin-bottom:16px;min-height:20px;">جاري التحضير...</div>' +
+      '<div style="width:320px;height:10px;background:#e0e0e0;border-radius:20px;overflow:hidden;margin:0 auto;">' +
+        '<div id="vr_bulkBar" style="height:100%;width:0%;background:#2bb673;border-radius:20px;transition:width .3s ease;"></div>' +
+      '</div>' +
+      '<div id="vr_bulkPct" style="font-size:13px;color:#2bb673;margin-top:8px;font-weight:bold;">0%</div>' +
+    '</div>';
+  document.body.appendChild(el);
+  return {
+    set: function(pct, msg) {
+      var s = document.getElementById('vr_bulkStep');
+      var b = document.getElementById('vr_bulkBar');
+      var p = document.getElementById('vr_bulkPct');
+      if (s && msg) s.textContent = msg;
+      if (b) b.style.width  = pct + '%';
+      if (p) p.textContent  = pct + '%';
+    },
+    close: function() {
+      var x = document.getElementById('vr_bulkOverlay');
+      if (x) x.remove();
+    }
+  };
+}
+
+function vr__resultModal(s, failedList) {
+  var okAll = (s.failed === 0);
+  var rows = [
+    ['👥 مربون مطابقون في السجلين',      s.matched,      '#004e66'],
+    ['🔄 يحتاجون تحديثاً',                s.changed,      '#e67e22'],
+    ['✅ تم تحديثهم بنجاح',               s.success,      '#2bb673'],
+    ['❌ فشل تحديثهم',                    s.failed,       '#e65050'],
+    ['➖ بياناتهم مطابقة (بلا تغيير)',    s.unchanged,    '#888'],
+    ['⚠️ غير مسجلين في سجل المربي',      s.unregistered, '#8e44ad']
+  ].map(function(r) {
+    return '<tr>' +
+      '<td style="padding:6px 10px;border:1px solid #e0e0e0;text-align:right;">' + r[0] + '</td>' +
+      '<td style="padding:6px 10px;border:1px solid #e0e0e0;text-align:center;font-weight:bold;font-size:15px;color:' + r[2] + ';">' + r[1] + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var failHtml = failedList.length
+    ? '<div style="margin-top:12px;background:#fdecea;border:1px solid #f5c6c1;border-radius:6px;padding:9px 12px;font-size:11px;color:#7a0000;text-align:right;max-height:130px;overflow:auto;">' +
+      failedList.map(function(f){ return '• ' + f; }).join('<br>') + '</div>'
+    : '';
+
+  var m = document.createElement('div');
+  m.className = 'custom-modal';
+  m.innerHTML =
+    '<div class="modal-box" style="max-width:520px;">' +
+      '<div style="font-size:46px;margin-bottom:8px;">' + (okAll ? '✅' : '⚠️') + '</div>' +
+      '<h3 style="color:' + (okAll ? '#2bb673' : '#e67e22') + ';margin-bottom:6px;">' +
+        (okAll ? 'تمت عملية التحديث بنجاح' : 'اكتملت العملية مع وجود أخطاء') + '</h3>' +
+      '<p style="font-size:13px;color:#555;margin-bottom:12px;">تم تحديث بيانات ' +
+        '<strong style="color:#2bb673;font-size:17px;">' + s.success + '</strong> مربي اعتماداً على سجل التحصين</p>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;">' + rows + '</table>' +
+      failHtml +
+      '<div class="modal-buttons" style="margin-top:16px;">' +
+        '<button class="confirm-btn" onclick="this.closest(\'.custom-modal\').remove()">إغلاق</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  m.onclick = function(e){ if (e.target === m) m.remove(); };
+
+  showToast(
+    okAll ? ('✅ تم تحديث ' + s.success + ' مربي بنجاح')
+          : ('⚠️ تم تحديث ' + s.success + ' مربي وفشل ' + s.failed),
+    okAll ? 'success' : 'warning'
+  );
+}
+
+async function vr_bulkUpdateBreeders() {
+  if (!vr_dataLoaded || !vr_allData || !vr_allData.length) {
+    showToast('⚠️ اضغط 🔄 تحديث أولاً لتحميل بيانات التحصين', 'warning');
+    return;
+  }
+
+  var proceed = await vr__confirm(
+    '🔃 تحديث بيانات المربين',
+    'سيتم تحديث بيانات المربين <strong>المسجَّلين مسبقاً</strong> في سجل المربي اعتماداً على أحدث البيانات في سجل متابعة التحصين.<br><br>' +
+    '<strong>الحقول المحدَّثة:</strong> الاسم، المنطقة، رقم الحيازة، الرقم المدني، تاريخ انتهاء الحيازة، وأعداد (ماعز / أغنام / أبقار / جمال).<br><br>' +
+    '<span style="color:#1b5e20;">🛡️ لن يُمسح أي حقل موجود إذا كانت قيمته فارغة في سجل التحصين.</span>'
+  );
+  if (!proceed) return;
+
+  var box   = vr__progressBox('🔃 تحديث بيانات المربين');
+  var stats = { matched:0, changed:0, success:0, failed:0, unchanged:0, unregistered:0 };
+  var failedList = [];
+
+  try {
+    box.set(5, 'جاري جلب سجل المربين...');
+    var bdRes = await vr__api('bd_getAllBreeders');
+    if (!bdRes || !bdRes.success || !Array.isArray(bdRes.data))
+      throw new Error('تعذّر جلب سجل المربين');
+
+    var map = {};
+    bdRes.data.forEach(function(b) {
+      var ph = vr__txt(b.phone);
+      if (ph) map[ph] = b;
+    });
+
+    box.set(15, 'جاري مقارنة البيانات...');
+
+    /* إزالة التكرار: آخر صف لكل رقم هاتف */
+    var srcMap = {};
+    vr_allData.forEach(function(r) {
+      var ph = vr__txt(r.phone);
+      if (ph) srcMap[ph] = r;
+    });
+
+    var updater = window._currentUser || 'نظام التحصين';
+    var pending = [];
+
+    Object.keys(srcMap).forEach(function(ph) {
+      var r = srcMap[ph];
+      var b = map[ph];
+      if (!b) { stats.unregistered++; return; }
+      stats.matched++;
+
+      var an    = b.animals || {};
+      var pick  = function(nu, old) { return vr__txt(nu) !== '' ? vr__txt(nu) : vr__txt(old); };
+      var pickN = function(nu, old) { return vr__num(nu) !== '' ? vr__num(nu) : vr__num(old); };
+
+      var next = {
+        name:          pick(r.name,       b.name),
+        region:        pick(r.area,       b.region),
+        possession:    pick(r.possession, b.possession),
+        civil:         pick(r.civil,      b.civil),
+        financialDate: vr__date(r.financialDate) !== '' ? vr__date(r.financialDate) : vr__date(b.financialDate),
+        goat:  pickN(r.goat,  an.goat),
+        sheep: pickN(r.sheep, an.sheep),
+        cow:   pickN(r.cow,   an.cow),
+        camel: pickN(r.camel, an.camel)
+      };
+
+      var cur = {
+        name:          vr__txt(b.name),
+        region:        vr__txt(b.region),
+        possession:    vr__txt(b.possession),
+        civil:         vr__txt(b.civil),
+        financialDate: vr__date(b.financialDate),
+        goat:  vr__num(an.goat),
+        sheep: vr__num(an.sheep),
+        cow:   vr__num(an.cow),
+        camel: vr__num(an.camel)
+      };
+
+      var changed = Object.keys(next).some(function(k) { return next[k] !== cur[k]; });
+      if (!changed) { stats.unchanged++; return; }
+
+      pending.push({
+        phone: ph,
+        label: next.name || ph,
+        data: {
+          phone:       ph,
+          newPhone:    ph,
+          name:        next.name,
+          possession:  "'" + next.possession,
+          region:      next.region,
+          civil:       next.civil,
+          notes:       vr__txt(b.notes),
+          dataEntry:   vr__txt(b.dataEntry),
+          dataUpdater: updater,
+          animals: {
+            goat:    next.goat,
+            sheep:   next.sheep,
+            cow:     next.cow,
+            camel:   next.camel,
+            poultry: vr__num(an.poultry)
+          },
+          financialDate: next.financialDate
+        }
+      });
+    });
+
+    stats.changed = pending.length;
+
+    if (!pending.length) {
+      box.close();
+      vr__resultModal(stats, failedList);
+      return;
+    }
+
+    for (var i = 0; i < pending.length; i++) {
+      var p   = pending[i];
+      var pct = 20 + Math.round((i / pending.length) * 75);
+      box.set(pct, 'جاري تحديث ' + (i + 1) + ' من ' + pending.length + ' — ' + p.label);
+      try {
+        var res = await vr__api('bd_updateData', { data: p.data });
+        if (res && res.success) stats.success++;
+        else {
+          stats.failed++;
+          failedList.push(p.phone + ' — ' + ((res && res.message) || 'فشل غير معروف'));
+        }
+      } catch (e) {
+        stats.failed++;
+        failedList.push(p.phone + ' — ' + (e.message || e));
+      }
+      await new Promise(function(rs){ setTimeout(rs, 120); });
+    }
+
+    box.set(100, '✅ اكتملت العملية');
+    await new Promise(function(rs){ setTimeout(rs, 500); });
+    box.close();
+    vr__resultModal(stats, failedList);
+
+    /* تحديث القوائم والكاش مرة واحدة فقط بعد انتهاء الدفعة */
+    if (typeof bd_refreshDropdowns     === 'function') bd_refreshDropdowns();
+    if (typeof globalRefreshPhoneLists === 'function') globalRefreshPhoneLists();
+    if (window.BreederCache && window.BreederCache.getState &&
+        window.BreederCache.getState().enabled) window.BreederCache.refreshCache();
+    if (typeof syncBroadcast === 'function') syncBroadcast('breeder', 'bd_updateData');
+
+  } catch (err) {
+    box.close();
+    showToast('❌ خطأ: ' + (err.message || err), 'error');
+  }
+}
 // =====================================================
 // التحميل عند فتح الصفحة للمرة الأولى فقط
 // يُستدعى من showPage المركزية
@@ -6593,7 +7524,8 @@ async function vr_saveToBreeder(r) {
   var dateText = 'جميع البيانات';
   var total = document.getElementById('vr_statTotal').textContent;
   var vacc  = document.getElementById('vr_statVacc').textContent;
-  var notV  = document.getElementById('vr_statNot').textContent;
+  var notV    = document.getElementById('vr_statNot').textContent;
+  var refused = document.getElementById('vr_statRefused').textContent;
 
   var tbody = document.getElementById('vr_searchResultsBody');
   if (!tbody || !tbody.innerHTML.trim()) {
@@ -6635,6 +7567,7 @@ async function vr_saveToBreeder(r) {
   <span class="stat s-total">الإجمالي: ${total}</span>
   <span class="stat s-vacc">المحصنون: ${vacc}</span>
   <span class="stat s-not">غير المحصنين: ${notV}</span>
+  <span class="stat" style="background:#8e44ad">رفض التحصين: ${refused}</span>
 </div>
 <table>
   <thead>
@@ -6646,6 +7579,7 @@ async function vr_saveToBreeder(r) {
       <th>تاريخ الإدخال</th>
       <th>الحالة</th>
       <th>اللقاحات والحيوانات المحصنة</th>
+      <th>إجمالي الحيوانات</th>
     </tr>
   </thead>
   <tbody>${tbody.innerHTML}</tbody>
@@ -6742,15 +7676,15 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
         <h3>الفحص المطلوب</h3>
         <datalist id="testList"></datalist>
         <div class="row"><label>الفحص 1</label><input list="testList" id="test1"></div>
-        <div class="row"><label>النتيجة 1</label><select id="result1"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option></select></div>
+        <div class="row"><label>النتيجة 1</label><select id="result1"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option><option>تم استلام النتيجة</option><option>الفحص غير متوفر</option></select></div>
         <div class="row"><label>الفحص 2</label><input list="testList" id="test2"></div>
-        <div class="row"><label>النتيجة 2</label><select id="result2"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option></select></div>
+        <div class="row"><label>النتيجة 2</label><select id="result2"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option><option>تم استلام النتيجة</option><option>الفحص غير متوفر</option></select></div>
         <div class="row"><label>الفحص 3</label><input list="testList" id="test3"></div>
-        <div class="row"><label>النتيجة 3</label><select id="result3"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option></select></div>
+        <div class="row"><label>النتيجة 3</label><select id="result3"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option><option>تم استلام النتيجة</option><option>الفحص غير متوفر</option></select></div>
         <div class="row"><label>الفحص 4</label><input list="testList" id="test4"></div>
-        <div class="row"><label>النتيجة 4</label><select id="result4"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option></select></div>
+        <div class="row"><label>النتيجة 4</label><select id="result4"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option><option>تم استلام النتيجة</option><option>الفحص غير متوفر</option></select></div>
         <div class="row"><label>الفحص 5</label><input list="testList" id="test5"></div>
-        <div class="row"><label>النتيجة 5</label><select id="result5"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option></select></div>
+        <div class="row"><label>النتيجة 5</label><select id="result5"><option value=""></option><option>إيجابي</option><option>سلبي</option><option>تالف</option><option>تم استلام النتيجة</option><option>الفحص غير متوفر</option></select></div>
       </div>
     </div>
     <div class="top-bar" style="justify-content:center;gap:12px;background:#eef7ff">
@@ -6760,8 +7694,7 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
       <button class="delete" id="deleteBtn">حذف</button>
       <button class="search" id="searchBtn">بحث</button>
       <button class="samples-search" id="toggleSearchCardBtn">البحث في العينات</button>
-<!-- أضف هذا الزر بعد زر toggleSearchCardBtn في قسم أزرار التحكم -->
-<button class="samples-search" id="toggleTestsCardBtn" style="background:#e67e22;">📊 نتائج الفحوصات</button>
+      <button class="samples-search" id="toggleTestsCardBtn" style="background:#e67e22;">📊 نتائج الفحوصات</button>
     </div>
     <input type="hidden" id="specialsample">
   </div>
@@ -6801,6 +7734,7 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
         <option value="إيجابي">إيجابي</option>
         <option value="سلبي">سلبي</option>
         <option value="تالف">تالف</option>
+        <option value="الفحص غير متوفر">الفحص غير متوفر</option>
       </select>
     </div>
     <button class="search" id="performTestsSearchBtn" style="background:#e67e22;">بحث</button>
@@ -7056,7 +7990,7 @@ async function foperformSamplesSearch(showAll) {
   foshowMessage('⏳ جاري جلب البيانات...', false, 'info');
 
   try {
-    var res = await focallApi("fosearchSamplesData", { phone: phone, caseNumber: cn, showAll: !!showAll });
+    var res = await focallApi("fosearchSamplesData", { phone: phone, caseNumber: cn, showAll: !!showAll, limit: 200 });
     if (res.success) {
       fodisplaySearchResults(res.data);
       if (showAll) {
@@ -7230,7 +8164,7 @@ async function foPerformTestsSearch() {
 
     var statsHtml = '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:12px;">';
     Object.keys(statMap).forEach(function(rs) {
-      var color = rs === 'إيجابي' ? '#e65050' : rs === 'سلبي' ? '#2bb673' : rs === 'تالف' ? '#f39c12' : '#888';
+      var color = rs === 'إيجابي' ? '#e65050' : rs === 'سلبي' ? '#2bb673' : rs === 'تالف' ? '#f39c12' : rs === 'الفحص غير متوفر' ? '#7f8c8d' : '#888';
       statsHtml += '<span style="background:' + color + ';color:#fff;padding:5px 16px;border-radius:20px;font-weight:bold;font-size:13px;">'
         + rs + ': ' + statMap[rs] + '</span>';
     });
@@ -7259,6 +8193,7 @@ var html = statsHtml
         if (t.result === 'إيجابي') { resColor = '#ffcccc'; resTextColor = '#7a0000'; }
         else if (t.result === 'سلبي')  { resColor = '#d4f8d4'; resTextColor = '#1b5e20'; }
         else if (t.result === 'تالف')  { resColor = '#fff3cd'; resTextColor = '#7f4f00'; }
+        else if (t.result === 'الفحص غير متوفر') { resColor = '#eceff1'; resTextColor = '#37474f'; }
 
         var isTarget = !showAll && t.name === testType.trim();
         var testCellBg = isTarget ? 'background:#fff8e1;color:#e67e22;font-weight:bold;' : '';
@@ -8096,14 +9031,7 @@ function dtr_printAll() {
   w.document.close();
 }
 
-// ===== تهيئة =====
-async function dtr_initLoad() {
-  await dtr_loadDiseaseList();
-  // تفريغ حقلي التاريخ لجلب كل البيانات
-  document.getElementById('dtr_dateFrom').value = '';
-  document.getElementById('dtr_dateTo').value   = '';
-  dtr_loadData();
-}
+
 </script>
 
 </div>
@@ -8222,11 +9150,6 @@ function ani_printTable() {
     + html + '</body></html>');
   w.document.close();
   w.print();
-}
-
-// تهيئة — تعيين التاريخ الافتراضي (بداية الشهر الحالي إلى اليوم)
-function ani_setDefaultDates() {
-  // تم إيقاف التعيين التلقائي للتواريخ
 }
 
 </script>
@@ -9708,10 +10631,11 @@ function foDismissOverdueAlert() {
     { id: "dashboard",          label: "طباعة نماذج العينات",      icon: "🖨️" },
     { id: "settings",           label: "شهادة التحصين",            icon: "📜" },
     { id: "reports",            label: "الأدوية المصروفة",         icon: "📊" },
-    { id: "financialInventory", label: "الجرد المالي",             icon: "💰" },
+    { id: "financialInventory", label: "المتحصلات اليومية",             icon: "💰" },
     { id: "diseaseTracking",    label: "تتبع المرض",               icon: "🦠" },
     { id: "animalDistribution", label: "توزيع الحيوانات",          icon: "🐄" },
     { id: "comprehensiveReport",label: "التقرير الشامل",           icon: "📈" },
+    { id: "doctorPerformance",  label: "أداء الأطباء",             icon: "📊" },
     { id: "home",               label: "الإعدادات",                icon: "⚙️" },
   ];
 
@@ -10292,9 +11216,9 @@ function showUserBadge(name, role) {
     document.querySelectorAll("nav button").forEach(function(btn) {
       btn.disabled = false;
       btn.style.opacity = '';
+      btn.style.display = '';
       btn.style.cursor = '';
       btn.style.pointerEvents = '';
-      btn.style.display = '';
       btn.title = '';
     });
 
@@ -10351,7 +11275,7 @@ function showUserBadge(name, role) {
 // ─────────────────────────────────────────────────────
 
 var REMOTE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyz2zN7GFcvLTRBa7r2qbu8B1Q8i9EQdmOwwxRGCWzJrxPZp2h3b6f5jpNLcq-Mfc9q/exec";
-var REMOTE_SYNC_INTERVAL = 15000; // كل 15 ثانية
+var REMOTE_SYNC_INTERVAL = 60000; // كل 60 ثانية (يقلل ضغط الخادم بنسبة 75%)
 var REMOTE_SYNC_LAST_TS  = Date.now(); // نتتبع آخر وقت تحديث
 var remoteSyncTimer = null;
 
@@ -10550,8 +11474,13 @@ function syncWrapApiCalls() {
     window.trcallApi = async function(action, payload) {
       var res = await _t.apply(this, arguments);
       if (res && res.success) {
-        if (["trsaveData","trupdateData","trdeleteData","trsaveTempData","trupdateTempData"].indexOf(action) !== -1)
-          syncBroadcast("treatment", action);
+if (res && res.success && ["trsaveData","trupdateData","trdeleteData","trsaveTempData","trupdateTempData"].indexOf(action) !== -1) {
+  // إلغاء الطلب السابق وإرسال طلب جديد بعد ثانيتين (لتجميع التعديلات)
+  if (window._syncDebounceTimer) clearTimeout(window._syncDebounceTimer);
+  window._syncDebounceTimer = setTimeout(function() {
+    syncBroadcast("treatment", action);
+  }, 2000);
+}
         if (["bd_saveData","bd_updateData","bd_deleteData","bd_saveVaccinationData","bd_updateVaccinationData","bd_deleteVaccinationData"].indexOf(action) !== -1)
           syncBroadcast("breeder", action);
       }
@@ -10926,7 +11855,9 @@ setTimeout(tryWrap, 1000);
       /* كتابة → API + تحديث الكاش */
       if (WRITE_OPS.indexOf(action) !== -1) {
         var res = await _origBdCallApi(action, payload);
-        if (res && res.success) setTimeout(refreshAndRepatch, 1500);
+    if (res && res.success) {
+  // setTimeout(refreshAndRepatch, 1500); // تم تعطيله لتجنب جلب آلاف السجلات بعد كل عملية
+}
         return res;
       }
 
@@ -11252,7 +12183,23 @@ function refreshAndRepatch() {
     fab.innerHTML = '💾<span class="cache-fab-dot"></span>';
     fab.onclick = togglePanel;
     document.body.appendChild(fab);
-
+/* دائرة الصورة فوق زر الكاش */
+    var fabImg = document.createElement("div");
+    fabImg.id = "cache-fab-img";
+    fabImg.style.cssText =
+      "position:fixed;bottom:112px;left:12px;width:52px;height:52px;" +
+      "border-radius:50%;overflow:hidden;border:3px solid #00b8d9;" +
+      "box-shadow:0 4px 12px rgba(0,184,217,.4);z-index:9998;background:#fff;";
+    fabImg.innerHTML =
+      '<img src="https://drive.google.com/thumbnail?id=1SCikSeDL7RJvNZ9Zo52S2P0DIA1gMHoj&sz=w1000" ' +
+      'style="width:100%;height:100%;object-fit:cover;display:block;" alt="">';
+    fabImg.style.cursor = "pointer";
+    fabImg.title = "معلومات المصمم";
+    fabImg.onclick = showDesignerInfoModal;
+    document.body.appendChild(fabImg);
+    var fabImgPrintStyle = document.createElement("style");
+fabImgPrintStyle.innerHTML = "@media print { #cache-fab-img { display: none !important; } }";
+document.head.appendChild(fabImgPrintStyle);
     var badge = document.createElement("div");
     badge.id = "cache-hit-badge";
     badge.textContent = "⚡ من الكاش";
@@ -11302,7 +12249,31 @@ function refreshAndRepatch() {
     var p = document.getElementById("cache-panel");
     if (p) p.classList[_panelOpen ? "add" : "remove"]("open");
   }
+function showDesignerInfoModal() {
+    var existing = document.getElementById("designer-info-modal");
+    if (existing) { existing.remove(); return; }
 
+    var overlay = document.createElement("div");
+    overlay.id = "designer-info-modal";
+    overlay.className = "custom-modal";
+    overlay.innerHTML =
+      '<div class="modal-box" style="max-width:380px;">' +
+        '<div style="font-size:50px;margin-bottom:10px;">🧑‍💻</div>' +
+        '<h3 style="color:#00b8d9;margin-bottom:14px;">صُمِّم بواسطة</h3>' +
+        '<div style="background:#f0fbff;border:1px solid #b3e5fc;border-radius:8px;' +
+        'padding:14px 18px;text-align:right;direction:rtl;font-size:14px;line-height:2.2;">' +
+          '<div>👤 <strong>الاسم:</strong> أحمد بن علي بن سيف البادي</div>' +
+          '<div>🛠️ <strong>الوظيفة:</strong> فني حقول</div>' +
+          '<div>🏢 <strong>جهة العمل:</strong> دائرة الثروة الحيوانية</div>' +
+        '</div>' +
+        '<div class="modal-buttons" style="margin-top:18px;">' +
+          '<button class="confirm-btn" onclick="document.getElementById(\'designer-info-modal\').remove()">' +
+          'إغلاق</button>' +
+        '</div>' +
+      '</div>';
+    overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+  }
   /* ═══════════════════════════════════════════════════════════════
      ١١. تحديث حالة الواجهة
      ═══════════════════════════════════════════════════════════════ */
@@ -12121,10 +13092,11 @@ function sendTelegram(text) {
     var timeStr  = now.toLocaleTimeString("ar-SA");
  
     /* إرسال الإشعارين بفاصل ثانيتين لتجنب تقييد Telegram */
-    await notifyIncompleteCases(username, dateStr, timeStr);
-    setTimeout(function () {
-      notifyOverdueSamples(username, dateStr, timeStr);
-    }, 2000);
+// إرسال الإشعارين معاً دون انتظار احدهما الآخر
+Promise.all([
+  notifyIncompleteCases(username, dateStr, timeStr),
+  notifyOverdueSamples(username, dateStr, timeStr)
+]);
   }
  
   /* ══════════════════════════════════════════════════════
