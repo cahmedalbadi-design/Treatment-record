@@ -1192,22 +1192,7 @@ function showPage(pageId) {
   
   console.log('[resetAllPagesData] ✅ تم مسح جميع بيانات الصفحات');
 }
-const BOOT_CACHE_KEY = 'boot_cache_v1';
-const BOOT_CACHE_TTL = 1000 * 60 * 30; // 30 دقيقة
 
-function bootCacheGet() {
-  try {
-    var raw = localStorage.getItem(BOOT_CACHE_KEY);
-    if (!raw) return null;
-    var obj = JSON.parse(raw);
-    if (Date.now() - obj.ts > BOOT_CACHE_TTL) return null;
-    return obj.data;
-  } catch(e) { return null; }
-}
-
-function bootCacheSet(data) {
-  try { localStorage.setItem(BOOT_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch(e) {}
-}
 // ============================================================
 //  Boot — التحميل الأولي التسلسلي بعد تسجيل الدخول
 // ============================================================
@@ -1282,7 +1267,7 @@ async function bootRetry(fn, tries) {
     try { return await fn(); }
     catch (err) {
       lastErr = err;
-  await new Promise(function (r) { setTimeout(r, 400 * (i + 1)); });
+      await new Promise(function (r) { setTimeout(r, 800 * (i + 1)); });
     }
   }
   throw lastErr || new Error('فشل غير معروف');
@@ -1337,33 +1322,6 @@ async function bootLoadAll() {
       function () { window._bootRunning = false; ov.close(); },
       function () { window._bootRunning = false; ov.close(); });
     return;
-  }
-
-  // ── محاولة استرجاع الكاش أولاً ──
-  var cached = bootCacheGet();
-  if (cached) {
-    ov.set(30, '⏳ جاري استعادة البيانات المخزنة...');
-    try {
-      if (cached.phoneLists) {
-        cached.phoneLists.forEach(function(item) {
-          var dl = document.getElementById(item.id);
-          if (dl && !dl.querySelectorAll('option').length) {
-            dl.innerHTML = '';
-            item.values.forEach(function(v) { var o = document.createElement('option'); o.value = v; dl.appendChild(o); });
-          }
-        });
-      }
-      if (cached.dataLists) {
-        cached.dataLists.forEach(function(item) {
-          var dl = document.getElementById(item.id);
-          if (dl && !dl.querySelectorAll('option').length) {
-            dl.innerHTML = '';
-            item.values.forEach(function(v) { var o = document.createElement('option'); o.value = v; dl.appendChild(o); });
-          }
-        });
-      }
-      ov.set(60, '✅ تم استعادة القوائم من الذاكرة المؤقتة');
-    } catch(e) {}
   }
 
   var steps = [
@@ -1468,32 +1426,13 @@ async function bootLoadAll() {
     }
   ];
 
+ov.set(5, 'جاري تجهيز القوائم الثابتة...');
+  if (window.StaticLists) { try { await StaticLists.load(); } catch (e) {} }
+
   var failed = [];
-
-  // ── التحميل المتوازي للخطوات المستقلة (1-4) ──
-  ov.set(10, 'جاري التحميل المتوازي للبيانات الأساسية...');
-  var firstBatch = steps.slice(0, 4);
-  var secondBatch = steps.slice(4);
-
-  try {
-    await Promise.all(firstBatch.map(function(st) {
-      return bootRetry(st.fn, 2).catch(function(err) {
-        failed.push(st.name + ' — ' + (err.message || err));
-      });
-    }));
-  } catch(e) {}
-
-  firstBatch.forEach(function(st) {
-    if (st.check && !st.check()) {
-      failed.push(st.name + ' — القوائم عادت فارغة');
-    }
-    ov.set(st.pct, st.msg);
-  });
-
-  // ── التحميل المتسلسل للخطوات التابعة (5-6) ──
-  for (var i = 0; i < secondBatch.length; i++) {
-    var st = secondBatch[i];
-    ov.set(Math.max(0, st.pct - 5), st.msg);
+  for (var i = 0; i < steps.length; i++) {
+    var st = steps[i];
+    ov.set(Math.max(0, st.pct - 12), st.msg);
     try {
       await bootRetry(st.fn, 2);
     } catch (err) {
@@ -1506,30 +1445,6 @@ async function bootLoadAll() {
       if (!st.check()) failed.push(st.name + ' — القوائم عادت فارغة');
     }
     ov.set(st.pct, st.msg);
-  }
-
-  // ── حفظ الكاش ──
-  if (failed.length < 3) {
-    try {
-      var cacheData = { phoneLists: [], dataLists: [] };
-      var phoneListIds = ['tr_phoneList','bd_phoneList','vacc_phoneList','phoneList'];
-      var dataListIds = ['tr_dataEntryList','tr_dataUpdaterList','bd_dataEntryList','bd_dataUpdaterList','vacc_dataEntryList','vacc_dataUpdaterList','dataEntryList','dataUpdaterList'];
-      phoneListIds.forEach(function(id) {
-        var dl = document.getElementById(id);
-        if (dl && dl.querySelectorAll('option').length) {
-          var vals = Array.from(dl.querySelectorAll('option')).map(function(o) { return o.value; });
-          cacheData.phoneLists.push({ id: id, values: vals });
-        }
-      });
-      dataListIds.forEach(function(id) {
-        var dl = document.getElementById(id);
-        if (dl && dl.querySelectorAll('option').length) {
-          var vals = Array.from(dl.querySelectorAll('option')).map(function(o) { return o.value; });
-          cacheData.dataLists.push({ id: id, values: vals });
-        }
-      });
-      bootCacheSet(cacheData);
-    } catch(e) {}
   }
 
   if (failed.length) {
@@ -1546,7 +1461,7 @@ async function bootLoadAll() {
   }
 
   ov.set(100, '✅ تم تحميل جميع البيانات بنجاح');
-  await new Promise(function (r) { setTimeout(r, 400); });
+  await new Promise(function (r) { setTimeout(r, 600); });
   finish('✅ النظام جاهز للاستخدام', 'success');
 }
 
@@ -1582,17 +1497,15 @@ function lockNav() {
   });
 }
 
-// ============================================================
-//  unlockNav() – تُستدعى بعد نجاح تسجيل الدخول
-// ============================================================
 function unlockNav() {
   window._isLoggedIn = true;
 
-  // 1. إظهار جميع الأزرار
+  // 1. إظهار جميع الأزرار مؤقتاً (سيتم إخفاء غير المسموح لاحقاً)
   document.querySelectorAll("nav button").forEach(function(btn) {
     btn.disabled = false;
     btn.style.opacity = '';
     btn.style.cursor = '';
+    // إزالة أي إخفاء سابق وإظهار الكل
     btn.style.setProperty('display', 'inline-block', 'important');
     var originalText = btn.getAttribute('data-original-text');
     if (originalText) {
@@ -1601,7 +1514,7 @@ function unlockNav() {
     }
   });
 
-  // 2. تطبيق الصلاحيات
+  // 2. تطبيق صلاحيات المستخدم
   window._userAllowedPages = null;
   var username = window._currentUser || '';
   if (username && typeof PERM !== 'undefined') {
@@ -1622,8 +1535,101 @@ function unlockNav() {
       if (!allowed) btn.classList.remove('nav-active');
     });
   }
+  // 3. تحميل الصفحات (المنطق الأصلي – لم يتغير)
+  var initQueue = [
+    { delay: 1000, fn: function () {
+      if (!window._breederInitialized) {
+        window._breederInitialized = true;
+        bd_API_URL = window._activeApiUrl || "";
+        if (typeof bd_init === 'function') bd_init();
+      }
+    }},
+    { delay: 1500, fn: function () {
+      if (!window._treatmentInitialized) {
+        window._treatmentInitialized = true;
+        var ov = document.getElementById('loadingOverlay');
+        if (ov) ov.style.display = 'none';
+        if (typeof trinit === 'function') trinit();
+      }
+    }},
+    { delay: 2500, fn: function () {
+      if (!window._vaccinationInitialized) {
+        window._vaccinationInitialized = true;
+        var ov = document.getElementById('vacc_loadingOverlay');
+        if (ov) ov.style.display = 'none';
+        if (typeof vaccInit === 'function') vaccInit();
+      }
+    }},
+    { delay: 3500, fn: function () {
+      if (!window._vrInitialized) {
+        window._vrInitialized = true;
+        if (typeof vr_loadData === 'function') vr_loadData();
+      }
+    }},
+    { delay: 4500, fn: function () {
+      if (typeof ani_loadData === 'function') ani_loadData();
+    }},
+    { delay: 5000, fn: function () {
+      if (typeof dim_loadData === 'function') dim_loadData();
+    }},
+    { delay: 5500, fn: function () {
+      if (typeof rpt_loadReport === 'function') rpt_loadReport();
+    }},
+    { delay: 7000, fn: function () {
+      var today = fin_localToday();
+      var ff = document.getElementById('fin_dateFrom');
+      var ft = document.getElementById('fin_dateTo');
+      if (ff) ff.value = today;
+      if (ft) ft.value = today;
+      fin_isFirstLoad = false;
+      if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
+    }},
+    { delay: 7500, fn: function () {
+      if (typeof dtr_loadDiseaseList === 'function') {
+        dtr_loadDiseaseList().then(function() {
+          document.getElementById('dtr_dateFrom').value = '';
+          document.getElementById('dtr_dateTo').value = '';
+          if (typeof dtr_loadData === 'function') dtr_loadData();
+        });
+      }
+      document.getElementById('dtr_diseaseSelect').addEventListener('change', function() {
+        dtr_userClick = true;
+        dtr_loadData();
+      });
+    }},
+    { delay: 8000, fn: function () {
+      if (typeof ani_loadData === 'function') ani_loadData();
+      var af = document.getElementById('ani_dateFrom');
+      var at = document.getElementById('ani_dateTo');
+      if (af) af.addEventListener('change', function() {
+        var to = document.getElementById('ani_dateTo').value;
+        if (!to) return;
+        if (this.value > to) {
+          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
+          this.value = '';
+          return;
+        }
+        ani_loadData();
+      });
+      if (at) at.addEventListener('change', function() {
+        var from = document.getElementById('ani_dateFrom').value;
+        if (!from) {
+          showToast('⚠️ الرجاء إدخال تاريخ البداية أولاً', 'warning');
+          this.value = '';
+          return;
+        }
+        if (from > this.value) {
+          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
+          this.value = '';
+          return;
+        }
+        ani_loadData();
+      });
+    }}
+  ];
 
-  // 3. تشغيل التحميل السريع فوراً — بدون مؤقتات
+// ⛔ لم يعد التحميل يعتمد على مؤقتات ثابتة — انظر bootLoadAll()
+  void initQueue;
   bootLoadAll();
 }
 
@@ -1665,10 +1671,54 @@ lockNav();
       ✅ تطبيق الولاية
     </button>
 
-    <div id="wilayatStatus" style="margin-top:10px;font-size:13px;font-weight:bold;
+<div id="wilayatStatus" style="margin-top:10px;font-size:13px;font-weight:bold;
          text-align:center;display:none;"></div>
   </div>
+
+  <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
+    <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:6px;">
+      ⚡ تسريع الإقلاع — القوائم المحفوظة
+    </div>
+    <div style="font-size:12px;color:#666;line-height:1.9;margin-bottom:12px;">
+      تُحفظ القوائم الثابتة في المتصفح ويُتحقق من تحديثها تلقائياً عند كل إقلاع.
+      السجل اليومي والتقارير تُجلب دائماً من الخادم.
+    </div>
+    <div id="slInfo" style="font-size:12px;color:#004e66;background:#eef9fb;
+         border-radius:6px;padding:8px 10px;margin-bottom:10px;">—</div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="slRefresh()" style="flex:1;padding:8px;background:#2bb673;color:#fff;
+        border:none;border-radius:5px;font-weight:bold;font-family:inherit;cursor:pointer;">
+        🔄 تحديث القوائم الآن</button>
+      <button onclick="slClear()" style="flex:1;padding:8px;background:#e65050;color:#fff;
+        border:none;border-radius:5px;font-weight:bold;font-family:inherit;cursor:pointer;">
+        🗑️ مسح المحفوظ</button>
+    </div>
+  </div>
 </div>
+
+<script>
+function slShowInfo() {
+  var el = document.getElementById('slInfo');
+  if (!el || !window.StaticLists) return;
+  var i = StaticLists.info();
+  el.textContent = i
+    ? '✅ محفوظة — ' + i.itemCount + ' عنصر | آخر تحديث: ' +
+      new Date(i.savedAt).toLocaleString('ar-SA')
+    : '⚠️ لا توجد قوائم محفوظة بعد';
+}
+function slRefresh() {
+  showToast('⏳ جاري تحديث القوائم...', 'info');
+  StaticLists.refresh()
+    .then(function () { showToast('✅ تم تحديث القوائم', 'success'); slShowInfo(); })
+    .catch(function (e) { showToast('❌ ' + e.message, 'error'); });
+}
+function slClear() {
+  StaticLists.clear();
+  showToast('🗑️ تم مسح القوائم المحفوظة', 'success');
+  slShowInfo();
+}
+setInterval(slShowInfo, 3000);
+</script>
 
 <script>
 // تحميل الولاية المحفوظة عند فتح الصفحة
@@ -1779,116 +1829,12 @@ async function wilayatApply() {
   }
 
   try {
-    // خطوة 1 — أرقام الهاتف
-    setStep('جاري تحميل أرقام الهواتف...', 15);
-    await Promise.allSettled([
-      (async function() {
-        if (typeof trcallApi === 'function') {
-          var r = await trcallApi('trgetPhoneNumbers');
-          if (r.success) {
-            var dl = document.getElementById('tr_phoneList');
-            if (dl) { dl.innerHTML=''; (r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);}); }
-          }
-        }
-      })(),
-      (async function() {
-        if (typeof vaccCallApi === 'function') {
-          var r = await vaccCallApi('getPhoneNumbers');
-          if (r.success) {
-            var dl = document.getElementById('vacc_phoneList');
-            if (dl) { dl.innerHTML=''; (r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);}); }
-          }
-        }
-      })(),
-      (async function() {
-        if (typeof focallApi === 'function') {
-          var r = await focallApi('fogetPhoneNumbers');
-          if (r.success) {
-            var dl = document.getElementById('phoneList');
-            if (dl) { dl.innerHTML=''; (r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);}); }
-          }
-        }
-      })(),
-      (async function() {
-        if (typeof bd_callApi === 'function') {
-          var r = await bd_callApi('bd_getPhoneNumbers');
-          if (r.success) {
-            var dl = document.getElementById('bd_phoneList');
-            if (dl) { dl.innerHTML=''; (r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);}); }
-          }
-        }
-      })()
-    ]);
-
-    // خطوة 2 — مدخلو البيانات
-    setStep('جاري تحميل قوائم مدخلي البيانات...', 35);
-    await Promise.allSettled([
-      (async function() {
-        if (typeof trcallApi === 'function') {
-          var r = await trcallApi('trgetDataEntryOptions');
-          if (r.success) {
-            ['tr_dataEntryList','tr_dataUpdaterList'].forEach(function(id){
-              var dl=document.getElementById(id);
-              if(dl){dl.innerHTML='';(r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-            });
-          }
-        }
-      })(),
-      (async function() {
-        if (typeof bd_callApi === 'function') {
-          var r = await bd_callApi('bd_getDataEntryOptions');
-          if (r.success) {
-            ['bd_dataEntryList','bd_dataUpdaterList'].forEach(function(id){
-              var dl=document.getElementById(id);
-              if(dl){dl.innerHTML='';(r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-            });
-          }
-        }
-      })(),
-      (async function() {
-        if (typeof vaccCallApi === 'function') {
-          var r = await vaccCallApi('getDataEntryOptions');
-          if (r.success) {
-            ['vacc_dataEntryList','vacc_dataUpdaterList'].forEach(function(id){
-              var dl=document.getElementById(id);
-              if(dl){dl.innerHTML='';(r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-            });
-          }
-        }
-      })(),
-      (async function() {
-        if (typeof focallApi === 'function') {
-          var r = await focallApi('fogetDataEntryOptions');
-          if (r.success) {
-            ['dataEntryList','dataUpdaterList'].forEach(function(id){
-              var dl=document.getElementById(id);
-              if(dl){dl.innerHTML='';(r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-            });
-          }
-        }
-      })()
-    ]);
-
-    // خطوة 3 — الأمراض والأدوية
-    setStep('جاري تحميل قوائم الأمراض والأدوية...', 55);
-    await Promise.allSettled([
-      (async function() {
-        if (typeof trcallApi === 'function') {
-          var r1 = await trcallApi('trgetDiseases');
-          if (r1.success) {
-            var dl=document.getElementById('tr_diseaseList');
-            if(dl){dl.innerHTML='';(r1.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-          }
-          var r2 = await trcallApi('trgetDrugs');
-          if (r2.success) {
-            var dl2=document.getElementById('tr_drugList');
-            if(dl2){dl2.innerHTML='';(r2.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl2.appendChild(o);});}
-          }
-        }
-      })()
-    ]);
-
-    // خطوة 4 — السجل اليومي للعلاج
+   // خطوة 1 — كل القوائم الثابتة بطلب واحد
+    setStep('جاري تحميل القوائم الثابتة...', 40);
+    if (window.StaticLists) {
+      try { await StaticLists.refresh(); } catch (e) {}
+    }
+    // خطوة 2 — السجل اليومي للعلاج
     setStep('جاري تحميل السجل اليومي...', 70);
     await Promise.allSettled([
       (async function() {
@@ -1898,48 +1844,19 @@ async function wilayatApply() {
         if (typeof trloadIncompleteCount === 'function') await trloadIncompleteCount();
       })()
     ]);
-
-    // خطوة 5 — المناطق
-    setStep('جاري تحميل قوائم المناطق...', 82);
-    await Promise.allSettled([
-      (async function() {
-        if (typeof bd_callApi === 'function') {
-          var r = await bd_callApi('bd_getRegionOptions');
-          if (r.success) {
-            var dl=document.getElementById('bd_regionList');
-            if(dl){dl.innerHTML='';(r.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-          }
+// خطوة 3 — إحصاءات العينات (بيانات متغيرة — تُجلب دائماً)
+    setStep('جاري تحميل إحصاءات العينات...', 92);
+    try {
+      if (typeof focallApi === 'function') {
+        var r3 = await focallApi('fogetUniquePhoneCount');
+        if (r3.success || r3.count !== undefined) {
+          var uc = document.getElementById('uniqueCountDisplay');
+          var ls = document.getElementById('lastSampleDisplay');
+          if (uc) uc.textContent = r3.count || 0;
+          if (ls) ls.textContent = r3.lastSample || '—';
         }
-      })()
-    ]);
-
-    // خطوة 6 — العينات والفحوصات
-    setStep('جاري تحميل قوائم العينات...', 92);
-    await Promise.allSettled([
-      (async function() {
-        if (typeof focallApi === 'function') {
-          var r1 = await focallApi('fogetTestOptions');
-          if (r1.success) {
-            var dl=document.getElementById('testList');
-            if(dl){dl.innerHTML='';(r1.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl.appendChild(o);});}
-          }
-          var r2 = await focallApi('fogetSampleTypeOptions');
-          if (r2.success) {
-            var dl2=document.getElementById('sampleTypeList');
-            if(dl2){dl2.innerHTML='';(r2.data||[]).sort().forEach(function(v){var o=document.createElement('option');o.value=v;dl2.appendChild(o);});}
-          }
-          var r3 = await focallApi('fogetUniquePhoneCount');
-          if (r3.success || r3.count !== undefined) {
-            var uc=document.getElementById('uniqueCountDisplay');
-            var ls=document.getElementById('lastSampleDisplay');
-            if(uc) uc.textContent = r3.count || 0;
-            if(ls) ls.textContent = r3.lastSample || '—';
-          }
-        }
-      })()
-    ]);
-
-    // اكتمل
+      }
+    } catch (e) {}
     setStep('✅ تم تحميل جميع البيانات بنجاح!', 100);
     await new Promise(function(r){ setTimeout(r, 700); });
 
@@ -4553,15 +4470,14 @@ async function trloadDropdowns() {
     if (phonesRes.success)    fillDL("tr_phoneList",      phonesRes.data);
     if (diseasesRes.success)  fillDL("tr_diseaseList",    diseasesRes.data);
     if (drugsRes.success)     fillDL("tr_drugList",       drugsRes.data);
-    if (dataEntryRes.success) {
+if (dataEntryRes.success) {
       fillDL("tr_dataEntryList",   dataEntryRes.data);
       fillDL("tr_dataUpdaterList", dataEntryRes.data);
     }
  } catch (err) {
-    trshowMessage("خطأ في تحميل الجدول: " + err.message, true);
+    trshowMessage("خطأ في تحميل القوائم: " + err.message, true);
   } finally {
     trunblockButtons();
-    if (typeof trloadIncompleteCount === "function") trloadIncompleteCount();
   }
 }
 
@@ -4936,8 +4852,8 @@ document.getElementById("tr_incompleteCountBadge").addEventListener("click", asy
 
 function trinit() {
   trbindEvents();
-  document.getElementById("tr_financialDate").value = new Date().toLocaleDateString("en-CA");
-  trloadIncompleteCount();
+document.getElementById("tr_financialDate").value = new Date().toLocaleDateString("en-CA");
+  // trloadIncompleteCount(); ← يُستدعى تلقائياً من trloadData
   
   // ④ تحديث دوري كل دقيقتين
 // setInterval(trloadIncompleteCount, 120000); // تم التعليق لتقليل طلبات الخادم  
@@ -5199,6 +5115,236 @@ async function trSelectIncompleteCase(caseNumber) {
   }
 
 })();
+
+/* ============================================================
+   TreatmentCache — كاش السجل اليومي (فتح فوري + تعديل جزئي)
+   ============================================================ */
+(function (global) {
+  "use strict";
+
+  var DAY_KEY = "tr_daily_cache_v1";
+  var CASE_KEY = "tr_cases_cache_v1";
+  var PREFETCH_DELAY = 400;
+
+  var TC = { date:"", url:"", headers:[], rows:[], cases:{}, skipNextLoad:false, prefetching:false };
+  var _origCallApi = null;
+
+  function today() { return new Date().toLocaleDateString("en-CA"); }
+  function ss(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v){ return ss(v).replace(/^'/, ""); }
+  function curUrl(){ return ss(global._activeApiUrl); }
+
+  /* ── التخزين ── */
+  function save() {
+    try {
+      localStorage.setItem(DAY_KEY,  JSON.stringify({ date:TC.date, url:TC.url, headers:TC.headers, rows:TC.rows }));
+      localStorage.setItem(CASE_KEY, JSON.stringify({ date:TC.date, url:TC.url, cases:TC.cases }));
+    } catch (e) {}
+  }
+  function load() {
+    try {
+      var d = JSON.parse(localStorage.getItem(DAY_KEY) || "null");
+      if (d && d.date === today() && d.url === curUrl()) {
+        TC.date = d.date; TC.url = d.url; TC.headers = d.headers || []; TC.rows = d.rows || [];
+      } else { TC.headers = []; TC.rows = []; }
+      var c = JSON.parse(localStorage.getItem(CASE_KEY) || "null");
+      TC.cases = (c && c.date === today() && c.url === curUrl()) ? (c.cases || {}) : {};
+    } catch (e) { TC.rows = []; TC.cases = {}; }
+  }
+  function clearAll() {
+    TC.headers = []; TC.rows = []; TC.cases = {}; TC.date = ""; TC.url = "";
+    try { localStorage.removeItem(DAY_KEY); localStorage.removeItem(CASE_KEY); } catch (e) {}
+  }
+
+  /* ── فهرسة الأعمدة من صف الرأس ── */
+  function colIdx(keys, fallback) {
+    for (var i = 0; i < TC.headers.length; i++) {
+      var h = ss(TC.headers[i]);
+      for (var k = 0; k < keys.length; k++) if (h.indexOf(keys[k]) !== -1) return i;
+    }
+    return fallback;
+  }
+  function statusIdx() {
+    for (var i = TC.headers.length - 1; i >= 1; i--)
+      if (ss(TC.headers[i]).indexOf("حالة") !== -1) return i;
+    return 6;
+  }
+  function rowIndexOf(cn) {
+    cn = ss(cn);
+    for (var i = 0; i < TC.rows.length; i++) if (ss(TC.rows[i][0]) === cn) return i;
+    return -1;
+  }
+
+  /* ── الرسم من الكاش (نفس شكل trloadData) ── */
+  function render() {
+    var tbl = document.getElementById("tr_dataTable");
+    if (!tbl) return;
+    if (!TC.rows.length) { tbl.innerHTML = "<tr><td colspan='7'>لا توجد بيانات لليوم</td></tr>"; return; }
+    var si = statusIdx();
+    var html = "<thead><tr>";
+    TC.headers.forEach(function (c) { html += "<th>" + (c || "") + "</th>"; });
+    html += "</tr></thead><tbody>";
+    TC.rows.forEach(function (r) {
+      html += ((r[si] + "").indexOf("غير مكتملة") > -1)
+        ? '<tr class="data-missing">' : '<tr style="background-color:#00ff00;">';
+      r.forEach(function (c) { html += "<td>" + (c === "" ? " " : c) + "</td>"; });
+      html += "</tr>";
+    });
+    tbl.innerHTML = html + "</tbody>";
+  }
+
+  function storeTable(data) {
+    TC.date = today(); TC.url = curUrl();
+    if (!data || data.length <= 1) { TC.headers = (data && data[0]) || []; TC.rows = []; }
+    else { TC.headers = data[0] || []; TC.rows = data.slice(1); }
+    save();
+  }
+
+  /* ── تحويل بيانات النموذج إلى شكل trsearchCaseData ── */
+  function toCaseObject(d, prev) {
+    var o = JSON.parse(JSON.stringify(d || {}));
+    o.success        = true;
+    o.possession     = strip(d.possession);
+    o.amount         = strip(d.amount);
+    o.drugQuantities = (d.drugQuantities || []).map(strip);
+    if (prev && !ss(o.dataEntry)) o.dataEntry = prev.dataEntry;
+    return o;
+  }
+
+  /* ── تعديل صف واحد فقط ── */
+  function applyUpdate(d) {
+    var cn = ss(d.caseNumber);
+    if (!cn) return;
+    var i = rowIndexOf(cn);
+    if (i !== -1) {
+      var row = TC.rows[i];
+      var set = function (idx, val) { if (idx >= 0 && idx < row.length) row[idx] = val; };
+      set(colIdx(["هاتف"], 1),            ss(d.phone));
+      set(colIdx(["الاسم","المربي"], 2),  ss(d.name));
+      set(colIdx(["إيصال","ايصال"], 3),   ss(d.receipt));
+      set(colIdx(["مبلغ"], -1),           strip(d.amount));
+      var done = (d.drugs || []).some(function (v) { return ss(v) !== ""; }) ||
+                 (d.diseases || []).some(function (v) { return ss(v) !== ""; });
+      set(statusIdx(), done ? "مكتملة" : "غير مكتملة");
+    }
+    TC.cases[cn] = toCaseObject(d, TC.cases[cn]);
+    save(); render();
+  }
+
+  /* ── حذف صف واحد فقط ── */
+  function applyDelete(cn) {
+    cn = ss(cn);
+    var i = rowIndexOf(cn);
+    if (i !== -1) TC.rows.splice(i, 1);
+    delete TC.cases[cn];
+    save(); render();
+  }
+
+  /* ── تحميل مسبق لبيانات الحالات في الخلفية ── */
+  async function prefetch() {
+    if (TC.prefetching || !_origCallApi) return;
+    TC.prefetching = true;
+    try {
+      for (var i = 0; i < TC.rows.length; i++) {
+        var cn = ss(TC.rows[i][0]);
+        if (!cn || TC.cases[cn]) continue;
+        try {
+          var res = await _origCallApi("trsearchCaseData", { caseNumber: cn });
+          if (res && res.success) TC.cases[cn] = res;
+        } catch (e) {}
+        await new Promise(function (r) { setTimeout(r, PREFETCH_DELAY); });
+      }
+      save();
+    } finally { TC.prefetching = false; }
+  }
+
+  /* ── اعتراض trcallApi ── */
+  function patchApi() {
+    if (!global.trcallApi || global.trcallApi._tcPatch) return;
+    _origCallApi = global.trcallApi;
+    global.trcallApi = async function (action, payload) {
+      var res = await _origCallApi.apply(this, arguments);
+      try {
+        if (res && res.success) {
+          if (action === "trgetAAAData") { storeTable(res.data); setTimeout(prefetch, 1200); }
+          else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
+          else if (action === "trupdateData" || action === "trupdateTempData") {
+            TC.skipNextLoad = true; applyUpdate((payload||{}).data || {});
+          }
+          else if (action === "trdeleteData") {
+            TC.skipNextLoad = true; applyDelete((payload||{}).caseNumber);
+          }
+        }
+      } catch (e) { console.warn("[TrCache]", e.message); }
+      return res;
+    };
+    global.trcallApi._tcPatch = true;
+  }
+
+  /* ── منع إعادة الجلب الكامل بعد التعديل/الحذف ── */
+  function patchLoadData() {
+    if (!global.trloadData || global.trloadData._tcPatch) return;
+    var _orig = global.trloadData;
+    global.trloadData = function () {
+      if (TC.skipNextLoad) { TC.skipNextLoad = false; render(); return Promise.resolve(); }
+      return _orig.apply(this, arguments);
+    };
+    global.trloadData._tcPatch = true;
+  }
+
+  /* ── فتح فوري عند تهيئة الصفحة ── */
+  function patchInit() {
+    if (!global.trinit || global.trinit._tcPatch) return;
+    var _orig = global.trinit;
+    global.trinit = function () {
+      load();
+      if (TC.rows.length) render();
+      return _orig.apply(this, arguments);
+    };
+    global.trinit._tcPatch = true;
+  }
+
+  /* ── النقر على صف: من الكاش مباشرة ── */
+  function patchClick() {
+    var tbl = document.getElementById("tr_dataTable");
+    if (!tbl || tbl._tcClick) return;
+    tbl._tcClick = true;
+    tbl.addEventListener("click", function (e) {
+      var tr = e.target.closest("tr");
+      if (!tr || !tr.cells || !tr.cells.length) return;
+      var cn = ss(tr.cells[0].textContent);
+      if (!cn || !TC.cases[cn]) return;   /* غير موجود → السلوك الأصلي */
+      e.stopImmediatePropagation();
+      if (typeof global.trclearFormExcept === "function") global.trclearFormExcept(null);
+      global.trfillFormWithData(TC.cases[cn]);
+      if (typeof global.trshowMessage === "function") global.trshowMessage("⚡ تم التحميل فوراً", false);
+    }, true);
+  }
+
+  /* ── مسح الكاش عند الخروج ── */
+  function patchLockNav() {
+    if (!global.lockNav || global.lockNav._tcPatch) return;
+    var _orig = global.lockNav;
+    global.lockNav = function () { _orig.apply(this, arguments); clearAll(); };
+    global.lockNav._tcPatch = true;
+  }
+
+  global.TreatmentCache = {
+    clear: clearAll,
+    render: render,
+    getState: function () { return { rows: TC.rows.length, cases: Object.keys(TC.cases).length, date: TC.date }; }
+  };
+
+  var _n = 0;
+  function tryPatch() {
+    patchApi(); patchLoadData(); patchInit(); patchClick(); patchLockNav();
+    if (++_n < 20 && !(global.trcallApi && global.trcallApi._tcPatch && global.trinit && global.trinit._tcPatch))
+      setTimeout(tryPatch, 500);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tryPatch);
+  else tryPatch();
+
+})(window);
 </script>
 </div>
 
@@ -5397,8 +5543,9 @@ async function bd_saveData() {
   bd_showMessage("جاري الحفظ...", false, "info");
   try{
     var res=await bd_callApi("bd_saveData",{data:data});
-if(res.success){bd_setLastEdited();bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}
-else bd_showMessage(res.message,true);
+if(res.success){bd_setLastEdited();
+if(window.BreederCache&&window.BreederCache.applyLocalWrite) window.BreederCache.applyLocalWrite("bd_saveData",{data:data});
+bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
   }catch(err){bd_showMessage("خطأ: "+err.message,true);}
   finally{btn.disabled=false;}
 }
@@ -5418,9 +5565,10 @@ async function bd_updateData() {
     btn.disabled=true;
     bd_showMessage("جاري التحديث...", false, "info");
     try{
- var res=await bd_callApi("bd_updateData",{data:data});
-if(res.success){bd_setLastEdited();bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
-else bd_showMessage(res.message,true);
+var res=await bd_callApi("bd_updateData",{data:data});
+if(res.success){bd_setLastEdited();
+if(window.BreederCache&&window.BreederCache.applyLocalWrite) window.BreederCache.applyLocalWrite("bd_updateData",{data:data});
+bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -5435,8 +5583,9 @@ async function bd_deleteData() {
     bd_showMessage("جاري الحذف...", false, "info");
     try{
       var res=await bd_callApi("bd_deleteData",{phone:phone});
-if(res.success){bd_setLastEdited();bd_showMessage("تم الحذف بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}
-else bd_showMessage(res.message,true);
+if(res.success){bd_setLastEdited();
+if(window.BreederCache&&window.BreederCache.applyLocalWrite) window.BreederCache.applyLocalWrite("bd_deleteData",{phone:phone});
+bd_showMessage("تم الحذف بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -10525,6 +10674,9 @@ var overdueSessionDismissed = false;
 document.getElementById('overdueOverlay').onclick = function(e){ /* disabled */ };
 function foCheckOverdueSamples() {
   if (overdueSessionDismissed) return;
+  var _ovNow = Date.now();
+  if (window._overdueLastCheck && (_ovNow - window._overdueLastCheck) < 600000) return;
+  window._overdueLastCheck = _ovNow;
   focallApi("fosearchSamplesData", { showAll: true }).then(function(res) {
     if (!res.success || !res.data || !res.data.length) {
       foCloseOverdueAlert();
@@ -11827,6 +11979,77 @@ setTimeout(tryWrap, 1000);
   /* ═══════════════════════════════════════════════════════════════
      ٨. اعتراض دوال التطبيق
      ═══════════════════════════════════════════════════════════════ */
+/* ── تحديث صف مربي واحد في الكاش بعد نجاح الكتابة (بدون جلب من الخادم) ── */
+  function cacheApplyLocalWrite(action, payload) {
+    payload = payload || {};
+    var d     = payload.data || {};
+    var strip = function (v) { return ss(v).replace(/^'/, ""); };
+    var pick  = function (nu, old) { return (nu === undefined) ? ss(old) : ss(nu); };
+
+    function dropPhone(ph) {
+      if (!ph || !state.phoneMap[ph]) return;
+      delete state.phoneMap[ph];
+      var i = state.phoneList.indexOf(ph);
+      if (i !== -1) state.phoneList.splice(i, 1);
+    }
+
+    if (action === "bd_deleteData") {
+      dropPhone(ss(payload.phone));
+
+    } else if (action === "bd_saveData" || action === "bd_updateData") {
+      var oldPh = ss(d.phone);
+      var newPh = ss(d.newPhone) || oldPh;
+      if (!newPh) return;
+
+      var prev = state.phoneMap[oldPh] || {};
+      var pan  = prev.animals || {};
+      var nan  = d.animals    || {};
+
+      var row = {
+        phone:         newPh,
+        name:          pick(d.name,          prev.name),
+        possession:    (d.possession === undefined) ? ss(prev.possession) : strip(d.possession),
+        region:        pick(d.region,        prev.region),
+        civil:         pick(d.civil,         prev.civil),
+        notes:         pick(d.notes,         prev.notes),
+        financialDate: pick(d.financialDate, prev.financialDate),
+        dataEntry:     pick(d.dataEntry,     prev.dataEntry) || ss(prev.dataEntry),
+        dataUpdater:   pick(d.dataUpdater,   prev.dataUpdater) || ss(prev.dataUpdater),
+        animals: {
+          goat:    pick(nan.goat,    pan.goat),
+          sheep:   pick(nan.sheep,   pan.sheep),
+          cow:     pick(nan.cow,     pan.cow),
+          camel:   pick(nan.camel,   pan.camel),
+          poultry: pick(nan.poultry, pan.poultry)
+        }
+      };
+
+      if (oldPh && oldPh !== newPh) dropPhone(oldPh);
+      if (!state.phoneMap[newPh]) state.phoneList.push(newPh);
+      state.phoneMap[newPh] = row;
+
+      if (row.region    && state.regionList.indexOf(row.region)       === -1) state.regionList.push(row.region);
+      if (row.dataEntry && state.dataEntryList.indexOf(row.dataEntry) === -1) state.dataEntryList.push(row.dataEntry);
+
+    } else {
+      return; /* عمليات التحصين والحيازة لا تمس سجل المربي */
+    }
+
+    state.totalRows = state.phoneList.length;
+
+    var rows = [];
+    for (var p in state.phoneMap) rows.push(state.phoneMap[p]);
+    storageSave(rows);
+
+    var now = new Date().toISOString();
+    state.lastUpdate = now;
+    metaSave({ lastUpdate: now, totalRows: state.totalRows, version: CACHE_VERSION });
+
+    refreshAllPhoneDataLists();
+    updateUI("ready");
+    console.log("[Cache] ⚡ تحديث جزئي: " + action + " — " + state.totalRows + " مربي");
+  }
+
   function patchAppFunctions() {
     if (!state.enabled || !state.loaded) return;
     if (!_origBdCallApi) {
@@ -11847,13 +12070,12 @@ setTimeout(tryWrap, 1000);
       }
 
       /* كتابة → API + تحديث الكاش */
-      if (WRITE_OPS.indexOf(action) !== -1) {
-        var res = await _origBdCallApi(action, payload);
-    if (res && res.success) {
-  // setTimeout(refreshAndRepatch, 1500); // تم تعطيله لتجنب جلب آلاف السجلات بعد كل عملية
-}
-        return res;
-      }
+ global._localSyncChannel.onmessage = function (e) {
+  if (_origMsg) _origMsg.call(this, e);
+  if (e.data && e.data.topic === "breeder" && state.enabled) {
+    setTimeout(refreshAndRepatch, 2000);
+  }
+};
 
       /* أي action آخر (بما فيها trget*, syncNotify، إلخ) → API مباشرة */
       return _origBdCallApi(action, payload);
@@ -12474,8 +12696,11 @@ function showDesignerInfoModal() {
       if (p) p.classList.remove("open");
     },
 
-    getState:      function () { return { enabled: state.enabled, loaded: state.loaded, totalRows: state.totalRows }; },
-    searchByPhone: cacheGetByPhone,
+getState:      function () { return { enabled: state.enabled, loaded: state.loaded, totalRows: state.totalRows }; },
+    applyLocalWrite: function (action, payload) {
+      if (!state.loaded) return;
+      try { cacheApplyLocalWrite(action, payload); } catch (e) { console.warn("[Cache]", e.message); }
+    },    searchByPhone: cacheGetByPhone,
   };
 
   /* ═══════════════════════════════════════════════════════════════
@@ -13101,9 +13326,9 @@ Promise.all([
  
     var _orig = global.unlockNav;
     global.unlockNav = function () {
-      _orig.apply(this, arguments);
-      /* تأخير 5 ثوانٍ لضمان اكتمال تحميل النظام */
-      setTimeout(runAllNotifications, 5000);
+    _orig.apply(this, arguments);
+      /* تأخير 45 ثانية حتى لا يزاحم طلبات الإقلاع */
+      setTimeout(runAllNotifications, 45000);
     };
     global.unlockNav._inPatch = true;
     console.log("[TgNotify] ✅ تم الربط — سيُرسل إشعار بعد تسجيل الدخول");
@@ -13312,6 +13537,439 @@ window.addEventListener('beforeunload', function() {
   localStorage.removeItem('selected_wilayat_url');
   localStorage.removeItem('selected_wilayat_name');
 });
+</script>
+  <script>
+(function (global) {
+  "use strict";
+
+  var PREFIX = 'static_lists_v1_';
+
+  var MAP = {
+    phones:      ['bd_phoneList','tr_phoneList','vacc_phoneList','phoneList'],
+    diseases:    ['tr_diseaseList'],
+    drugs:       ['tr_drugList'],
+    regions:     ['bd_regionList'],
+    dataEntry:   ['tr_dataEntryList','tr_dataUpdaterList','bd_dataEntryList',
+                  'bd_dataUpdaterList','vacc_dataEntryList','vacc_dataUpdaterList',
+                  'dataEntryList','dataUpdaterList'],
+    tests:       ['testList'],
+    sampleTypes: ['sampleTypeList']
+  };
+
+  var state = { ready: false, lists: null, version: null };
+
+  function key() { return PREFIX + (global._activeApiUrl || 'default'); }
+
+  function api(action) {
+    var url = global._activeApiUrl;
+    if (!url) return Promise.reject(new Error('رابط الخدمة غير معرّف'));
+    return fetch(url, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: action }), redirect: 'follow'
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function read()  { try { var s = localStorage.getItem(key()); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function write(o){ try { localStorage.setItem(key(), JSON.stringify(o)); } catch (e) {} }
+
+  function fill(lists) {
+    if (!lists) return;
+    Object.keys(MAP).forEach(function (k) {
+      var items = lists[k] || [];
+      var html  = '';
+      for (var i = 0; i < items.length; i++)
+        html += '<option value="' + String(items[i]).replace(/"/g, '&quot;') + '">';
+      MAP[k].forEach(function (id) {
+        var dl = document.getElementById(id);
+        if (dl) dl.innerHTML = html;
+      });
+    });
+  }
+
+  function fetchAll() {
+    return api('getAllLists').then(function (r) {
+      if (!r || !r.success) throw new Error('فشل جلب القوائم');
+      state = { ready: true, lists: r.lists, version: r.version };
+      write({ version: r.version, lists: r.lists, savedAt: new Date().toISOString() });
+      fill(r.lists);
+      return { fromCache: false };
+    });
+  }
+
+  function load() {
+    var cached = read();
+    return api('getListsStamp').then(function (res) {
+      var ver = res && res.version;
+      if (cached && ver && cached.version === ver && cached.lists) {
+        state = { ready: true, lists: cached.lists, version: ver };
+        fill(cached.lists);
+        console.log('[Lists] ⚡ من الذاكرة المحلية');
+        return { fromCache: true };
+      }
+      return fetchAll();
+    }).catch(function (err) {
+      if (cached && cached.lists) {
+        state = { ready: true, lists: cached.lists, version: cached.version };
+        fill(cached.lists);
+        console.warn('[Lists] تعذّر التحقق، استُخدمت النسخة المحفوظة:', err.message);
+      } else {
+        state.ready = false;   // ← الرجوع للسلوك القديم
+        console.warn('[Lists]', err.message);
+      }
+    });
+  }
+
+  /* تخطّي دوال تحميل القوائم القديمة عندما تكون الذاكرة جاهزة */
+  function patchSkip(name) {
+    var orig = global[name];
+    if (typeof orig !== 'function' || orig._slPatch) return;
+    global[name] = function () {
+      if (state.ready) { fill(state.lists); return Promise.resolve(true); }
+      return orig.apply(this, arguments);
+    };
+    global[name]._slPatch = true;
+  }
+
+  function patchAll() {
+    ['trloadDropdowns','bd_refreshDropdowns','vaccLoadDropdowns','foloadDropdowns']
+      .forEach(patchSkip);
+
+    /* بعد أي تعديل على المربين — تحديث فوري بدل التخطّي */
+    if (typeof global.globalRefreshPhoneLists === 'function' &&
+        !global.globalRefreshPhoneLists._slPatch) {
+      var orig = global.globalRefreshPhoneLists;
+      global.globalRefreshPhoneLists = function () {
+        if (state.ready) return fetchAll().catch(function () {});
+        return orig.apply(this, arguments);
+      };
+      global.globalRefreshPhoneLists._slPatch = true;
+    }
+  }
+
+  global.StaticLists = {
+    load:    load,
+    refresh: fetchAll,
+    clear:   function () {
+      try { localStorage.removeItem(key()); } catch (e) {}
+      state = { ready: false, lists: null, version: null };
+    },
+    info: function () {
+      var c = read();
+      if (!c) return null;
+      var n = 0;
+      Object.keys(c.lists || {}).forEach(function (k) { n += (c.lists[k] || []).length; });
+      return { savedAt: c.savedAt, version: c.version, itemCount: n };
+    }
+  };
+
+  if (document.readyState === 'complete') setTimeout(patchAll, 300);
+  else global.addEventListener('load', function () { setTimeout(patchAll, 300); });
+
+})(window);
+</script>
+  <!-- ============================================================
+     NetGuard v2.0 — حارس الاتصال بقاعدة البيانات
+     قياس سلبي للطلبات الفعلية — بلا أي طلب إضافي على الشبكة
+     ============================================================ -->
+<script>
+(function (global) {
+  "use strict";
+
+  /* ── الإعدادات ──────────────────────────────────────────── */
+  var CFG = {
+    writeTimeoutMs:  30000,  // مهلة عمليات الحفظ/التحديث/الحذف
+    readTimeoutMs:   90000,  // مهلة القراءة (التقارير الثقيلة)
+    slowThresholdMs:  5000,  // أبطأ من هذا = طلب بطيء
+    failLockMs:      15000,  // مدة حجب الكتابة بعد فشل مؤكد
+    slowStreakWarn:      2   // عدد الطلبات البطيئة المتتالية قبل التحذير
+  };
+
+  /* ── الإجراءات التي تُعدّل قاعدة البيانات ───────────────── */
+  var WRITE_ACTIONS = [
+    'trsaveData','trupdateData','trdeleteData','trsaveTempData','trupdateTempData',
+    'saveData','updateData','deleteData',
+    'bd_saveData','bd_updateData','bd_deleteData','bd_updatePossessionInTreatment',
+    'bd_saveVaccinationData','bd_updateVaccinationData','bd_deleteVaccinationData',
+    'fosaveData','foupdateData','fodeleteData',
+    'saveDateRange','saveUserPermissions'
+  ];
+
+  /* ── إجراءات خلفية: تُقاس ولا تُنبّه ولا تُحجب ──────────── */
+  var SILENT_ACTIONS = ['syncNotify','syncGetEvents'];
+
+  var _origFetch  = global.fetch.bind(global);
+  var _slowStreak = 0;
+  var _lastFailAt = 0;
+  var _lastReason = '';
+
+  function now() { return Date.now(); }
+
+  function toast(msg, type) {
+    if (typeof global.showToast === 'function') global.showToast(msg, type || 'error');
+  }
+
+  function apiUrl() {
+    return global._activeApiUrl || global.TR_API_URL || global.VACC_API_URL || '';
+  }
+
+  /* ── fetch بمهلة زمنية ──────────────────────────────────── */
+  function fetchTimed(input, init, ms) {
+    var o = Object.assign({}, init || {});
+    var ctrl = null;
+    if (typeof AbortController !== 'undefined' && !o.signal) {
+      ctrl = new AbortController();
+      o.signal = ctrl.signal;
+    }
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, ms);
+    return _origFetch(input, o).then(
+      function (r) { clearTimeout(timer); return r; },
+      function (e) { clearTimeout(timer); throw e; }
+    );
+  }
+
+  /* ── شارة البطء ─────────────────────────────────────────── */
+  function slowBadge(show, ms) {
+    var el = document.getElementById('netguard-slow');
+    if (!show) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'netguard-slow';
+      el.style.cssText =
+        'position:fixed;top:8px;left:8px;background:#e67e22;color:#fff;' +
+        'padding:4px 13px;border-radius:20px;font-size:11.5px;font-weight:bold;' +
+        'z-index:99996;font-family:Tahoma,Arial,sans-serif;direction:rtl;' +
+        'box-shadow:0 2px 8px rgba(0,0,0,.25);';
+      document.body.appendChild(el);
+    }
+    el.textContent = '🐢 شبكة بطيئة (' + (Math.round(ms / 100) / 10) + ' ث)';
+  }
+
+  /* ── تسجيل زمن كل طلب ناجح ──────────────────────────────── */
+  function markSuccess(ms, silent) {
+    _lastFailAt = 0;
+    if (silent) return;
+    if (ms > CFG.slowThresholdMs) {
+      _slowStreak++;
+      slowBadge(true, ms);
+      if (_slowStreak === CFG.slowStreakWarn) {
+        toast('🐢 الاتصال بطيء — قد تتأخر العمليات أو تتعذّر', 'warning');
+      }
+    } else {
+      _slowStreak = 0;
+      slowBadge(false);
+    }
+  }
+
+  function markFailure(reason) {
+    _lastFailAt = now();
+    _lastReason = reason;
+  }
+
+  /* ── شريط الانقطاع ──────────────────────────────────────── */
+  function banner(show) {
+    var el = document.getElementById('netguard-banner');
+    if (!show) { if (el) el.remove(); return; }
+    if (el) return;
+    el = document.createElement('div');
+    el.id = 'netguard-banner';
+    el.style.cssText =
+      'position:fixed;top:0;left:0;right:0;background:#c0392b;color:#fff;' +
+      'text-align:center;padding:7px;font-size:13px;font-weight:bold;z-index:99997;' +
+      'font-family:Tahoma,Arial,sans-serif;direction:rtl;';
+    el.textContent = '⚠️ لا يوجد اتصال بالإنترنت — عمليات الحفظ والتعديل متوقفة';
+    document.body.appendChild(el);
+  }
+
+  global.addEventListener('offline', function () {
+    banner(true);
+    markFailure('offline');
+    toast('⚠️ انقطع الاتصال بالإنترنت', 'error');
+  });
+  global.addEventListener('online', function () {
+    banner(false);
+    _lastFailAt = 0;
+    _slowStreak = 0;
+    slowBadge(false);
+    toast('✅ عاد الاتصال بالإنترنت', 'success');
+  });
+  if (!navigator.onLine) banner(true);
+
+  /* ── نافذة المنع / الفشل ────────────────────────────────── */
+  /* mode: 'blocked' = لم يُرسل الطلب | 'failed' = أُرسل وفشل */
+  function showModal(reason, mode) {
+    if (document.getElementById('netguard-modal')) return;
+
+    var detail, safety, color;
+
+    if (reason === 'offline') {
+      detail = 'لا يوجد اتصال بالإنترنت على هذا الجهاز.';
+    } else if (reason === 'locked') {
+      detail = 'تعذّر الوصول إلى قاعدة البيانات في المحاولة الأخيرة.';
+    } else if (reason === 'timeout') {
+      detail = 'انتهت مهلة الاتصال بالخادم دون استجابة.';
+    } else if (reason === 'no-url') {
+      detail = 'لم يتم تحديد رابط الخدمة — أعد تسجيل الدخول.';
+    } else if (reason.indexOf('http-') === 0) {
+      detail = 'الخادم أعاد الحالة ' + reason.replace('http-', '') + '.';
+    } else {
+      detail = 'انقطع الاتصال بالخادم أثناء تنفيذ العملية.';
+    }
+
+    if (mode === 'blocked' || reason === 'offline' || reason === 'network') {
+      safety = '<strong>لم يتم حفظ أو تعديل أي بيانات.</strong> تحقق من الإنترنت ثم أعد المحاولة.';
+      color  = '#e65050';
+    } else {
+        safety = 'النظام يمنع التكرار تلقائياً — <strong>يمكنك إعادة المحاولة بأمان</strong>، ' +
+               'ولن تُحفظ العملية مرتين.';
+      color  = '#e67e22';
+    }
+
+    var ov = document.createElement('div');
+    ov.id = 'netguard-modal';
+    ov.style.cssText =
+      'position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;' +
+      'align-items:center;justify-content:center;z-index:100000;direction:rtl;' +
+      'font-family:Tahoma,Arial,sans-serif;';
+    ov.innerHTML =
+      '<div style="background:#fff;border:3px solid ' + color + ';border-radius:14px;' +
+      'padding:26px 30px;max-width:440px;width:91%;text-align:center;' +
+      'box-shadow:0 12px 40px rgba(0,0,0,.3);">' +
+        '<div style="font-size:46px;margin-bottom:10px;">📡</div>' +
+        '<div style="font-size:17px;font-weight:bold;color:' + color + ';margin-bottom:12px;">' +
+          (mode === 'blocked' ? 'تم إيقاف العملية' : 'فشل تنفيذ العملية') + '</div>' +
+        '<div style="background:#fdf3ef;border:1px solid #f0c9b8;border-radius:8px;' +
+        'padding:12px 15px;font-size:13.5px;color:#5a2d0c;line-height:1.95;margin-bottom:18px;' +
+        'text-align:right;">' + detail + '<br>' + safety + '</div>' +
+        '<button id="ng-close" style="background:' + color + ';color:#fff;border:none;' +
+        'border-radius:8px;padding:10px 34px;font-size:13.5px;font-weight:bold;' +
+        'cursor:pointer;font-family:inherit;">حسناً</button>' +
+      '</div>';
+    document.body.appendChild(ov);
+    document.getElementById('ng-close').onclick = function () { ov.remove(); };
+  }
+/* ── بصمة الطلب ومنع التكرار ────────────────────────────── */
+  var _inflight = {};
+
+  function ngHash(str) {
+    var h1 = 5381, h2 = 52711, i = str.length;
+    while (i--) {
+      var c = str.charCodeAt(i);
+      h1 = (h1 * 33) ^ c;
+      h2 = (h2 * 33) ^ (c + i);
+    }
+    return (((h1 >>> 0) * 4096) + (h2 >>> 0)).toString(36) + '_' + str.length.toString(36);
+  }
+
+  function ngWatchDedup(resp) {
+    try {
+      resp.clone().json().then(function (d) {
+        if (d && d._dedup) {
+          toast('🛡️ العملية كانت محفوظة مسبقاً — لم يتم تكرارها', 'warning');
+        }
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  /* ── الاعتراض المركزي ───────────────────────────────────── */
+global.fetch = function (input, init) {
+    var url = (typeof input === 'string') ? input : ((input && input.url) || '');
+    var bodyStr = '', action = '';
+    try {
+      if (init && typeof init.body === 'string' && init.body.charAt(0) === '{') {
+        bodyStr = init.body;
+        action  = (JSON.parse(bodyStr).action || '').toString();
+      }
+    } catch (e) {}
+
+    var silent  = SILENT_ACTIONS.indexOf(action) !== -1 || url.indexOf('ntfy.sh') !== -1;
+    var isWrite = action !== '' && WRITE_ACTIONS.indexOf(action) !== -1;
+    var opId    = '';
+
+    if (isWrite) {
+      /* ١. بوابات الحجب الفورية */
+      if (!navigator.onLine) {
+        showModal('offline', 'blocked');
+        return Promise.reject(new Error('لا يوجد اتصال بالإنترنت — لم يتم تنفيذ العملية'));
+      }
+      if (!apiUrl()) {
+        showModal('no-url', 'blocked');
+        return Promise.reject(new Error('رابط الخدمة غير معرّف — لم يتم تنفيذ العملية'));
+      }
+      if (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs && _lastReason !== 'timeout') {
+        showModal('locked', 'blocked');
+        return Promise.reject(new Error('الاتصال بقاعدة البيانات منقطع — لم يتم تنفيذ العملية'));
+      }
+
+      /* ٢. بصمة المحتوى + منع الطلب المتزامن المكرر */
+      opId = ngHash(bodyStr);
+      if (_inflight[opId]) {
+        toast('⏳ نفس العملية قيد التنفيذ — انتظر النتيجة', 'warning');
+        return Promise.reject(new Error('العملية قيد التنفيذ بالفعل'));
+      }
+
+      /* ٣. حقن opId في جسم الطلب */
+      try {
+        var o = JSON.parse(bodyStr);
+        o.opId = opId;
+        init = Object.assign({}, init, { body: JSON.stringify(o) });
+        _inflight[opId] = true;
+      } catch (e) { opId = ''; }
+    }
+
+    function release() { if (opId) delete _inflight[opId]; }
+
+    var t0 = now();
+    var limit = isWrite ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
+
+    return fetchTimed(input, init, limit).then(function (r) {
+      release();
+      var ms = now() - t0;
+      if (!r.ok) {
+        markFailure('http-' + r.status);
+        if (isWrite) showModal('http-' + r.status, 'failed');
+        else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status, 'error');
+        return r;
+      }
+      markSuccess(ms, silent);
+      if (isWrite) ngWatchDedup(r);
+      return r;
+    }).catch(function (e) {
+      release();
+      var aborted = (e && e.name === 'AbortError');
+      var reason  = aborted ? 'timeout' : (navigator.onLine ? 'network' : 'offline');
+      markFailure(reason);
+
+      if (isWrite) showModal(reason, 'failed');
+      else if (!silent) {
+        toast(aborted ? '⏱️ انتهت مهلة الاتصال بالخادم'
+                      : '❌ انقطع الاتصال بالخادم', 'error');
+      }
+
+      throw new Error(aborted ? 'انتهت مهلة الاتصال بالخادم'
+                              : 'تعذّر الاتصال بقاعدة البيانات');
+    });
+  };
+  /* ── واجهة عامة ─────────────────────────────────────────── */
+  global.NetGuard = {
+    config: CFG,
+    getState: function () {
+      return {
+        online:     navigator.onLine,
+        slowStreak: _slowStreak,
+        lastFailAt: _lastFailAt,
+        lastReason: _lastReason
+      };
+    },
+    reset: function () {
+      _lastFailAt = 0; _slowStreak = 0; slowBadge(false);
+    }
+  };
+
+  console.log('[NetGuard v2] ✅ حارس الاتصال نشط — قياس سلبي بلا طلبات إضافية');
+})(window);
 </script>
 </body>
 </html>
