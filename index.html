@@ -10729,6 +10729,18 @@ async function rpt_callApi(action, payload) {
 
 var rpt_D = null;
 
+/* المدى الزمني الحالي — يُرسل مع كل طلب */
+function rpt_range() {
+  var f = document.getElementById('rpt_dateFrom');
+  var t = document.getElementById('rpt_dateTo');
+  return { dateFrom: f ? f.value : '', dateTo: t ? t.value : '' };
+}
+
+/* جلب بيانات التقرير مباشرة من بيانات العلاج والتحصين */
+function rpt_fetchData() {
+  return rpt_callApi("getReportData", rpt_range());
+}
+
 function rpt_showTab(name) {
   document.querySelectorAll('.tab-pane').forEach(function(el) { el.classList.remove('active'); });
   document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
@@ -11224,8 +11236,7 @@ function rptCamp_chart3() {
 async function rptCamp_drawCharts(c, rate, dFrom, days, dayNow) {
   if (typeof Chart === 'undefined') return;
   if (!rpt_D) {
-    try { rpt_D = await rpt_callApi('getReportData'); rpt_buildAll(); } catch (e) {}
-  }
+    try { rpt_D = await rpt_fetchData(); rpt_buildAll(); } catch (e) {}  }
   rptCamp_chart2();
   rptCamp_chart3();
   try { await rptCamp_chart1(c, rate, dFrom, days, dayNow); } catch (e) {}
@@ -11234,7 +11245,7 @@ async function rptCamp_drawCharts(c, rate, dFrom, days, dayNow) {
 async function rpt_loadReport() {
   document.getElementById('rpt_loadingOverlay').style.display = 'block';
   try {
-    rpt_D = await rpt_callApi("getReportData");
+    rpt_D = await rpt_fetchData();
     rpt_buildAll();
   } catch (err) {
     document.getElementById('rpt_loadingOverlay').textContent = '❌ خطأ: ' + err.message;
@@ -11250,9 +11261,10 @@ async function rpt_refreshData() {
   refreshBtn.disabled = true;
   showToast('⏳ جاري تحديث الجداول...', 'info');
   try {
-    rpt_D = await rpt_callApi("getReportData");
+    rpt_D = await rpt_fetchData();
     rpt_buildAll();
     refreshBtn.textContent = '✅ تم';
+    
     refreshBtn.style.background = '#c8e6c9';
     showToast('✅ تم تحديث الجداول بنجاح', 'success');
     setTimeout(function() {
@@ -11278,16 +11290,14 @@ async function rpt_saveDates() {
     showToast('⚠️ تاريخ البداية أكبر من تاريخ النهاية', 'warning');
     return;
   }
-  status.textContent = '⏳ جاري الحفظ...';
-  showToast('⏳ جاري حفظ الفترة...', 'info');
+  status.textContent = '⏳ جاري تطبيق الفترة...';
+  showToast('⏳ جاري تحديث الجداول للفترة المحددة...', 'info');
   try {
-    await rpt_callApi("saveDateRange", { dateFrom: from, dateTo: to });
-    status.textContent = '✅ تم حفظ التاريخ';
-    status.style.color = '#2e7d32';
-    showToast('✅ تم حفظ الفترة، جاري تحديث الجداول...', 'info');
-    setTimeout(function() { status.textContent = ''; }, 3000);
-    rpt_D = await rpt_callApi("getReportData");
+    rpt_D = await rpt_fetchData();
     rpt_buildAll();
+    status.textContent = '✅ تم تطبيق الفترة';
+    status.style.color = '#2e7d32';
+    setTimeout(function() { status.textContent = ''; }, 3000);
     showToast('✅ تم تحديث الجداول بنجاح', 'success');
   } catch (err) {
     status.textContent = '❌ فشل: ' + err.message;
