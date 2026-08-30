@@ -6260,7 +6260,7 @@ function bd_showActivityList(mode) {
   var color = (mode === 'active') ? '#27ae60' : '#e67e22';
   var head  = (mode === 'active')
     ? ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ آخر نشاط','آخر نشاط','إجراء']
-    : ['#','رقم الهاتف','اسم المربي','المنطقة','مدة عدم النشاط','الحالة','إجراء'];
+    : ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ أول علاج مسجَّل','مدة عدم النشاط','إجراء'];
 
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
     head.map(function(h){ return '<th style="background:' + color + ';color:#fff;border:1px solid #ccc;padding:7px;">' + h + '</th>'; }).join('') +
@@ -6273,30 +6273,21 @@ function bd_showActivityList(mode) {
       'document.getElementById(\'bd_phoneInput\').value=\'' + r.phone + '\';bd_loadCaseData(\'' + r.phone + '\');" ' +
       'style="background:#00b8d9;color:#fff;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:12px;">📂 فتح</button>';
 
-    if (mode === 'active') {
-      var c = bd_daysColor(r.days === null ? 9999 : r.days);
-      html += '<tr style="background:' + c.bg + ';">' +
-        '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i+1) + '</td>' +
-        '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
-        '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
-        '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
-        '<td style="' + td + 'text-align:center;">' + bd_fmtDate(r.last) + '</td>' +
-        '<td style="' + td + 'text-align:center;font-weight:bold;color:' + c.txt + ';">' +
-          (r.days === null ? 'سجل بدون تاريخ' : bd_daysPhrase(r.days)) + '</td>' +
-        '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
-      '</tr>';
-    } else {
-       var _c = bd_daysColor(r.days === null ? 9999 : r.days);
-      html += '<tr style="background:#fff8f0;">' +
-        '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i+1) + '</td>' +
-        '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
-        '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
-        '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
-        '<td style="' + td + 'text-align:center;font-weight:bold;color:' + _c.txt + ';">' +
-          (r.days === null ? '—' : bd_daysPhrase(r.days).replace('قبل ', '') ) + '</td>' +
-        '<td style="' + td + 'text-align:center;">' +
-      '</tr>';
-    }
+    var c    = bd_daysColor(r.days === null ? 9999 : r.days);
+    var dCol = (mode === 'active') ? r.last : r.since;
+    var dTxt = (r.days === null)
+      ? (mode === 'active' ? 'سجل بدون تاريخ' : 'غير محدد')
+      : bd_daysPhrase(r.days);
+
+    html += '<tr style="background:' + c.bg + ';">' +
+      '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i + 1) + '</td>' +
+      '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
+      '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + bd_fmtDate(dCol) + '</td>' +
+      '<td style="' + td + 'text-align:center;font-weight:bold;color:' + c.txt + ';">' + dTxt + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
+    '</tr>';
   });
 
   html += '</tbody></table>';
