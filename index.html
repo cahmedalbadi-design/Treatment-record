@@ -5609,8 +5609,8 @@ async function trSelectIncompleteCase(caseNumber) {
         <input type="text" id="bd_globalSearchInput" placeholder="اكتب للبحث..." style="width:250px;padding:5px">
 <button onclick="bd_fetchAll()" style="background:#00b8d9;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;">⬇️ جلب الكل</button>
 <span id="bd_fetchAllCount" style="display:none;background:#2bb673;color:#fff;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:bold;margin-right:6px;"></span>
-<button onclick="bd_analyzeInactive()" style="background:#e67e22;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📊 تصنيف نشاط المربين</button>        
-      </div>
+<button onclick="bd_analyzeInactive()" style="background:#e67e22;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📊 تصنيف نشاط المربين</button>
+<button onclick="bd_expiredHoldings()" style="background:#e65050;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📅 حالة الحيازات</button>      </div>
       <div id="bd_searchResultsContainer" style="display:none;max-height:300px;overflow:auto">
         <table id="bd_searchResultsTable" style="width:100%;border-collapse:collapse">
           <thead id="bd_searchResultsHeader"></thead>
@@ -6289,6 +6289,191 @@ function bd_filterInactiveTable(val) {
     var name  = (cells[2] ? cells[2].textContent : '').toLowerCase();
     tr.style.display = (!q || phone.indexOf(q) >= 0 || name.indexOf(q) >= 0) ? '' : 'none';
   });
+}
+
+/* ══════════════════════════════════════════════════════════
+   حالة الحيازات — تصنيف المربين حسب تاريخ انتهاء الحيازة
+   ══════════════════════════════════════════════════════════ */
+window._bdHold     = { expired: [], soon: [], valid: [], none: [], total: 0 };
+window._bdHoldMode = 'expired';
+
+function bdHold_parse(v) {
+  if (!v) return null;
+  var s = String(v).trim();
+  if (!s) return null;
+  var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function bdHold_fmt(d) {
+  if (!d) return '—';
+  return String(d.getDate()).padStart(2,'0') + '/' +
+         String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+}
+
+async function bd_expiredHoldings() {
+  var old = document.getElementById('bd_holdModal');
+  if (old) old.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'bd_holdModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  modal.innerHTML =
+    '<div style="background:#fff;border:4px solid #e65050;border-radius:12px;padding:24px 30px;width:94%;max-width:980px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+        '<h3 id="bd_holdTitle" style="color:#e65050;font-size:1.2rem;margin:0;">⏳ جاري فحص الحيازات...</h3>' +
+        '<button onclick="document.getElementById(\'bd_holdModal\').remove()" style="background:#e65050;color:#fff;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-family:inherit;font-size:13px;">✕ إغلاق</button>' +
+      '</div>' +
+      '<div id="bd_holdContent" style="text-align:center;padding:20px;color:#888;">⏳ جاري جلب بيانات المربين...</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+
+  try {
+    var res = await bd_callApi('bd_getAllBreeders');
+    if (!res || !res.success || !res.data || !res.data.length)
+      throw new Error('تعذّر جلب سجل المربين');
+
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var E = [], S = [], V = [], N = [];
+
+    res.data.forEach(function (b) {
+      var ph = String(b.phone || '').trim();
+      if (!ph) return;
+      var d   = bdHold_parse(b.financialDate);
+      var rec = { phone: ph, name: b.name || '', region: b.region || '', date: d, days: null };
+      if (!d) { N.push(rec); return; }
+      d.setHours(0, 0, 0, 0);
+      rec.days = Math.round((d - today) / 86400000);
+      if (rec.days < 0)       E.push(rec);
+      else if (rec.days <= 30) S.push(rec);
+      else                     V.push(rec);
+    });
+
+    E.sort(function (a, b) { return a.days - b.days; });
+    S.sort(function (a, b) { return a.days - b.days; });
+    V.sort(function (a, b) { return a.days - b.days; });
+    N.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', 'ar'); });
+
+    window._bdHold = { expired: E, soon: S, valid: V, none: N, total: res.data.length };
+
+    document.getElementById('bd_holdTitle').textContent = '📅 حالة حيازات المربين';
+    document.getElementById('bd_holdContent').innerHTML =
+      '<div style="display:flex;gap:8px;justify-content:center;margin-bottom:14px;flex-wrap:wrap;">' +
+        '<button id="bd_hTab_expired" onclick="bd_showHoldList(\'expired\')" style="padding:8px 18px;border:2px solid #e65050;border-radius:6px;font-family:inherit;font-size:13px;font-weight:bold;cursor:pointer;">⛔ منتهية (' + E.length + ')</button>' +
+        '<button id="bd_hTab_soon" onclick="bd_showHoldList(\'soon\')" style="padding:8px 18px;border:2px solid #e67e22;border-radius:6px;font-family:inherit;font-size:13px;font-weight:bold;cursor:pointer;">⚠️ تنتهي خلال 30 يوم (' + S.length + ')</button>' +
+        '<button id="bd_hTab_valid" onclick="bd_showHoldList(\'valid\')" style="padding:8px 18px;border:2px solid #27ae60;border-radius:6px;font-family:inherit;font-size:13px;font-weight:bold;cursor:pointer;">✅ سارية (' + V.length + ')</button>' +
+        '<button id="bd_hTab_none" onclick="bd_showHoldList(\'none\')" style="padding:8px 18px;border:2px solid #7f8c8d;border-radius:6px;font-family:inherit;font-size:13px;font-weight:bold;cursor:pointer;">➖ بدون تاريخ (' + N.length + ')</button>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' +
+        '<span id="bd_holdNote" style="font-size:12px;color:#666;"></span>' +
+        '<div style="display:flex;gap:6px;">' +
+          '<input id="bd_holdFilter" type="text" placeholder="بحث بالاسم أو الهاتف..." oninput="bd_filterHoldTable(this.value)" style="padding:5px 8px;border:2px solid #00b8d9;border-radius:4px;font-size:13px;width:200px;font-family:inherit;">' +
+          '<button onclick="bd_printHoldList()" style="background:#6c5ce7;color:#fff;border:none;border-radius:5px;padding:5px 14px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:bold;">🖨️ طباعة</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="bd_holdTableWrap" style="overflow-x:auto;"></div>';
+
+    bd_showHoldList('expired');
+
+  } catch (err) {
+    var c = document.getElementById('bd_holdContent');
+    if (c) c.innerHTML = '<div style="color:red;padding:20px;">❌ خطأ: ' + (err.message || err) + '</div>';
+  }
+}
+
+function bd_showHoldList(mode) {
+  window._bdHoldMode = mode;
+  var H    = window._bdHold || { expired: [], soon: [], valid: [], none: [], total: 0 };
+  var rows = H[mode] || [];
+  var CFG  = {
+    expired: { color: '#e65050', bg: '#fff5f5', note: 'انتهى تاريخ الحيازة ولم تُجدَّد' },
+    soon:    { color: '#e67e22', bg: '#fff8f0', note: 'ستنتهي حيازتهم خلال 30 يوماً أو أقل' },
+    valid:   { color: '#27ae60', bg: '#f2fbf5', note: 'حيازة سارية لأكثر من 30 يوماً' },
+    none:    { color: '#7f8c8d', bg: '#f7f7f7', note: 'لا يوجد تاريخ انتهاء حيازة مسجَّل' }
+  };
+  var conf = CFG[mode];
+
+  Object.keys(CFG).forEach(function (m) {
+    var b = document.getElementById('bd_hTab_' + m);
+    if (!b) return;
+    b.style.background = (m === mode) ? CFG[m].color : '#fff';
+    b.style.color      = (m === mode) ? '#fff'       : CFG[m].color;
+  });
+
+  var note = document.getElementById('bd_holdNote');
+  if (note) note.textContent = conf.note + ' — ' + rows.length + ' من أصل ' + H.total + ' مربي';
+
+  var wrap = document.getElementById('bd_holdTableWrap');
+  if (!wrap) return;
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:26px;color:#888;">لا توجد بيانات في هذه الفئة</div>';
+    return;
+  }
+
+  var td   = 'border:1px solid #ccc;padding:6px;';
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
+    ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ انتهاء الحيازة','الحالة','إجراء'].map(function (h) {
+      return '<th style="background:' + conf.color + ';color:#fff;border:1px solid #ccc;padding:7px;">' + h + '</th>';
+    }).join('') + '</tr></thead><tbody id="bd_holdTbody">';
+
+  rows.forEach(function (r, i) {
+    var st = (mode === 'expired') ? 'منتهية منذ ' + Math.abs(r.days) + ' يوم'
+           : (mode === 'none')    ? 'غير مسجَّل'
+           : 'تبقى ' + r.days + ' يوم';
+    html += '<tr style="background:' + conf.bg + ';">' +
+      '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i + 1) + '</td>' +
+      '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
+      '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + bdHold_fmt(r.date) + '</td>' +
+      '<td style="' + td + 'text-align:center;font-weight:bold;color:' + conf.color + ';">' + st + '</td>' +
+      '<td style="' + td + 'text-align:center;">' +
+        '<button onclick="document.getElementById(\'bd_holdModal\').remove();' +
+        'document.getElementById(\'bd_phoneInput\').value=\'' + r.phone + '\';' +
+        'bd_loadCaseData(\'' + r.phone + '\');" ' +
+        'style="background:#00b8d9;color:#fff;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:12px;">📂 فتح</button>' +
+      '</td></tr>';
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  var f = document.getElementById('bd_holdFilter');
+  if (f && f.value) bd_filterHoldTable(f.value);
+}
+
+function bd_filterHoldTable(val) {
+  var q = (val || '').trim().toLowerCase();
+  document.querySelectorAll('#bd_holdTbody tr').forEach(function (tr) {
+    var c = tr.querySelectorAll('td');
+    if (!c.length) return;
+    var phone = (c[1] ? c[1].textContent : '').toLowerCase();
+    var name  = (c[2] ? c[2].textContent : '').toLowerCase();
+    tr.style.display = (!q || phone.indexOf(q) >= 0 || name.indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+
+function bd_printHoldList() {
+  var wrap = document.getElementById('bd_holdTableWrap');
+  if (!wrap || !wrap.innerHTML.trim()) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
+  var titles = { expired: 'الحيازات المنتهية', soon: 'حيازات تنتهي خلال 30 يوماً',
+                 valid: 'الحيازات السارية', none: 'مربون بدون تاريخ حيازة' };
+  var t = titles[window._bdHoldMode] || 'حالة الحيازات';
+  var w = window.open('', '_blank', 'width=1000,height=760');
+  w.document.write('<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + t + '</title>' +
+    '<style>body{font-family:Tahoma,Arial;direction:rtl;padding:18px}h2{text-align:center;color:#e65050}' +
+    'table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #999;padding:6px;text-align:center}' +
+    'button{display:none}@media print{@page{size:A4 portrait;margin:10mm}}</style></head><body>' +
+    '<h2>' + t + '</h2>' + wrap.innerHTML +
+    '<div style="text-align:center;margin-top:14px"><button onclick="window.print()">🖨️ طباعة</button></div>' +
+    '</body></html>');
+  w.document.close();
+  setTimeout(function () { w.focus(); }, 300);
 }
 </script>
 
