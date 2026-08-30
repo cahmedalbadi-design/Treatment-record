@@ -6081,6 +6081,24 @@ async function bd_analyzeInactive() {
 
     /* ── ٢. تجميع آخر نشاط لكل رقم هاتف ── */
     var lastActivity = {};
+    var firstTreatmentDate = null;   /* أقدم تاريخ علاج في السجل — مرجع احتساب مدة عدم النشاط */
+
+    function _parseDay(s) {
+      if (!s) return null;
+      s = String(s).trim();
+      if (!s) return null;
+      var d;
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        d = new Date(s.substring(0, 10));
+      } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+        var p = s.split('/');
+        d = new Date(p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0'));
+        if (isNaN(d)) d = new Date(p[2] + '-' + p[0].padStart(2,'0') + '-' + p[1].padStart(2,'0'));
+      } else {
+        d = new Date(s);
+      }
+      return isNaN(d) ? null : d;
+    }
 
     function _registerDate(phone, dateStr) {
       if (!phone) return;
@@ -6122,6 +6140,8 @@ async function bd_analyzeInactive() {
         tr.data.slice(1).forEach(function(row) {
           if (!Array.isArray(row)) return;
           _registerDate(row[phoneIdx], row[dateIdx]);
+          var _td = _parseDay(row[dateIdx]);
+          if (_td && (!firstTreatmentDate || _td < firstTreatmentDate)) firstTreatmentDate = _td;
         });
       }
     } catch(e) { console.warn('[activity] علاج:', e.message); }
@@ -6170,6 +6190,10 @@ async function bd_analyzeInactive() {
         rec.days = last ? Math.max(0, Math.floor((nowMs - last.getTime()) / 86400000)) : null;
         active.push(rec);
       } else {
+        rec.since = firstTreatmentDate;
+        rec.days  = firstTreatmentDate
+          ? Math.max(0, Math.floor((nowMs - firstTreatmentDate.getTime()) / 86400000))
+          : null;
         inactive.push(rec);
       }
     });
@@ -6182,8 +6206,8 @@ async function bd_analyzeInactive() {
     });
     inactive.sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ar'); });
 
-    window._bdActivity = { active: active, inactive: inactive, total: breeders.length };
-
+    window._bdActivity = { active: active, inactive: inactive,
+                           total: breeders.length, firstTreatment: firstTreatmentDate };
     /* ── ٤. الواجهة: زرا تبديل ── */
     modal.querySelector('h3').textContent = '📊 تصنيف المربين حسب النشاط';
     document.getElementById('bd_inactiveContent').innerHTML =
@@ -6217,9 +6241,11 @@ function bd_showActivityList(mode) {
 
   var note = document.getElementById('bd_activityNote');
   if (note) {
-    note.textContent = (mode === 'active')
+     note.textContent = (mode === 'active')
       ? 'لديهم سجل واحد على الأقل في العلاج أو التحصين أو العينات — من أصل ' + A.total + ' مربي'
-      : 'لا يوجد لهم أي سجل في النظام — من أصل ' + A.total + ' مربي';
+      : 'لا يوجد لهم أي سجل — المدة محسوبة من تاريخ أول علاج مسجَّل ('
+        + (A.firstTreatment ? bd_fmtDate(A.firstTreatment) : 'غير متوفر')
+        + ') — من أصل ' + A.total + ' مربي';
   }
 
   var wrap = document.getElementById('bd_activityTableWrap');
@@ -6234,7 +6260,7 @@ function bd_showActivityList(mode) {
   var color = (mode === 'active') ? '#27ae60' : '#e67e22';
   var head  = (mode === 'active')
     ? ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ آخر نشاط','آخر نشاط','إجراء']
-    : ['#','رقم الهاتف','اسم المربي','المنطقة','الحالة','إجراء'];
+    : ['#','رقم الهاتف','اسم المربي','المنطقة','مدة عدم النشاط','الحالة','إجراء'];
 
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
     head.map(function(h){ return '<th style="background:' + color + ';color:#fff;border:1px solid #ccc;padding:7px;">' + h + '</th>'; }).join('') +
@@ -6260,14 +6286,15 @@ function bd_showActivityList(mode) {
         '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
       '</tr>';
     } else {
+       var _c = bd_daysColor(r.days === null ? 9999 : r.days);
       html += '<tr style="background:#fff8f0;">' +
         '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i+1) + '</td>' +
         '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
         '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
         '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+        '<td style="' + td + 'text-align:center;font-weight:bold;color:' + _c.txt + ';">' +
+          (r.days === null ? '—' : bd_daysPhrase(r.days).replace('قبل ', '') ) + '</td>' +
         '<td style="' + td + 'text-align:center;">' +
-          '<span style="background:#e67e22;color:#fff;border-radius:12px;padding:2px 10px;font-size:11px;font-weight:bold;">لا يوجد أي سجل</span></td>' +
-        '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
       '</tr>';
     }
   });
