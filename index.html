@@ -6260,7 +6260,7 @@ function bd_showActivityList(mode) {
   var color = (mode === 'active') ? '#27ae60' : '#e67e22';
   var head  = (mode === 'active')
     ? ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ آخر نشاط','آخر نشاط','إجراء']
-    : ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ أول علاج مسجَّل','مدة عدم النشاط','إجراء'];
+    : ['#','رقم الهاتف','اسم المربي','المنطقة','من تاريخ','مدة عدم النشاط','إجراء'];
 
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
     head.map(function(h){ return '<th style="background:' + color + ';color:#fff;border:1px solid #ccc;padding:7px;">' + h + '</th>'; }).join('') +
