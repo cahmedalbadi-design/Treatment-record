@@ -1,0 +1,27 @@
+{
+  "name": "سجل العيادة البيطرية",
+  "short_name": "العيادة",
+  "description": "نظام إدارة سجلات العلاج والتحصين والعينات",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#d9d9d9",
+  "theme_color": "#00b8d9",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
