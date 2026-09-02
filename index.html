@@ -14910,9 +14910,11 @@ global.fetch = function (input, init) {
     var isWrite = action !== '' && WRITE_ACTIONS.indexOf(action) !== -1;
     var opId    = '';
     if (isWrite) {
-      /* ٠. أوف لاين + عملية قابلة للتأجيل → الطابور */
+      /* ٠. تعذّر الاتصال + عملية قابلة للتأجيل → الطابور */
       var _canQ = global.OfflineQueue && global.OfflineQueue.canQueue(action);
-      if (!navigator.onLine && _canQ && bodyStr) {
+      var _netDown = !navigator.onLine ||
+                     (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs);
+      if (_netDown && _canQ && bodyStr) {
         try {
           var _o = JSON.parse(bodyStr);
           _o.opId = ngHash(bodyStr);
@@ -14977,6 +14979,19 @@ global.fetch = function (input, init) {
       var aborted = (e && e.name === 'AbortError');
       var reason  = aborted ? 'timeout' : (navigator.onLine ? 'network' : 'offline');
       markFailure(reason);
+
+      if (isWrite && _canQ && bodyStr && reason !== 'timeout') {
+        try {
+          var _o2 = JSON.parse(bodyStr);
+          _o2.opId = opId || ngHash(bodyStr);
+          global.OfflineQueue.push(apiUrl(), JSON.stringify(_o2), action);
+          toast('💾 تعذّر الإرسال — حُفظت محلياً وسترفع لاحقاً', 'warning');
+          return new Response(
+            JSON.stringify({ success: true, queued: true, message: 'محفوظة محلياً' }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        } catch (e2) {}
+      }
 
       if (isWrite) showModal(reason, 'failed');
       else if (!silent) {
