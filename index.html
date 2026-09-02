@@ -1319,6 +1319,29 @@ function bootBindOnce() {
 
 async function bootLoadAll() {
   if (window._bootRunning) return;
+
+  /* وضع عدم الاتصال: لا جدوى من محاولة الجلب — افتح بالبيانات المحفوظة */
+  if (!navigator.onLine) {
+    window._bootRunning = false;
+    if (window.StaticLists) { try { await StaticLists.load(); } catch (e) {} }
+    ['_breederInitialized','_treatmentInitialized','_vaccinationInitialized',
+     '_samplesInitialized','_vrInitialized'].forEach(function (k) { window[k] = true; });
+    if (typeof trbindEvents  === 'function') { try { trbindEvents();  } catch (e) {} }
+    if (typeof vaccBindEvents === 'function') { try { vaccBindEvents(); } catch (e) {} }
+    if (typeof fobindEvents  === 'function') { try { fobindEvents();  } catch (e) {} }
+    if (typeof bd_bindEvents === 'function') { try { bd_bindEvents(); } catch (e) {} }
+    if (window.TreatmentCache && typeof TreatmentCache.render === 'function') {
+      try { TreatmentCache.render(); } catch (e) {}
+    }
+    ['tr_loadingOverlay','vacc_loadingOverlay','bd_pageLoadingOverlay',
+     'initialLoadingOverlaySamples','vr_loadingOverlay'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    showToast('📴 وضع عدم الاتصال — البيانات المحفوظة محلياً فقط', 'warning');
+    return;
+  }
+
   window._bootRunning = true;
 
   var ov = bootShowOverlay();
