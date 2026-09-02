@@ -13103,14 +13103,6 @@ setTimeout(tryWrap, 1000);
         return r.success ? r : _origBdCallApi(action, payload);
       }
 
-      /* كتابة → API + تحديث الكاش */
- global._localSyncChannel.onmessage = function (e) {
-  if (_origMsg) _origMsg.call(this, e);
-  if (e.data && e.data.topic === "breeder" && state.enabled) {
-    setTimeout(refreshAndRepatch, 2000);
-  }
-};
-
       /* أي action آخر (بما فيها trget*, syncNotify، إلخ) → API مباشرة */
       return _origBdCallApi(action, payload);
     };
@@ -14917,8 +14909,22 @@ global.fetch = function (input, init) {
     var silent  = SILENT_ACTIONS.indexOf(action) !== -1 || url.indexOf('ntfy.sh') !== -1;
     var isWrite = action !== '' && WRITE_ACTIONS.indexOf(action) !== -1;
     var opId    = '';
-
     if (isWrite) {
+      /* ٠. أوف لاين + عملية قابلة للتأجيل → الطابور */
+      var _canQ = global.OfflineQueue && global.OfflineQueue.canQueue(action);
+      if (!navigator.onLine && _canQ && bodyStr) {
+        try {
+          var _o = JSON.parse(bodyStr);
+          _o.opId = ngHash(bodyStr);
+          global.OfflineQueue.push(apiUrl(), JSON.stringify(_o), action);
+          toast('💾 حُفظت محلياً — سترفع تلقائياً عند عودة الاتصال', 'success');
+          return Promise.resolve(new Response(
+            JSON.stringify({ success: true, queued: true, message: 'محفوظة محلياً' }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          ));
+        } catch (e) {}
+      }
+
       /* ١. بوابات الحجب الفورية */
       if (!navigator.onLine) {
         showModal('offline', 'blocked');
@@ -14999,6 +15005,140 @@ global.fetch = function (input, init) {
   };
 
   console.log('[NetGuard v2] ✅ حارس الاتصال نشط — قياس سلبي بلا طلبات إضافية');
+})(window);
+</script>
+
+<!-- ============================================================
+     OfflineQueue v1.0 — طابور الحفظ عند انقطاع الشبكة
+     ============================================================ -->
+<script>
+(function (global) {
+  "use strict";
+
+  var Q_KEY = 'offline_queue_v1';
+
+  /* الإجراءات التي يُسمح بحفظها محلياً — الحفظ الجديد فقط */
+  var QUEUEABLE = [
+    'trsaveData', 'trsaveTempData',
+    'saveData',
+    'fosaveData'
+  ];
+
+  var _flushing = false;
+
+  /* ── التخزين ── */
+  function read() {
+    try { return JSON.parse(localStorage.getItem(Q_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function write(arr) {
+    try { localStorage.setItem(Q_KEY, JSON.stringify(arr)); return true; }
+    catch (e) { console.warn('[Queue] تعذّر الحفظ:', e.message); return false; }
+  }
+
+  function add(url, body, action) {
+    var q = read();
+    q.push({
+      id:     Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      url:    url,
+      body:   body,
+      action: action,
+      at:     Date.now(),
+      tries:  0
+    });
+    return write(q) ? q.length : 0;
+  }
+
+  /* ── شارة عدد العمليات المعلّقة ── */
+  function badge() {
+    var n = read().length;
+    var el = document.getElementById('oq-badge');
+    if (!n) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'oq-badge';
+      el.style.cssText =
+        'position:fixed;top:8px;right:8px;background:#e67e22;color:#fff;' +
+        'padding:5px 14px;border-radius:20px;font-size:12px;font-weight:bold;' +
+        'z-index:99996;font-family:Tahoma,Arial,sans-serif;direction:rtl;' +
+        'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);';
+      el.onclick = function () { flush(true); };
+      document.body.appendChild(el);
+    }
+    el.textContent = '📥 ' + n + ' بانتظار الرفع — انقر للرفع الآن';
+  }
+
+  /* ── تفريغ الطابور بالتسلسل ── */
+  async function flush(manual) {
+    if (_flushing) return;
+    var q = read();
+    if (!q.length) return;
+    if (!navigator.onLine) {
+      if (manual) global.showToast('⚠️ لا يوجد اتصال بالإنترنت', 'warning');
+      return;
+    }
+
+    _flushing = true;
+    global.showToast('⏳ جاري رفع ' + q.length + ' عملية محفوظة...', 'info');
+
+    var ok = 0, fail = 0;
+
+    for (var i = 0; i < q.length; i++) {
+      var item = q[i];
+      try {
+        var r = await fetch(item.url, {
+          method: 'POST', mode: 'cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: item.body, redirect: 'follow'
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var res = await r.json();
+        if (res && (res.success || res._dedup)) {
+          item._done = true;
+          ok++;
+        } else {
+          item.tries++;
+          fail++;
+        }
+      } catch (e) {
+        item.tries++;
+        fail++;
+        break;   /* انقطع الاتصال — أوقف الدفعة واحتفظ بالباقي */
+      }
+      await new Promise(function (rs) { setTimeout(rs, 300); });
+    }
+
+    write(q.filter(function (x) { return !x._done; }));
+    _flushing = false;
+    badge();
+
+    if (ok)   global.showToast('✅ تم رفع ' + ok + ' عملية بنجاح', 'success');
+    if (fail) global.showToast('⚠️ بقيت ' + fail + ' عملية — ستُرفع لاحقاً', 'warning');
+
+    /* تحديث الجداول بعد الرفع */
+    if (ok) {
+      if (typeof trloadData === 'function') trloadData();
+      if (typeof foloadUniqueCount === 'function') foloadUniqueCount();
+    }
+  }
+
+  /* ── الواجهة العامة ── */
+  global.OfflineQueue = {
+    canQueue: function (action) { return QUEUEABLE.indexOf(action) !== -1; },
+    push:     function (url, body, action) { var n = add(url, body, action); badge(); return n; },
+    flush:    flush,
+    count:    function () { return read().length; },
+    clear:    function () { localStorage.removeItem(Q_KEY); badge(); }
+  };
+
+  /* رفع تلقائي عند عودة الشبكة وعند تسجيل الدخول */
+  global.addEventListener('online', function () { setTimeout(function () { flush(false); }, 2000); });
+  global.addEventListener('load',   function () { setTimeout(badge, 1000); setTimeout(function () { flush(false); }, 5000); });
+
+  /* محاولة دورية كل ٣ دقائق */
+  setInterval(function () { flush(false); }, 180000);
+
+  console.log('[Queue] ✅ طابور الحفظ أوف لاين نشط');
 })(window);
 </script>
 
