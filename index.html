@@ -2456,6 +2456,45 @@ showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
 
   let lCU=null, lUK=null, lPK=null, lNK=null;
 
+  /* ── الدخول أوف لاين: حفظ بصمة آخر دخول ناجح ─────────── */
+  const L_OFFLINE_KEY = 'offline_login_v1';
+
+  async function lHash(txt) {
+    try {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+      return Array.from(new Uint8Array(buf))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      /* احتياطي للمتصفحات القديمة أو الاتصال غير الآمن */
+      let h = 5381;
+      for (let i = 0; i < txt.length; i++) h = ((h * 33) ^ txt.charCodeAt(i)) >>> 0;
+      return 'f' + h.toString(36);
+    }
+  }
+
+  async function lSaveOffline(username, password, row) {
+    try {
+      let all = {};
+      try { all = JSON.parse(localStorage.getItem(L_OFFLINE_KEY) || '{}'); } catch (e) {}
+      all[username.toLowerCase()] = {
+        user:   username,
+        hash:   await lHash(username.toLowerCase() + '::' + password),
+        row:    row,
+        apiUrl: window._activeApiUrl || '',
+        savedAt: Date.now()
+      };
+      localStorage.setItem(L_OFFLINE_KEY, JSON.stringify(all));
+    } catch (e) { console.warn('[Offline] تعذّر حفظ بيانات الدخول:', e.message); }
+  }
+
+  async function lTryOffline(username, password) {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem(L_OFFLINE_KEY) || '{}'); } catch (e) { return null; }
+    const rec = all[username.toLowerCase()];
+    if (!rec) return null;
+    const h = await lHash(username.toLowerCase() + '::' + password);
+    return (h === rec.hash) ? rec : null;
+  }
   const lViews = {
     login:   document.getElementById('l_loginView'),
     welcome: document.getElementById('l_welcomeView'),
@@ -2754,6 +2793,7 @@ PERM.init(u, m);
   }
   // ============================================
 
+  lSaveOffline(u, p, m);
   document.getElementById('l_welcomeName').textContent=`مرحباً...`;
   lShow(lViews.welcome);
   unlockNav();
@@ -2790,8 +2830,29 @@ PERM.init(u, m);
           }, 4000);
         }
       }
-    } catch {
-      lAlert('l_loginErr','l_loginErrIco','l_loginErrTx','error','خطأ في الاتصال. تأكد من مشاركة الجدول بشكل عام.');
+     } catch {
+      /* فشل الوصول للشيت — جرّب النسخة المحفوظة محلياً */
+      const off = await lTryOffline(u, p);
+      if (off) {
+        lCU = Object.assign({}, off.row, { _u: u });
+        window._currentUser  = u;
+        window._activeApiUrl = off.apiUrl || window._activeApiUrl;
+        lUK = lFk(off.row || {}, ['user','اسم','username']);
+        lPK = lFk(off.row || {}, ['pass','كلمة','password']);
+
+        if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function') {
+          wilayatSetAllUrls(window._activeApiUrl);
+        }
+
+        PERM.init(u, off.row);
+        document.getElementById('l_welcomeName').textContent = 'مرحباً...';
+        lShow(lViews.welcome);
+        unlockNav();
+        showToast('📴 دخول بوضع عدم الاتصال — البيانات المحفوظة فقط', 'warning');
+      } else {
+        lAlert('l_loginErr','l_loginErrIco','l_loginErrTx','error',
+          'تعذّر الاتصال. إن كنت بلا إنترنت، سجّل الدخول مرة واحدة مع وجود اتصال أولاً.');
+      }
     } finally {
       // ← هذا هو المهم — يعمل دائماً سواء نجح أو فشل
       document.getElementById('l_loginBtn').disabled=false;
@@ -14505,11 +14566,7 @@ Promise.all([
   }
   tryPatch();
 })();
-  // مسح الولاية عند تحديث الصفحة
-window.addEventListener('beforeunload', function() {
-  localStorage.removeItem('selected_wilayat_url');
-  localStorage.removeItem('selected_wilayat_name');
-});
+
 </script>
   <script>
 (function (global) {
