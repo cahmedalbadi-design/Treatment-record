@@ -15,6 +15,13 @@ href="data:image/svg+xml;utf8,
 
 <!-- Title -->
 <title>سجل العلاج في العيادة البيطرية</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#00b8d9">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="العيادة">
+<link rel="apple-touch-icon" href="./icon.svg">
 <style>
 nav button {
   display: none !important;
@@ -7557,6 +7564,62 @@ function vr_parseDate(val) {
   var keywords = ['رفض', 'لا يرغب', 'عدم رغبة', 'غير راغب', 'لا يريد', 'عدم الرغبة'];
   return keywords.some(function(k) { return notes.indexOf(k) !== -1; });
 }
+
+/* ── أنواع الحيوانات التي يجب أن يغطيها كل لقاح ── */
+var VR_VACCINE_ANIMALS = {
+  intox:  ['sheep','goat'],
+  pock:   ['sheep','goat'],
+  fmd:    ['sheep','goat','cow'],
+  lsd:    ['cow'],
+  rabies: ['sheep','goat','cow','camel']
+};
+var VR_ANIMAL_WORDS = {
+  goat:  ['ماعز'],
+  sheep: ['أغنام','اغنام','ضأن','ضان'],
+  cow:   ['أبقار','ابقار','بقر'],
+  camel: ['جمال','إبل','ابل','جمل']
+};
+var VR_VACCINE_WORDS = {
+  intox:  ['التسمم المعوي','تسمم معوي','intox'],
+  pock:   ['طاعون','جدري','pock'],
+  fmd:    ['الحمى القلاعية','قلاعية','fmd'],
+  lsd:    ['التهاب الجلد العقدي','الجلد العقدي','lsd'],
+  rabies: ['السعار','سعار','rabies']
+};
+
+/* يقتطع من الملخص الجزء الخاص باللقاح المحدد فقط */
+function vr_vaccineSegment(summary, type) {
+  var s = (summary || '').toString();
+  var start = -1;
+  (VR_VACCINE_WORDS[type] || []).forEach(function(w) {
+    var i = s.indexOf(w);
+    if (i !== -1 && (start === -1 || i < start)) start = i;
+  });
+  if (start === -1) return null;            // اللقاح غير مذكور إطلاقاً
+  var end = s.length;
+  Object.keys(VR_VACCINE_WORDS).forEach(function(k) {
+    if (k === type) return;
+    VR_VACCINE_WORDS[k].forEach(function(w) {
+      var i = s.indexOf(w, start + 1);
+      if (i !== -1 && i < end) end = i;
+    });
+  });
+  return s.substring(start, end);
+}
+
+/* true إذا بقي نوع حيوان واحد على الأقل غير مغطى بهذا اللقاح */
+function vr_hasUncovered(r, type) {
+  var needed = (VR_VACCINE_ANIMALS[type] || []).filter(function(a) {
+    var v = parseFloat(String(r[a] == null ? '' : r[a]).replace(/,/g, '').trim());
+    return !isNaN(v) && v > 0;
+  });
+  if (!needed.length) return false;         // لا يملك حيوانات يشملها هذا اللقاح
+  var seg = vr_vaccineSegment(r.summary, type);
+  if (seg === null) return true;            // لم يُحصَّن بهذا اللقاح مطلقاً
+  return needed.some(function(a) {
+    return !VR_ANIMAL_WORDS[a].some(function(w) { return seg.indexOf(w) !== -1; });
+  });
+}
 function vr_render() {
   var q      = (document.getElementById("vr_searchInput").value || '').trim();
   var status = document.getElementById("vr_statusFilter").value;
@@ -7586,19 +7649,7 @@ function vr_render() {
       // أظهر المحصنين بنوع اللقاح المحدد، لكن اعرض فقط من لم يُحصَّن بهذا اللقاح
       rows = rows.filter(function(r) {
         if (!r.vaccinated) return false;
-        var summary = (r.summary || "").toLowerCase();
-        var vaccineLabels = {
-          intox:  ["التسمم المعوي","intox"],
-          pock:   ["طاعون","جدري","pock"],
-          fmd:    ["الحمى القلاعية","fmd"],
-          lsd:    ["التهاب الجلد العقدي","lsd"],
-          rabies: ["السعار","rabies"]
-        };
-        var labels = vaccineLabels[vaccineType] || [];
-        var hasVaccine = labels.some(function(lbl) {
-          return summary.indexOf(lbl) !== -1;
-        });
-        return !hasVaccine;
+        return vr_hasUncovered(r, vaccineType);
       });
     } else {
       rows = rows.filter(function(r) { return r.vaccinated; });
@@ -7644,7 +7695,7 @@ if (sortBy === "date") {
     if (statsEl) statsEl.parentNode.insertBefore(filterNote, statsEl);
   }
   if (status === "vacc" && vaccLabel) {
-    filterNote.textContent = "⚠️ يعرض المحصنين الذين لم يتلقوا لقاح: " + vaccLabel;
+    filterNote.textContent = "⚠️ يعرض المحصنين الذين لم تُغطَّ جميع حيواناتهم بلقاح: " + vaccLabel;
     filterNote.style.display = "block";
   } else {
     filterNote.style.display = "none";
@@ -11133,8 +11184,8 @@ async function rptCamp_load(force) {
   if (dFrom && today >= dFrom) {
     dayNow = Math.floor((today - dFrom) / DAY) + 1;
     if (days > 0 && dayNow > days) dayNow = days;
-    state = 'نشطة'; stColor = '#2bb673';
-    left = dTo ? Math.max(0, Math.floor((dTo - today) / DAY)) : 0;
+     state = 'نشطة'; stColor = '#2bb673';
+    left = (days > 0) ? Math.max(0, days - dayNow) : 0;
   }
   if (dTo && today > dTo) {
     state = 'منتهية'; stColor = '#e67e22';
@@ -14892,6 +14943,79 @@ global.fetch = function (input, init) {
 
   console.log('[NetGuard v2] ✅ حارس الاتصال نشط — قياس سلبي بلا طلبات إضافية');
 })(window);
+</script>
+
+<!-- ============================================================
+     تسجيل Service Worker — تشغيل التطبيق بلا إنترنت
+     ============================================================ -->
+<script>
+(function () {
+  "use strict";
+  if (!('serviceWorker' in navigator)) {
+    console.log('[SW] المتصفح لا يدعم Service Worker');
+    return;
+  }
+
+  function showUpdateBar(worker) {
+    if (document.getElementById('sw-update-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'sw-update-bar';
+    bar.style.cssText =
+      'position:fixed;bottom:0;left:0;right:0;background:#2bb673;color:#fff;' +
+      'padding:11px 16px;font-size:13px;font-weight:bold;z-index:99999;' +
+      'font-family:Tahoma,Arial,sans-serif;direction:rtl;display:flex;' +
+      'align-items:center;justify-content:center;gap:14px;' +
+      'box-shadow:0 -2px 12px rgba(0,0,0,.2);';
+    bar.innerHTML =
+      '<span>🔄 يتوفر إصدار جديد من التطبيق</span>' +
+      '<button id="sw-update-btn" style="background:#fff;color:#2bb673;border:none;' +
+      'border-radius:6px;padding:6px 20px;font-size:12.5px;font-weight:bold;' +
+      'cursor:pointer;font-family:inherit;">تحديث الآن</button>' +
+      '<button id="sw-update-later" style="background:transparent;color:#fff;' +
+      'border:1px solid rgba(255,255,255,.6);border-radius:6px;padding:6px 14px;' +
+      'font-size:12.5px;cursor:pointer;font-family:inherit;">لاحقاً</button>';
+    document.body.appendChild(bar);
+
+    document.getElementById('sw-update-btn').onclick = function () {
+      worker.postMessage({ type: 'SKIP_WAITING' });
+    };
+    document.getElementById('sw-update-later').onclick = function () {
+      bar.remove();
+    };
+  }
+
+  var reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+      .then(function (reg) {
+        console.log('[SW] ✅ مُسجَّل — التطبيق سيعمل بلا إنترنت');
+
+        if (reg.waiting) showUpdateBar(reg.waiting);
+
+        reg.addEventListener('updatefound', function () {
+          var nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', function () {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateBar(nw);
+            }
+          });
+        });
+
+        /* فحص التحديثات كل 10 دقائق أثناء الاستخدام */
+        setInterval(function () { reg.update().catch(function () {}); }, 600000);
+      })
+      .catch(function (err) {
+        console.warn('[SW] ❌ فشل التسجيل:', err.message);
+      });
+  });
+})();
 </script>
 </body>
 </html>
