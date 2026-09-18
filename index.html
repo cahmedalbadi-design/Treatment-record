@@ -15299,6 +15299,14 @@ global.fetch = function (input, init) {
     };
 
     global.bd_callApi._sbPatch = true;
+    if (global.BreederCache) {
+      global.BreederCache.onToggle = function () {
+        if (global.showToast)
+          global.showToast("⚠️ الكاش معطَّل أثناء العمل على Supabase", "warning");
+      };
+      var _fab = document.getElementById("cache-fab");
+      if (_fab) _fab.style.display = "none";
+    }
     log("✅ سجل المربي موصول بـ Supabase");
   }
 
@@ -15544,7 +15552,8 @@ global.fetch = function (input, init) {
 
         return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
           .then(function (r) {
-            row.case_no = (r.error || !r.data) ? null : r.data;
+            if (r.error || !r.data) throw new Error("تعذّر توليد رقم الحالة");
+            row.case_no = r.data;
             return sb.from("treatment_cases").insert(row).select("id, case_no").single();
           })
           .then(function (r) {
@@ -15680,8 +15689,8 @@ global.fetch = function (input, init) {
       .select("case_no, receipt_no, amount, treated_on, is_complete, " +
               "breeders(phone, name), creator:created_by(full_name)")
       .eq("wilayat_id", me.wilayat_id)
-      .gte("treated_on", from).lte("treated_on", to)
-      .order("case_no", { ascending: false })
+     .gte("treated_on", from).lte("treated_on", to)
+      .order("case_no", { ascending: true })
       .then(function (r) {
         if (r.error) throw r.error;
         var rows = (r.data || []).map(function (c) {
@@ -15751,6 +15760,23 @@ global.fetch = function (input, init) {
     loadincompletecount: function ()  { return incompleteCount(); },
     getnextcasenumber:   function ()  { return nextCaseNo(); },
     getlastcasenumber:   function ()  { return nextCaseNo(); },
+    getbreederdata: function (p) {
+      return sb.from("breeders")
+        .select("name, possession_no, civil_id, holding_expiry, regions(name)")
+        .eq("phone", txt(p.phone)).maybeSingle()
+        .then(function (r) {
+          if (r.error) throw r.error;
+          if (!r.data) return { success: false, data: [] };
+          var b = r.data;
+          return { success: true, data: [
+            txt(b.name), txt(b.possession_no),
+            b.regions ? txt(b.regions.name) : "",
+            txt(b.civil_id), txt(b.holding_expiry)
+          ]};
+        });
+    },
+    getdiseases:         function ()  { return names("diseases", "name"); },
+    getdrugs:            function ()  { return names("drugs", "name"); },
     getdiseaselist:      function ()  { return names("diseases", "name"); },
     getdruglist:         function ()  { return names("drugs", "name"); },
     gettreatmentplacelist: function () { return names("treatment_places", "name"); },
@@ -15765,9 +15791,9 @@ global.fetch = function (input, init) {
     if (global.trcallApi._sbPatch) return;
 
     /* الكاش يلتف على نفس الدالة */
-    try {
-      if (global.TreatmentCache && global.TreatmentCache.unpatchApi)
-        global.TreatmentCache.unpatchApi();
+      try {
+      if (global.TreatmentCache && global.TreatmentCache.clear)
+        global.TreatmentCache.clear();
     } catch (e) {}
 
     var viaSheets = global.trcallApi;
@@ -16015,19 +16041,24 @@ global.fetch = function (input, init) {
   /* ── الإجراءات ───────────────────────────────────────────────── */
 
   function saveRecord(d) {
-    return loadRefs().then(function () { return breederId(d); }).then(function (bid) {
+        return loadRefs().then(function () {
+      if (!Object.keys(extractDoses(d)).length)
+        throw new Error("لم يُدخل أي عدد للتحصين");
+      return breederId(d);
+    }).then(function (bid) {
       var row = {
         wilayat_id: me.wilayat_id,
         breeder_id: bid,
         possession_no_snapshot: strip(d.possession),
         notes: txt(d.notes),
-        vaccinated_on: toISO(d.date || d.vaccinationDate || d.entryDate) || today(),
+        vaccinated_on: toISO(d.financialDate || d.date || d.vaccinationDate) || today(),
         created_by: me.id
       };
-      return sb.rpc("next_case_no",
+    return sb.rpc("next_case_no",
         { p_table: "vaccination_records", p_wilayat: me.wilayat_id })
         .then(function (r) {
-          row.case_no = (r.error || !r.data) ? null : r.data;
+          if (r.error || !r.data) throw new Error("تعذّر توليد رقم الحالة");
+          row.case_no = r.data;
           return sb.from("vaccination_records").insert(row).select("id, case_no").single();
         })
         .then(function (r) {
@@ -16062,7 +16093,7 @@ global.fetch = function (input, init) {
             breeder_id: bid,
             possession_no_snapshot: strip(d.possession),
             notes: txt(d.notes),
-            vaccinated_on: toISO(d.date || d.vaccinationDate) || today(),
+            vaccinated_on: toISO(d.financialDate || d.date || d.vaccinationDate) || today(),
             updated_by: me.id,
             updated_at: new Date().toISOString()
           }).eq("id", id);
@@ -16135,9 +16166,12 @@ global.fetch = function (input, init) {
   function getRecord(p) {
     var no = int(p.caseNumber || p.searchValue);
     return loadRefs().then(function () {
-      var q = sb.from("vaccination_records").select(REC_COLS)
+    var cols = no ? REC_COLS : REC_COLS.replace("breeders (", "breeders!inner (");
+      var q = sb.from("vaccination_records").select(cols)
         .eq("wilayat_id", me.wilayat_id);
-      q = no ? q.eq("case_no", no) : q.eq("breeders.phone", txt(p.phone));
+      q = no ? q.eq("case_no", no)
+             : q.eq("breeders.phone", txt(p.phone))
+                .order("case_no", { ascending: false }).limit(1);
       return q.maybeSingle();
     }).then(function (r) {
       if (r.error) throw r.error;
@@ -16159,7 +16193,17 @@ global.fetch = function (input, init) {
       if (q0) list = list.filter(function (x) {
         return (x.phone + " " + x.name + " " + x.civil + " " + x.possession).indexOf(q0) !== -1;
       });
-      return { success: true, data: list, count: list.length };
+         var rows = list.map(function (x) {
+        var r = new Array(27).fill("");
+        r[0] = x.caseNumber; r[1] = x.phone;  r[2] = x.name;
+        r[3] = x.possession; r[4] = x.region; r[5] = x.civil;
+        for (var i = 0; i < SHEET_COLS.length; i++)
+          r[6 + i] = x.values[6 + i] || "";
+        r[22] = x.notes; r[23] = x.dataUpdater;
+        r[25] = x.dataEntry; r[26] = x.date;
+        return r;
+      });
+      return { success: true, rows: rows, data: list, count: rows.length };
     });
   }
 
@@ -16263,6 +16307,6 @@ global.fetch = function (input, init) {
   };
 
 })(window);
-  <script>
+</script>
 </body>
 </html>
