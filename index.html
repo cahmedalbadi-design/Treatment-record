@@ -14975,5 +14975,488 @@ global.fetch = function (input, init) {
   console.log('[NetGuard v2] ✅ حارس الاتصال نشط — قياس سلبي بلا طلبات إضافية');
 })(window);
 </script>
+  /* ════════════════════════════════════════════════════════════════════
+   جسر سجل العلاج — Supabase
+   ────────────────────────────────────────────────────────────────────
+   يعترض trcallApi. أي إجراء غير معروف يمر إلى Apps Script كما هو،
+   ويُسجَّل اسمه في Console حتى نضيفه لاحقاً.
+   يُوضع بعد وحدة الدخول (sb-auth.js) وبجوار جسر سجل المربي.
+   ════════════════════════════════════════════════════════════════════ */
+
+(function (global) {
+  "use strict";
+
+  var USE_SUPABASE = true;
+
+  var sb = null, me = null, ready = null;
+  var unknown = {};   /* إجراءات لم يغطها الجسر بعد */
+
+  function log(m)  { console.log("[SB-Treatment] " + m); }
+  function txt(v)  { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v){ return txt(v).replace(/^'/, ""); }
+
+  function int(v) { var n = parseInt(strip(v), 10);   return isNaN(n) ? 0 : n; }
+  function dec(v) { var n = parseFloat(strip(v));     return isNaN(n) ? null : n; }
+
+  /* التواريخ في الورقة بصيغتين: 2026-06-03 و 03/06/2026 */
+  function toISO(v) {
+    var s = strip(v);
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[1]).slice(-2);
+    m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) return m[1] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[3]).slice(-2);
+    return null;
+  }
+
+  function today() { return new Date().toISOString().slice(0, 10); }
+
+  /* ── التهيئة: تعتمد على جلسة وحدة الدخول ── */
+  function init() {
+    if (ready) return ready;
+    ready = global.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = global.SBAuth.me;
+      return true;
+    }).catch(function (err) { ready = null; throw err; });
+    return ready;
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     ذاكرة المرجعيات — تُجلب مرة واحدة لكل جلسة
+     ════════════════════════════════════════════════════════════════ */
+
+  var cache = { species: null, places: null, diseases: null, drugs: null, regions: null };
+
+  function loadRef(name, table, cols) {
+    if (cache[name]) return Promise.resolve(cache[name]);
+    var q = sb.from(table).select(cols);
+    if (table === "regions") q = q.eq("wilayat_id", me.wilayat_id);
+    return q.then(function (r) {
+      if (r.error) throw r.error;
+      cache[name] = r.data || [];
+      return cache[name];
+    });
+  }
+
+  /* توحيد تسميات الأنواع: ورقة المربين تكتب "ضأن"، والعلاج "أغنام" */
+  var SPECIES_ALIAS = {
+    "ضأن": "sheep", "أغنام": "sheep", "اغنام": "sheep", "غنم": "sheep",
+    "ماعز": "goat",
+    "أبقار": "cow", "ابقار": "cow", "بقر": "cow",
+    "جمال": "camel", "الأبل": "camel", "الابل": "camel", "إبل": "camel", "ابل": "camel",
+    "خيول": "horse", "قطط": "cat", "كلاب": "dog",
+    "دواجن": "poultry", "دجاج": "poultry"
+  };
+
+  function speciesId(name) {
+    var code = SPECIES_ALIAS[txt(name)] || txt(name).toLowerCase();
+    return loadRef("species", "species", "id, code, name_ar").then(function (list) {
+      var hit = list.filter(function (s) { return s.code === code; })[0];
+      return hit ? hit.id : null;
+    });
+  }
+
+  function placeId(name) {
+    return loadRef("places", "treatment_places", "id, name").then(function (list) {
+      var hit = list.filter(function (p) { return p.name === txt(name); })[0];
+      return hit ? hit.id : null;
+    });
+  }
+
+  /* البحث عن اسم في جدول مرجعي، وإنشاؤه إن لم يوجد */
+  function findOrCreate(name, table, cacheKey, extra) {
+    var n = txt(name);
+    if (!n) return Promise.resolve(null);
+
+    return loadRef(cacheKey, table, "id, name").then(function (list) {
+      var hit = list.filter(function (x) { return x.name === n; })[0];
+      if (hit) return hit.id;
+
+      var row = { name: n };
+      if (extra) Object.keys(extra).forEach(function (k) { row[k] = extra[k]; });
+
+      return sb.from(table).insert(row).select("id").single().then(function (r) {
+        if (r.error) {
+          /* سباق: أنشأه مستخدم آخر في نفس اللحظة */
+          cache[cacheKey] = null;
+          return loadRef(cacheKey, table, "id, name").then(function (l2) {
+            var h2 = l2.filter(function (x) { return x.name === n; })[0];
+            return h2 ? h2.id : null;
+          });
+        }
+        if (cache[cacheKey]) cache[cacheKey].push({ id: r.data.id, name: n });
+        return r.data.id;
+      });
+    });
+  }
+
+  function diseaseId(n) { return findOrCreate(n, "diseases", "diseases"); }
+  function drugId(n)    { return findOrCreate(n, "drugs",    "drugs");    }
+  function regionId(n)  { return findOrCreate(n, "regions",  "regions", { wilayat_id: me.wilayat_id }); }
+
+  /* ════════════════════════════════════════════════════════════════
+     ربط المربي — ينشئ صفاً من بيانات الحالة إن لم يكن مسجَّلاً
+     (٤٦ رقماً في الورقة الحالية بلا مربٍّ مسجَّل)
+     ════════════════════════════════════════════════════════════════ */
+
+  function breederId(d) {
+    var phone = txt(d.phone);
+    if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
+
+    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+      .then(function (r) {
+        if (r.data) return r.data.id;
+        return regionId(d.region).then(function (rid) {
+          return sb.from("breeders").insert({
+            wilayat_id:    me.wilayat_id,
+            phone:         phone,
+            name:          txt(d.name) || "غير مسجَّل",
+            possession_no: strip(d.possession),
+            region_id:     rid,
+            civil_id:      txt(d.civil),
+            created_by:    me.id
+          }).select("id").single();
+        }).then(function (r2) {
+          if (r2.error) throw r2.error;
+          log("أُنشئ مربٍّ جديد تلقائياً: " + phone);
+          return r2.data.id;
+        });
+      });
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     تفكيك خانات التشخيص والأدوية الخمس إلى صفوف
+     ════════════════════════════════════════════════════════════════ */
+
+  function arr(v) { return Array.isArray(v) ? v : []; }
+
+  function buildDiagnoses(d) {
+    var dz = arr(d.diseases), ty = arr(d.types), ct = arr(d.diseaseCounts);
+    var jobs = [];
+    for (var i = 0; i < 5; i++) {
+      if (!txt(dz[i])) continue;
+      jobs.push(Promise.all([diseaseId(dz[i]), speciesId(ty[i])]).then(
+        (function (n) { return function (v) {
+          return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1 };
+        }; })(i)
+      ));
+    }
+    return Promise.all(jobs).then(function (rows) {
+      return rows.filter(function (r) { return r.disease_id && r.species_id; });
+    });
+  }
+
+  function buildDrugs(d) {
+    var dr = arr(d.drugs), qt = arr(d.drugQuantities);
+    var jobs = [];
+    for (var i = 0; i < 5; i++) {
+      if (!txt(dr[i])) continue;
+      jobs.push(drugId(dr[i]).then(
+        (function (n) { return function (id) {
+          return { drug_id: id, quantity: dec(qt[n]) || 0 };
+        }; })(i)
+      ));
+    }
+    return Promise.all(jobs).then(function (rows) {
+      return rows.filter(function (r) { return r.drug_id; });
+    });
+  }
+
+  function caseRow(d, bid, pid) {
+    return {
+      wilayat_id:             me.wilayat_id,
+      breeder_id:             bid,
+      possession_no_snapshot: strip(d.possession),
+      treatment_place_id:     pid,
+      receipt_no:             int(d.receipt) || null,
+      amount:                 dec(d.amount),
+      notes:                  txt(d.notes),
+      treated_on:             toISO(d.date || d.treatmentDate || d.entryDate) || today(),
+      goats:   int((d.animals||{}).goat),   sheep:   int((d.animals||{}).sheep),
+      cattle:  int((d.animals||{}).cow),    camels:  int((d.animals||{}).camel),
+      horses:  int((d.animals||{}).horse),  cats:    int((d.animals||{}).cat),
+      dogs:    int((d.animals||{}).dog),    poultry: int((d.animals||{}).poultry)
+    };
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     الإجراءات
+     ════════════════════════════════════════════════════════════════ */
+
+  /* ١) حفظ حالة جديدة */
+  function saveCase(d) {
+    return Promise.all([breederId(d), placeId(d.treatmentPlace),
+                        buildDiagnoses(d), buildDrugs(d)])
+      .then(function (v) {
+        var bid = v[0], pid = v[1], diag = v[2], meds = v[3];
+        var row = caseRow(d, bid, pid);
+        row.created_by  = me.id;
+        row.is_complete = meds.length > 0;
+
+        return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
+          .then(function (r) {
+            row.case_no = (r.error || !r.data) ? null : r.data;
+            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
+          })
+          .then(function (r) {
+            if (r.error) throw r.error;
+            var id = r.data.id;
+            var jobs = [];
+            if (diag.length) jobs.push(sb.from("treatment_diagnoses")
+              .insert(diag.map(function (x) { x.case_id = id; return x; })));
+            if (meds.length) jobs.push(sb.from("treatment_drugs")
+              .insert(meds.map(function (x) { x.case_id = id; return x; })));
+
+            return Promise.all(jobs).then(function () {
+              return { success: true, message: "تم الحفظ",
+                       caseNumber: r.data.case_no, rowId: id };
+            });
+          });
+      });
+  }
+
+  /* ٢) تحديث حالة — تُستبدل التشخيصات والأدوية بالكامل */
+  function updateCase(d) {
+    var no = int(d.caseNumber || d.mirrorCaseNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم الحالة مطلوب" });
+
+    return sb.from("treatment_cases").select("id")
+      .eq("wilayat_id", me.wilayat_id).eq("case_no", no).maybeSingle()
+      .then(function (r) {
+        if (!r.data) throw new Error("لم يتم العثور على الحالة رقم " + no);
+        var id = r.data.id;
+
+        return Promise.all([breederId(d), placeId(d.treatmentPlace),
+                            buildDiagnoses(d), buildDrugs(d)])
+          .then(function (v) {
+            var row = caseRow(d, v[0], v[1]);
+            row.updated_by  = me.id;
+            row.updated_at  = new Date().toISOString();
+            row.is_complete = v[3].length > 0;
+
+            return sb.from("treatment_cases").update(row).eq("id", id)
+              .then(function () {
+                return Promise.all([
+                  sb.from("treatment_diagnoses").delete().eq("case_id", id),
+                  sb.from("treatment_drugs").delete().eq("case_id", id)
+                ]);
+              })
+              .then(function () {
+                var jobs = [];
+                if (v[2].length) jobs.push(sb.from("treatment_diagnoses")
+                  .insert(v[2].map(function (x) { x.case_id = id; return x; })));
+                if (v[3].length) jobs.push(sb.from("treatment_drugs")
+                  .insert(v[3].map(function (x) { x.case_id = id; return x; })));
+                return Promise.all(jobs);
+              })
+              .then(function () { return { success: true, message: "تم التحديث" }; });
+          });
+      });
+  }
+
+  /* ٣) حذف حالة — الأبناء يُحذفون تلقائياً (on delete cascade) */
+  function deleteCase(p) {
+    var no = int(p.caseNumber || p.rowNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم الحالة مطلوب" });
+
+    return sb.from("treatment_cases").delete()
+      .eq("wilayat_id", me.wilayat_id).eq("case_no", no)
+      .then(function (r) {
+        if (r.error) throw r.error;
+        return { success: true, message: "تم الحذف" };
+      });
+  }
+
+  /* ٤) جلب حالة برقمها */
+  var CASE_COLS =
+    "id, case_no, receipt_no, amount, notes, treated_on, is_complete, " +
+    "possession_no_snapshot, goats, sheep, cattle, camels, horses, cats, dogs, poultry, " +
+    "breeders ( phone, name, civil_id, holding_expiry, regions(name) ), " +
+    "treatment_places ( name ), " +
+    "treatment_diagnoses ( animal_count, diseases(name), species(name_ar) ), " +
+    "treatment_drugs ( quantity, drugs(name) ), " +
+    "creator:created_by(full_name), editor:updated_by(full_name)";
+
+  function toApp(c) {
+    var b  = c.breeders || {},
+        dz = c.treatment_diagnoses || [],
+        dr = c.treatment_drugs || [];
+    return {
+      caseNumber:    c.case_no,
+      phone:         txt(b.phone),
+      name:          txt(b.name),
+      possession:    txt(c.possession_no_snapshot),
+      region:        b.regions ? txt(b.regions.name) : "",
+      civil:         txt(b.civil_id),
+      financialDate: txt(b.holding_expiry),
+      treatmentPlace: c.treatment_places ? txt(c.treatment_places.name) : "",
+      receipt:       c.receipt_no || "",
+      amount:        (c.amount === null || c.amount === undefined) ? "" : c.amount,
+      notes:         txt(c.notes),
+      date:          txt(c.treated_on),
+      status:        c.is_complete ? "مكتملة" : "غير مكتملة",
+      dataEntry:     c.creator ? txt(c.creator.full_name) : "",
+      dataUpdater:   c.editor  ? txt(c.editor.full_name)  : "",
+      diseases:       dz.map(function (x) { return x.diseases ? x.diseases.name : ""; }),
+      types:          dz.map(function (x) { return x.species  ? x.species.name_ar : ""; }),
+      diseaseCounts:  dz.map(function (x) { return x.animal_count; }),
+      drugs:          dr.map(function (x) { return x.drugs ? x.drugs.name : ""; }),
+      drugQuantities: dr.map(function (x) { return x.quantity; }),
+      animals: {
+        goat: c.goats||"", sheep: c.sheep||"", cow: c.cattle||"", camel: c.camels||"",
+        horse: c.horses||"", cat: c.cats||"", dog: c.dogs||"", poultry: c.poultry||""
+      }
+    };
+  }
+
+  function getCase(p) {
+    var no = int(p.caseNumber || p.searchValue);
+    if (!no) return Promise.resolve({ success: false, message: "رقم الحالة مطلوب" });
+
+    return sb.from("treatment_cases").select(CASE_COLS)
+      .eq("wilayat_id", me.wilayat_id).eq("case_no", no).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على الحالة رقم " + no };
+        return Object.assign({ success: true }, toApp(r.data));
+      });
+  }
+
+  /* ٥) السجل اليومي */
+  function dailyLog(p) {
+    var from = toISO(p.startDate || p.dateFrom) || today();
+    var to   = toISO(p.endDate   || p.dateTo)   || from;
+
+    return sb.from("treatment_cases")
+      .select("case_no, receipt_no, amount, treated_on, is_complete, " +
+              "breeders(phone, name), creator:created_by(full_name)")
+      .eq("wilayat_id", me.wilayat_id)
+      .gte("treated_on", from).lte("treated_on", to)
+      .order("case_no", { ascending: false })
+      .then(function (r) {
+        if (r.error) throw r.error;
+        var rows = (r.data || []).map(function (c) {
+          return [
+            c.case_no,
+            c.breeders ? c.breeders.phone : "",
+            c.breeders ? c.breeders.name  : "",
+            c.receipt_no || "",
+            (c.amount === null ? "" : c.amount),
+            c.treated_on,
+            c.is_complete ? "مكتملة" : "غير مكتملة",
+            c.creator ? c.creator.full_name : ""
+          ];
+        });
+        return { success: true, data: rows, count: rows.length };
+      });
+  }
+
+  /* ٦) عدد الحالات غير المكتملة */
+  function incompleteCount() {
+    return sb.from("treatment_cases")
+      .select("id", { count: "exact", head: true })
+      .eq("wilayat_id", me.wilayat_id).eq("is_complete", false)
+      .then(function (r) {
+        if (r.error) throw r.error;
+        return { success: true, count: r.count || 0 };
+      });
+  }
+
+  /* ٧) رقم الحالة التالي */
+  function nextCaseNo() {
+    return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
+      .then(function (r) {
+        if (r.error) throw r.error;
+        return { success: true, caseNumber: r.data, nextNumber: r.data };
+      });
+  }
+
+  /* ٨) القوائم المنسدلة */
+  function names(table, col, filterWilayat) {
+    var q = sb.from(table).select(col).order(col);
+    if (filterWilayat) q = q.eq("wilayat_id", me.wilayat_id);
+    return q.then(function (r) {
+      if (r.error) throw r.error;
+      return { success: true, data: (r.data || []).map(function (x) { return x[col]; }) };
+    });
+  }
+
+  /* ── موجّه الإجراءات ─────────────────────────────────────────── */
+
+  function key(a) {
+    return String(a || "").replace(/^tr/i, "").replace(/[^a-z]/gi, "").toLowerCase();
+  }
+
+  var ROUTES = {
+    savedata:            function (p) { return saveCase(p.data || {}); },
+    updatedata:          function (p) { return updateCase(p.data || {}); },
+    deletedata:          function (p) { return deleteCase(p); },
+    searchcasedata:      function (p) { return getCase(p); },
+    getcasedata:         function (p) { return getCase(p); },
+    loaddata:            function (p) { return dailyLog(p); },
+    getaaadata:          function (p) { return dailyLog(p); },
+    getdailydata:        function (p) { return dailyLog(p); },
+    getincompletecount:  function ()  { return incompleteCount(); },
+    loadincompletecount: function ()  { return incompleteCount(); },
+    getnextcasenumber:   function ()  { return nextCaseNo(); },
+    getlastcasenumber:   function ()  { return nextCaseNo(); },
+    getdiseaselist:      function ()  { return names("diseases", "name"); },
+    getdruglist:         function ()  { return names("drugs", "name"); },
+    gettreatmentplacelist: function () { return names("treatment_places", "name"); },
+    getphonenumbers:     function ()  { return names("breeders", "phone", true); },
+    getdataentrylist:    function ()  { return names("profiles", "full_name", true); },
+    getdataentryoptions: function ()  { return names("profiles", "full_name", true); }
+  };
+
+  function patch() {
+    if (!USE_SUPABASE) { log("معطَّل"); return; }
+    if (typeof global.trcallApi !== "function") { setTimeout(patch, 400); return; }
+    if (global.trcallApi._sbPatch) return;
+
+    /* الكاش يلتف على نفس الدالة */
+    try {
+      if (global.TreatmentCache && global.TreatmentCache.unpatchApi)
+        global.TreatmentCache.unpatchApi();
+    } catch (e) {}
+
+    var viaSheets = global.trcallApi;
+
+    global.trcallApi = async function (action, payload) {
+      var k = key(action);
+      if (!ROUTES[k]) {
+        if (!unknown[action]) {
+          unknown[action] = true;
+          log("⚠️ إجراء غير مغطّى — يمر إلى Apps Script: " + action);
+        }
+        return viaSheets.apply(this, arguments);
+      }
+      try {
+        await init();
+        return await ROUTES[k](payload || {});
+      } catch (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        log("خطأ في " + action + ": " + msg);
+        return { success: false, message: msg };
+      }
+    };
+
+    global.trcallApi._sbPatch = true;
+    log("✅ سجل العلاج موصول بـ Supabase");
+  }
+
+  if (document.readyState === "complete") setTimeout(patch, 1000);
+  else global.addEventListener("load", function () { setTimeout(patch, 1000); });
+
+  global.SBTreatment = {
+    unknownActions: function () { return Object.keys(unknown); },
+    clearCache: function () {
+      cache = { species: null, places: null, diseases: null, drugs: null, regions: null };
+    }
+  };
+
+})(window);
 </body>
 </html>
