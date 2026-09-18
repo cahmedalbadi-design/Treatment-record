@@ -15277,7 +15277,11 @@ global.fetch = function (input, init) {
     if (global.bd_callApi._sbPatch) return;
 
     /* الكاش يلتف على bd_callApi أيضاً — يُعطَّل أثناء التجربة */
-    try { localStorage.setItem("breeder_cache_enabled", "false"); } catch (e) {}
+        try { localStorage.setItem("breeder_cache_enabled", "false"); } catch (e) {}
+    try {
+      if (global.BreederCache && global.BreederCache.getState().enabled)
+        global.BreederCache.onToggle(false);
+    } catch (e) {}
 
     var viaSheets = global.bd_callApi;
 
@@ -15302,6 +15306,12 @@ global.fetch = function (input, init) {
   /* تأخير كافٍ ليكتمل تحميل كل السكربتات الأخرى */
   if (document.readyState === "complete") setTimeout(patch, 900);
   else global.addEventListener("load", function () { setTimeout(patch, 900); });
+
+  /* وحدة الدخول المشتركة — يعتمد عليها جسر سجل العلاج */
+  global.SBAuth = {
+    client: function () { return init().then(function () { return sb; }); },
+    get me() { return me; }
+  };
 
   /* للفحص من Console */
   global.SBBreeders = {
@@ -15511,7 +15521,7 @@ global.fetch = function (input, init) {
       receipt_no:             int(d.receipt) || null,
       amount:                 dec(d.amount),
       notes:                  txt(d.notes),
-      treated_on:             toISO(d.date || d.treatmentDate || d.entryDate) || today(),
+      treated_on:             toISO(d.financialDate || d.date || d.treatmentDate) || today(),
       goats:   int((d.animals||{}).goat),   sheep:   int((d.animals||{}).sheep),
       cattle:  int((d.animals||{}).cow),    camels:  int((d.animals||{}).camel),
       horses:  int((d.animals||{}).horse),  cats:    int((d.animals||{}).cat),
@@ -15628,7 +15638,7 @@ global.fetch = function (input, init) {
       possession:    txt(c.possession_no_snapshot),
       region:        b.regions ? txt(b.regions.name) : "",
       civil:         txt(b.civil_id),
-      financialDate: txt(b.holding_expiry),
+      financialDate: txt(c.treated_on),
       treatmentPlace: c.treatment_places ? txt(c.treatment_places.name) : "",
       receipt:       c.receipt_no || "",
       amount:        (c.amount === null || c.amount === undefined) ? "" : c.amount,
@@ -15687,7 +15697,9 @@ global.fetch = function (input, init) {
             c.creator ? c.creator.full_name : ""
           ];
         });
-        return { success: true, data: rows, count: rows.length };
+       var headers = ["رقم الحالة","رقم الهاتف","اسم المربي","رقم الإيصال",
+                       "المبلغ","التاريخ","الحالة","مدخل البيانات"];
+        return { success: true, data: [headers].concat(rows), count: rows.length };
       });
   }
 
