@@ -1068,12 +1068,7 @@ function showPage(pageId) {
   if (excludedPages.indexOf(pageId) === -1 && typeof foCheckOverdueSamples === 'function') {
     setTimeout(foCheckOverdueSamples, 500);
   }
-    var _dirtyTopic = { treatment:'treatment', breeder:'breeder', vaccination:'vaccination',
-                      samples:'samples', financialInventory:'financial' }[pageId];
-  if (_dirtyTopic && window._syncDirty && window._syncDirty[_dirtyTopic]) {
-    delete window._syncDirty[_dirtyTopic];
-    if (typeof remoteSyncApply === 'function') setTimeout(function(){ remoteSyncApply(_dirtyTopic); }, 50);
-  }
+  
   if (pageId === 'treatment' && !window._treatmentInitialized) {
     window._treatmentInitialized = true;
     var trOverlay = document.getElementById('tr_loadingOverlay');
@@ -1091,22 +1086,6 @@ function showPage(pageId) {
   if (pageId === 'vaccination' && !window._vaccinationInitialized) {
     window._vaccinationInitialized = true;
     if (typeof vaccInit === 'function') vaccInit();
-  }
-    window._lazyLoaded = window._lazyLoaded || {};
-  var _lazy = {
-    animalDistribution:  function(){ if (typeof ani_loadData === 'function') ani_loadData(); },
-    reports:             function(){ if (typeof dim_loadData === 'function') dim_loadData(); },
-    comprehensiveReport: function(){ if (typeof rpt_loadReport === 'function') rpt_loadReport(); },
-    financialInventory:  function(){ if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData(); },
-    home:                function(){ if (typeof camp_load === 'function') camp_load(true); },
-    diseaseTracking:     function(){
-      if (typeof dtr_loadDiseaseList === 'function')
-        dtr_loadDiseaseList().then(function(){ if (typeof dtr_loadData === 'function') dtr_loadData(); });
-    }
-  };
-  if (_lazy[pageId] && !window._lazyLoaded[pageId]) {
-    window._lazyLoaded[pageId] = true;
-    _lazy[pageId]();
   }
   if (pageId === 'vaccinationRequests' && !window._vrInitialized) {
     window._vrInitialized = true;
@@ -1443,7 +1422,25 @@ async function bootLoadAll() {
         if (ft) ft.value = today;
         window.fin_isFirstLoad = false;
 
-         /* التقارير تُحمَّل عند فتح صفحتها فقط — انظر showPage */
+        await Promise.allSettled([
+          (typeof ani_loadData          === 'function') ? ani_loadData()          : Promise.resolve(),
+          (typeof dim_loadData          === 'function') ? dim_loadData()          : Promise.resolve(),
+          (typeof rpt_loadReport        === 'function') ? rpt_loadReport()        : Promise.resolve(),
+          (typeof fin_loadFinancialData === 'function') ? fin_loadFinancialData() : Promise.resolve()
+        ]);
+
+        try {
+          if (typeof camp_load === 'function') await camp_load(true);
+        } catch (e) {}
+
+        if (typeof dtr_loadDiseaseList === 'function') {
+          await dtr_loadDiseaseList();          await dtr_loadDiseaseList();
+          var df = document.getElementById('dtr_dateFrom');
+          var dt = document.getElementById('dtr_dateTo');
+          if (df) df.value = '';
+          if (dt) dt.value = '';
+          if (typeof dtr_loadData === 'function') await dtr_loadData();
+        }
         bootBindOnce();
       },
       check: null
@@ -4399,7 +4396,10 @@ if (isDup) {
         trshowMessage("✅ تم الحفظ بنجاح", false);
       trclearForm();
 // تنفيذ عمليات التحميل بشكل متوازٍ لتقليل وقت الانتظار
-await trloadData();
+await Promise.all([
+  trloadData(),
+  trloadIncompleteCount()
+]);
       } else {
         trshowMessage(res.message, true);
       }
@@ -5479,8 +5479,8 @@ async function trSelectIncompleteCase(caseNumber) {
       var res = await _origCallApi.apply(this, arguments);
       try {
         if (res && res.success) {
- if (action === "trgetAAAData") { storeTable(res.data); }
- else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
+          if (action === "trgetAAAData") { storeTable(res.data); setTimeout(prefetch, 1200); }
+          else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
           else if (action === "trupdateData" || action === "trupdateTempData") {
             TC.skipNextLoad = true; applyUpdate((payload||{}).data || {});
           }
@@ -5520,7 +5520,8 @@ async function trSelectIncompleteCase(caseNumber) {
   /* ── النقر على صف: من الكاش مباشرة ── */
   function patchClick() {
     var tbl = document.getElementById("tr_dataTable");
-    if (!tbl || tbl._tcClick) return;
+    
+if (!tbl || tbl._tcClick) return;
     tbl._tcClick = true;
     tbl.addEventListener("click", function (e) {
       var tr = e.target.closest("tr");
@@ -10539,7 +10540,8 @@ tf.forEach(function(r) {
             {label:'علاج',  data:mkeys.map(function(k){return allM[k].treat||0;}),
              backgroundColor:'#00b8d9', borderRadius:3},
             {label:'تحصين', data:mkeys.map(function(k){return allM[k].vacc||0;}),
-             backgroundColor:'#2bb673', borderRadius:3},
+     
+        backgroundColor:'#2bb673', borderRadius:3},
             {label:'عينات', data:mkeys.map(function(k){return allM[k].sample||0;}),
              backgroundColor:'#9b59b6', borderRadius:3}
           ]
@@ -12479,8 +12481,8 @@ async function remoteSyncPoll() {
     var res = await r.json();
 
     if (res.events && res.events.length > 0) {
-           // حدّث الطابع الزمني من توقيت الخادم (يتجنب فرق الساعة بين الأجهزة)
-      REMOTE_SYNC_LAST_TS = Math.max.apply(null, res.events.map(function (ev) { return Number(ev.ts) || 0; }));
+      // حدّث الطابع الزمني
+      REMOTE_SYNC_LAST_TS = Date.now();
 
       // جمّع المواضيع الفريدة فقط (لتجنب تحديثات مكررة)
       var topics = {};
@@ -12505,14 +12507,6 @@ async function remoteSyncPoll() {
 // ٣. تطبيق التحديث المناسب لكل موضوع
 // ─────────────────────────────────────────────────────
 function remoteSyncApply(topic, action) {
-  var pageOf = { treatment:'treatment', breeder:'breeder', vaccination:'vaccination',
-                 samples:'samples', financial:'financialInventory' };
-  var pg = document.getElementById(pageOf[topic]);
-  if (!pg || !pg.classList.contains('active')) {
-    window._syncDirty = window._syncDirty || {};
-    window._syncDirty[topic] = true;
-    return;
-  }
   var handlers = {
     "treatment": function() {
       if (typeof trloadData === "function") trloadData();
@@ -13079,7 +13073,13 @@ setTimeout(tryWrap, 1000);
         return r.success ? r : _origBdCallApi(action, payload);
       }
 
-      /* كتابة → API مباشرة (التحديث المحلي يتم عبر applyLocalWrite) */
+      /* كتابة → API + تحديث الكاش */
+ global._localSyncChannel.onmessage = function (e) {
+  if (_origMsg) _origMsg.call(this, e);
+  if (e.data && e.data.topic === "breeder" && state.enabled) {
+    setTimeout(refreshAndRepatch, 2000);
+  }
+};
 
       /* أي action آخر (بما فيها trget*, syncNotify، إلخ) → API مباشرة */
       return _origBdCallApi(action, payload);
@@ -13747,7 +13747,7 @@ getState:      function () { return { enabled: state.enabled, loaded: state.load
           global._localSyncChannel.onmessage = function (e) {
             if (_origMsg) _origMsg.call(this, e);
             if (e.data && e.data.topic === "breeder" && state.enabled) {
-              window._breederCacheStale = true;
+              setTimeout(refreshAndRepatch, 2000);
             }
           };
         }
@@ -14117,11 +14117,7 @@ function sendTelegram(text) {
  
       /* شغّل الفحص فقط عند نجاح الحفظ الفعلي */
       if (res && res.success && action === "trsaveData") {
-        var _n = Date.now();
-        if (!global._daLastCheck || _n - global._daLastCheck > 15 * 60 * 1000) {
-          global._daLastCheck = _n;
-          setTimeout(trCheckDiseaseThreshold, 2500);
-        }
+        setTimeout(trCheckDiseaseThreshold, 2500);
       }
  
       return res;
@@ -14938,7 +14934,7 @@ global.fetch = function (input, init) {
       if (!r.ok) {
         markFailure('http-' + r.status);
         if (isWrite) showModal('http-' + r.status, 'failed');
-      else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status + (action ? ' — ' + action : ''), 'error');
+        else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status, 'error');
         return r;
       }
       markSuccess(ms, silent);
@@ -14978,343 +14974,6 @@ global.fetch = function (input, init) {
 
   console.log('[NetGuard v2] ✅ حارس الاتصال نشط — قياس سلبي بلا طلبات إضافية');
 })(window);
-</script>
-  <script>
-/* ════════════════════════════════════════════════════════════════════
-   الجسر الوسيط — سجل المربي على Supabase
-   ────────────────────────────────────────────────────────────────────
-   يعترض bd_callApi فقط. بقية الصفحات تبقى على Apps Script بلا تغيير.
-   للرجوع إلى الوضع السابق: اجعل USE_SUPABASE = false.
-   ════════════════════════════════════════════════════════════════════ */
-
-(function (global) {
-  "use strict";
-
-  /* ══ الإعدادات — املأ الثلاثة أسطر التالية ══════════════════════ */
-
-  var USE_SUPABASE = true;
-
-  var SUPABASE_URL      = "https://dlivsidtmmtvrqhtxmlu.supabase.co";   // Project URL   من Settings ← API
-  var SUPABASE_ANON_KEY = "sb_publishable_V6SFHbK9hmB7C9TeUk9MSA_my2Wauec";   // anon public   من Settings ← API
-
-  var TEST_EMAIL    = "ahmed.albadi008@gmail.com";       // بريد المستخدم التجريبي
-  var TEST_PASSWORD = "Ab@54e63#sd";       // كلمة مروره
-
-  /* ══ لا حاجة لتعديل ما بعد هذا السطر ═══════════════════════════ */
-
-  var sb      = null;   // عميل Supabase
-  var me      = null;   // الملف الشخصي للمستخدم الحالي
-  var ready   = null;   // وعد التهيئة
-
-  /* الإجراءات التي يتولاها هذا الجسر — ما عداها يذهب لـ Apps Script */
-  var HANDLED = [
-    "bd_getPhoneNumbers", "bd_getRegionOptions", "bd_getDataEntryOptions",
-    "bd_searchBreeders",  "bd_searchCaseData",   "bd_getAllBreeders",
-    "bd_saveData",        "bd_updateData",       "bd_deleteData"
-  ];
-
-  /* ── أدوات ────────────────────────────────────────────────────── */
-
-  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
-
-  /* الحقول كانت تُخزَّن بفاصلة عليا للهروب من تنسيق الشيت */
-  function strip(v) { return txt(v).replace(/^'/, ""); }
-
-  function num(v) {
-    var n = parseInt(strip(v), 10);
-    return isNaN(n) ? 0 : n;
-  }
-
-  /* التاريخ: "" غير مقبول في عمود date، يجب أن يكون null */
-  function asDate(v) {
-    var s = strip(v);
-    return s === "" ? null : s;
-  }
-
-  function log(msg) { console.log("[SB-Breeders] " + msg); }
-
-  /* ── تهيئة العميل وتسجيل الدخول ───────────────────────────────── */
-
-  function loadLib() {
-    if (global.supabase && global.supabase.createClient) return Promise.resolve();
-    return new Promise(function (resolve, reject) {
-      var s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-      s.onload  = resolve;
-      s.onerror = function () { reject(new Error("تعذّر تحميل مكتبة Supabase")); };
-      document.head.appendChild(s);
-    });
-  }
-
-  function init() {
-    if (ready) return ready;
-
-    ready = loadLib().then(function () {
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY)
-        throw new Error("لم تُملأ قيم SUPABASE_URL أو SUPABASE_ANON_KEY");
-
-      sb = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-      return sb.auth.signInWithPassword({
-        email: TEST_EMAIL, password: TEST_PASSWORD
-      });
-    }).then(function (res) {
-      if (res.error) throw new Error("فشل تسجيل الدخول: " + res.error.message);
-
-      return sb.from("profiles")
-        .select("id, username, full_name, wilayat_id, role, is_supervisor")
-        .eq("id", res.data.user.id).single();
-    }).then(function (res) {
-      if (res.error)
-        throw new Error("لا يوجد ملف شخصي لهذا المستخدم — نفّذ أمر insert into profiles");
-
-      me = res.data;
-      log("متصل ✓ " + me.full_name + " — ولاية رقم " + me.wilayat_id);
-      return true;
-    }).catch(function (err) {
-      ready = null;                       // اسمح بإعادة المحاولة
-      if (global.showToast) global.showToast("❌ " + err.message, "error");
-      throw err;
-    });
-
-    return ready;
-  }
-
-  /* ── المناطق: تحويل الاسم إلى مفتاح، وإنشاؤه إن لم يوجد ───────── */
-
-  function regionId(name) {
-    var n = txt(name);
-    if (!n) return Promise.resolve(null);
-
-    return sb.from("regions").select("id")
-      .eq("wilayat_id", me.wilayat_id).eq("name", n).maybeSingle()
-      .then(function (r) {
-        if (r.data) return r.data.id;
-        return sb.from("regions")
-          .insert({ wilayat_id: me.wilayat_id, name: n })
-          .select("id").single()
-          .then(function (ins) { return ins.data ? ins.data.id : null; });
-      });
-  }
-
-  /* ── تحويل صف القاعدة إلى الشكل الذي تتوقعه الواجهة ──────────── */
-
-  var SELECT_COLS =
-    "id, phone, name, possession_no, civil_id, notes, holding_expiry, " +
-    "goats, sheep, cattle, camels, horses, cats, dogs, poultry, " +
-    "regions(name), creator:created_by(full_name), editor:updated_by(full_name)";
-
-  function toApp(r) {
-    return {
-      phone:         txt(r.phone),
-      name:          txt(r.name),
-      possession:    txt(r.possession_no),
-      region:        r.regions ? txt(r.regions.name) : "",
-      civil:         txt(r.civil_id),
-      notes:         txt(r.notes),
-      financialDate: txt(r.holding_expiry),
-      dataEntry:     r.creator ? txt(r.creator.full_name) : "",
-      dataUpdater:   r.editor  ? txt(r.editor.full_name)  : "",
-      animals: {
-        goat:    r.goats   || "",
-        sheep:   r.sheep   || "",
-        cow:     r.cattle  || "",
-        camel:   r.camels  || "",
-        horse:   r.horses  || "",
-        cat:     r.cats    || "",
-        dog:     r.dogs    || "",
-        poultry: r.poultry || ""
-      }
-    };
-  }
-
-  /* تحويل بيانات النموذج إلى صف قاعدة بيانات */
-  function toRow(d, rid) {
-    var a = d.animals || {};
-    return {
-      wilayat_id:     me.wilayat_id,
-      phone:          txt(d.newPhone) || txt(d.phone),
-      name:           txt(d.name),
-      possession_no:  strip(d.possession),
-      region_id:      rid,
-      civil_id:       txt(d.civil),
-      notes:          txt(d.notes),
-      holding_expiry: asDate(d.financialDate),
-      goats:   num(a.goat),   sheep:   num(a.sheep),
-      cattle:  num(a.cow),    camels:  num(a.camel),
-      horses:  num(a.horse),  cats:    num(a.cat),
-      dogs:    num(a.dog),    poultry: num(a.poultry)
-    };
-  }
-
-  /* ── تنفيذ الإجراءات ─────────────────────────────────────────── */
-
-  function run(action, payload) {
-    payload = payload || {};
-    var d = payload.data || {};
-
-    /* ١) قائمة أرقام الهواتف */
-    if (action === "bd_getPhoneNumbers") {
-      return sb.from("breeders").select("phone").order("phone")
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return { success: true, data: r.data.map(function (x) { return x.phone; }) };
-        });
-    }
-
-    /* ٢) قائمة المناطق */
-    if (action === "bd_getRegionOptions") {
-      return sb.from("regions").select("name")
-        .eq("wilayat_id", me.wilayat_id).order("name")
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return { success: true, data: r.data.map(function (x) { return x.name; }) };
-        });
-    }
-
-    /* ٣) قائمة مدخلي البيانات */
-    if (action === "bd_getDataEntryOptions") {
-      return sb.from("profiles").select("full_name")
-        .eq("wilayat_id", me.wilayat_id).eq("is_active", true)
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return { success: true, data: r.data.map(function (x) { return x.full_name; }) };
-        });
-    }
-
-    /* ٤) جلب مربٍّ واحد برقم هاتفه */
-    if (action === "bd_searchCaseData") {
-      return sb.from("breeders").select(SELECT_COLS)
-        .eq("phone", txt(payload.phone)).maybeSingle()
-        .then(function (r) {
-          if (r.error) throw r.error;
-          if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
-          return Object.assign({ success: true }, toApp(r.data));
-        });
-    }
-
-    /* ٥) جلب كل المربين */
-    if (action === "bd_getAllBreeders") {
-      return sb.from("breeders").select(SELECT_COLS).order("name")
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return { success: true, data: r.data.map(toApp) };
-        });
-    }
-
-    /* ٦) بحث نصّي — يعيد [صف الرؤوس, ...الصفوف] كما كان Apps Script */
-    if (action === "bd_searchBreeders") {
-      var q = txt(payload.searchText);
-      if (!q) return Promise.resolve({ success: true, data: [] });
-
-      var like = "%" + q + "%";
-      return sb.from("breeders").select(SELECT_COLS)
-        .or("phone.ilike." + like + ",name.ilike." + like +
-            ",civil_id.ilike." + like + ",possession_no.ilike." + like)
-        .limit(200)
-        .then(function (r) {
-          if (r.error) throw r.error;
-
-          var headers = ["رقم الهاتف","الاسم","رقم الحيازة","المنطقة","الرقم المدني",
-                         "الملاحظات","الإبل","ماعز","أغنام","أبقار","دجاج",
-                         "تاريخ الحيازة","معدل البيانات","مدخل البيانات"];
-          var rows = r.data.map(function (x) {
-            var b = toApp(x), a = b.animals;
-            return [b.phone, b.name, b.possession, b.region, b.civil, b.notes,
-                    a.camel, a.goat, a.sheep, a.cow, a.poultry,
-                    b.financialDate, b.dataUpdater, b.dataEntry];
-          });
-          return { success: true, data: [headers].concat(rows) };
-        });
-    }
-
-    /* ٧) حفظ مربٍّ جديد */
-    if (action === "bd_saveData") {
-      return regionId(d.region).then(function (rid) {
-        var row = toRow(d, rid);
-        row.created_by = me.id;
-        return sb.from("breeders").insert(row);
-      }).then(function (r) {
-        if (r.error) {
-          if (r.error.code === "23505")
-            return { success: false, message: "رقم الهاتف مسجَّل مسبقاً" };
-          throw r.error;
-        }
-        return { success: true, message: "تم الحفظ" };
-      });
-    }
-
-    /* ٨) تحديث مربٍّ */
-    if (action === "bd_updateData") {
-      return regionId(d.region).then(function (rid) {
-        var row = toRow(d, rid);
-        row.updated_by = me.id;
-        row.updated_at = new Date().toISOString();
-        return sb.from("breeders").update(row).eq("phone", txt(d.phone));
-      }).then(function (r) {
-        if (r.error) throw r.error;
-        return { success: true, message: "تم التحديث" };
-      });
-    }
-
-    /* ٩) حذف مربٍّ */
-    if (action === "bd_deleteData") {
-      return sb.from("breeders").delete().eq("phone", txt(payload.phone))
-        .then(function (r) {
-          if (r.error) {
-            if (r.error.code === "23503")
-              return { success: false, message: "لا يمكن الحذف — للمربي سجلات علاج أو تحصين" };
-            throw r.error;
-          }
-          return { success: true, message: "تم الحذف" };
-        });
-    }
-
-    return Promise.resolve({ success: false, message: "إجراء غير معروف: " + action });
-  }
-
-  /* ── الاعتراض ────────────────────────────────────────────────── */
-
-  function patch() {
-    if (!USE_SUPABASE) { log("معطَّل — يعمل على Apps Script"); return; }
-    if (typeof global.bd_callApi !== "function") { setTimeout(patch, 400); return; }
-    if (global.bd_callApi._sbPatch) return;
-
-    /* الكاش يلتف على bd_callApi أيضاً — يُعطَّل أثناء التجربة */
-    try { localStorage.setItem("breeder_cache_enabled", "false"); } catch (e) {}
-
-    var viaSheets = global.bd_callApi;
-
-    global.bd_callApi = async function (action, payload) {
-      if (HANDLED.indexOf(action) === -1)
-        return viaSheets.apply(this, arguments);
-
-      try {
-        await init();
-        return await run(action, payload);
-      } catch (err) {
-        var msg = (err && err.message) ? err.message : String(err);
-        log("خطأ في " + action + ": " + msg);
-        return { success: false, message: msg };
-      }
-    };
-
-    global.bd_callApi._sbPatch = true;
-    log("✅ سجل المربي موصول بـ Supabase");
-  }
-
-  /* تأخير كافٍ ليكتمل تحميل كل السكربتات الأخرى */
-  if (document.readyState === "complete") setTimeout(patch, 900);
-  else global.addEventListener("load", function () { setTimeout(patch, 900); });
-
-  /* للفحص من Console */
-  global.SBBreeders = {
-    status: function () { return { enabled: USE_SUPABASE, profile: me }; },
-    connect: init
-  };
-
-})(window);
-
 </script>
 </body>
 </html>
