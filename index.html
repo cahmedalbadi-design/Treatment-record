@@ -1319,7 +1319,7 @@ function bootOpenTreatment() {
     if (nav) nav.scrollLeft = nav.scrollWidth;
   }, 120);
 }
-
+    if (window.SB_FAST_BOOT !== false) { try { await bootRetry(trloadDropdowns); } catch(e){} return; }
 async function bootLoadAll() {
   if (window._bootRunning) return;
   window._bootRunning = true;
