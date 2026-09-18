@@ -15,13 +15,6 @@ href="data:image/svg+xml;utf8,
 
 <!-- Title -->
 <title>سجل العلاج في العيادة البيطرية</title>
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#00b8d9">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="العيادة">
-<link rel="apple-touch-icon" href="./icon.svg">
 <style>
 nav button {
   display: none !important;
@@ -1009,27 +1002,23 @@ window.showToast = function(message, type) {
 </div>
 <!-- القائمة -->
 <nav>
-  <button onclick="showPage('breeder')">سجل المربي</button>
-  <button onclick="showPage('vaccinationRequests')">طلبات التحصين</button>
-  <button onclick="showPage('vaccination')">سجل التحصين</button>
-  <button onclick="showPage('settings')">طباعة شهادة التحصين</button>
-  <button onclick="showPage('animalDistribution')">توزيع الحيوانات المحصنة</button>
-  <button onclick="showPage('comprehensiveReport')">التقرير الشامل</button>
-    <button onclick="showPage('doctorPerformance')">📊 أداء الأطباء</button>
-  <button onclick="showPage('home')">الإعدادات</button>
-    <button onclick="showPage('login')" title="تسجيل الدخول" aria-label="تسجيل الدخول" style="padding:5px 9px;line-height:0;vertical-align:middle;">
-    <svg width="22" height="22" viewBox="0 0 100 100" style="display:block;">
-      <rect x="4" y="4" width="92" height="92" rx="22" fill="#ef3b3b" stroke="#b52b2b" stroke-width="5"/>
-      <path d="M50 22 L50 52" stroke="#fff" stroke-width="11" stroke-linecap="round" fill="none"/>
-      <path d="M31 36 A26 26 0 1 0 69 36" stroke="#fff" stroke-width="11" stroke-linecap="round" fill="none"/>
-    </svg>
-  </button>
-  <button onclick="showPage('treatment')">سجل العلاج</button>
-  <button onclick="showPage('samples')">نموذج العينات</button>
-  <button onclick="showPage('dashboard')">طباعة نماذج العينات</button>
-  <button onclick="showPage('reports')">الأدوية المصروفة</button>
-  <button onclick="showPage('financialInventory')">المتحصلات اليومية</button>
-  <button onclick="showPage('diseaseTracking')">تتبع المرض</button>
+<button onclick="showPage('login')" title="تسجيل الدخول" aria-label="تسجيل الدخول" style="padding:5px 9px;line-height:0;vertical-align:middle;">
+<svg width="22" height="22" viewBox="0 0 100 100" style="display:block;"><rect x="4" y="4" width="92" height="92" rx="22" fill="#ef3b3b" stroke="#b52b2b" stroke-width="5"/>
+<path d="M50 22 L50 52" stroke="#fff" stroke-width="11" stroke-linecap="round" fill="none"/><path d="M31 36 A26 26 0 1 0 69 36" stroke="#fff" stroke-width="11" stroke-linecap="round" fill="none"/></svg></button>
+  <button onclick="showPage('breeder')">👨‍🌾سجل المربي</button>
+  <button onclick="showPage('treatment')">💊سجل العلاج</button>
+  <button onclick="showPage('financialInventory')">💰المتحصلات اليومية</button>
+  <button onclick="showPage('diseaseTracking')">🦠تتبع المرض</button>
+  <button onclick="showPage('reports')">📦الأدوية المصروفة</button>
+  <button onclick="showPage('vaccinationRequests')">📋طلبات التحصين</button>
+  <button onclick="showPage('vaccination')">💉سجل التحصين</button>
+  <button onclick="showPage('settings')">🖨️طباعة شهادة التحصين</button>
+  <button onclick="showPage('animalDistribution')">📍توزيع الحيوانات المحصنة</button>
+   <button onclick="showPage('samples')">🧪نموذج العينات</button>
+  <button onclick="showPage('dashboard')">🖨️طباعة نماذج العينات</button>
+  <button onclick="showPage('comprehensiveReport')">📊التقرير الشامل</button>
+    <button onclick="showPage('doctorPerformance')">👨‍⚕️أداء الأطباء</button>
+  <button onclick="showPage('home')">⚙️الإعدادات</button>
 </nav>
 
 <!-- دالة التنقل المركزية -->
@@ -1079,7 +1068,12 @@ function showPage(pageId) {
   if (excludedPages.indexOf(pageId) === -1 && typeof foCheckOverdueSamples === 'function') {
     setTimeout(foCheckOverdueSamples, 500);
   }
-  
+    var _dirtyTopic = { treatment:'treatment', breeder:'breeder', vaccination:'vaccination',
+                      samples:'samples', financialInventory:'financial' }[pageId];
+  if (_dirtyTopic && window._syncDirty && window._syncDirty[_dirtyTopic]) {
+    delete window._syncDirty[_dirtyTopic];
+    if (typeof remoteSyncApply === 'function') setTimeout(function(){ remoteSyncApply(_dirtyTopic); }, 50);
+  }
   if (pageId === 'treatment' && !window._treatmentInitialized) {
     window._treatmentInitialized = true;
     var trOverlay = document.getElementById('tr_loadingOverlay');
@@ -1097,6 +1091,22 @@ function showPage(pageId) {
   if (pageId === 'vaccination' && !window._vaccinationInitialized) {
     window._vaccinationInitialized = true;
     if (typeof vaccInit === 'function') vaccInit();
+  }
+    window._lazyLoaded = window._lazyLoaded || {};
+  var _lazy = {
+    animalDistribution:  function(){ if (typeof ani_loadData === 'function') ani_loadData(); },
+    reports:             function(){ if (typeof dim_loadData === 'function') dim_loadData(); },
+    comprehensiveReport: function(){ if (typeof rpt_loadReport === 'function') rpt_loadReport(); },
+    financialInventory:  function(){ if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData(); },
+    home:                function(){ if (typeof camp_load === 'function') camp_load(true); },
+    diseaseTracking:     function(){
+      if (typeof dtr_loadDiseaseList === 'function')
+        dtr_loadDiseaseList().then(function(){ if (typeof dtr_loadData === 'function') dtr_loadData(); });
+    }
+  };
+  if (_lazy[pageId] && !window._lazyLoaded[pageId]) {
+    window._lazyLoaded[pageId] = true;
+    _lazy[pageId]();
   }
   if (pageId === 'vaccinationRequests' && !window._vrInitialized) {
     window._vrInitialized = true;
@@ -1317,31 +1327,22 @@ function bootBindOnce() {
   });
 }
 
+function bootOpenTreatment() {
+  if (typeof PERM !== 'undefined' && PERM.isPageAllowed &&
+      !PERM.isPageAllowed('treatment')) return;
+  setTimeout(function () {
+    showPage('treatment');
+    if (typeof trshowAllCards === 'function') trshowAllCards();
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (e) { window.scrollTo(0, 0); }
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+    var nav = document.querySelector('nav');
+    if (nav) nav.scrollLeft = nav.scrollWidth;
+  }, 120);
+}
+
 async function bootLoadAll() {
   if (window._bootRunning) return;
-
-  /* وضع عدم الاتصال: لا جدوى من محاولة الجلب — افتح بالبيانات المحفوظة */
-  if (!navigator.onLine) {
-    window._bootRunning = false;
-    if (window.StaticLists) { try { await StaticLists.load(); } catch (e) {} }
-    ['_breederInitialized','_treatmentInitialized','_vaccinationInitialized',
-     '_samplesInitialized','_vrInitialized'].forEach(function (k) { window[k] = true; });
-    if (typeof trbindEvents  === 'function') { try { trbindEvents();  } catch (e) {} }
-    if (typeof vaccBindEvents === 'function') { try { vaccBindEvents(); } catch (e) {} }
-    if (typeof fobindEvents  === 'function') { try { fobindEvents();  } catch (e) {} }
-    if (typeof bd_bindEvents === 'function') { try { bd_bindEvents(); } catch (e) {} }
-    if (window.TreatmentCache && typeof TreatmentCache.render === 'function') {
-      try { TreatmentCache.render(); } catch (e) {}
-    }
-    ['tr_loadingOverlay','vacc_loadingOverlay','bd_pageLoadingOverlay',
-     'initialLoadingOverlaySamples','vr_loadingOverlay'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-    showToast('📴 وضع عدم الاتصال — البيانات المحفوظة محلياً فقط', 'warning');
-    return;
-  }
-
   window._bootRunning = true;
 
   var ov = bootShowOverlay();
@@ -1350,6 +1351,7 @@ async function bootLoadAll() {
     window._bootRunning = false;
     ov.close();
     if (msg) showToast(msg, type || 'success');
+    bootOpenTreatment();
   }
 
   if (!window._activeApiUrl) {
@@ -1441,25 +1443,7 @@ async function bootLoadAll() {
         if (ft) ft.value = today;
         window.fin_isFirstLoad = false;
 
-        await Promise.allSettled([
-          (typeof ani_loadData          === 'function') ? ani_loadData()          : Promise.resolve(),
-          (typeof dim_loadData          === 'function') ? dim_loadData()          : Promise.resolve(),
-          (typeof rpt_loadReport        === 'function') ? rpt_loadReport()        : Promise.resolve(),
-          (typeof fin_loadFinancialData === 'function') ? fin_loadFinancialData() : Promise.resolve()
-        ]);
-
-        try {
-          if (typeof camp_load === 'function') await camp_load(true);
-        } catch (e) {}
-
-        if (typeof dtr_loadDiseaseList === 'function') {
-          await dtr_loadDiseaseList();          await dtr_loadDiseaseList();
-          var df = document.getElementById('dtr_dateFrom');
-          var dt = document.getElementById('dtr_dateTo');
-          if (df) df.value = '';
-          if (dt) dt.value = '';
-          if (typeof dtr_loadData === 'function') await dtr_loadData();
-        }
+         /* التقارير تُحمَّل عند فتح صفحتها فقط — انظر showPage */
         bootBindOnce();
       },
       check: null
@@ -2479,45 +2463,6 @@ showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
 
   let lCU=null, lUK=null, lPK=null, lNK=null;
 
-  /* ── الدخول أوف لاين: حفظ بصمة آخر دخول ناجح ─────────── */
-  const L_OFFLINE_KEY = 'offline_login_v1';
-
-  async function lHash(txt) {
-    try {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
-      return Array.from(new Uint8Array(buf))
-        .map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch (e) {
-      /* احتياطي للمتصفحات القديمة أو الاتصال غير الآمن */
-      let h = 5381;
-      for (let i = 0; i < txt.length; i++) h = ((h * 33) ^ txt.charCodeAt(i)) >>> 0;
-      return 'f' + h.toString(36);
-    }
-  }
-
-  async function lSaveOffline(username, password, row) {
-    try {
-      let all = {};
-      try { all = JSON.parse(localStorage.getItem(L_OFFLINE_KEY) || '{}'); } catch (e) {}
-      all[username.toLowerCase()] = {
-        user:   username,
-        hash:   await lHash(username.toLowerCase() + '::' + password),
-        row:    row,
-        apiUrl: window._activeApiUrl || '',
-        savedAt: Date.now()
-      };
-      localStorage.setItem(L_OFFLINE_KEY, JSON.stringify(all));
-    } catch (e) { console.warn('[Offline] تعذّر حفظ بيانات الدخول:', e.message); }
-  }
-
-  async function lTryOffline(username, password) {
-    let all = {};
-    try { all = JSON.parse(localStorage.getItem(L_OFFLINE_KEY) || '{}'); } catch (e) { return null; }
-    const rec = all[username.toLowerCase()];
-    if (!rec) return null;
-    const h = await lHash(username.toLowerCase() + '::' + password);
-    return (h === rec.hash) ? rec : null;
-  }
   const lViews = {
     login:   document.getElementById('l_loginView'),
     welcome: document.getElementById('l_welcomeView'),
@@ -2816,7 +2761,6 @@ PERM.init(u, m);
   }
   // ============================================
 
-  lSaveOffline(u, p, m);
   document.getElementById('l_welcomeName').textContent=`مرحباً...`;
   lShow(lViews.welcome);
   unlockNav();
@@ -2853,29 +2797,8 @@ PERM.init(u, m);
           }, 4000);
         }
       }
-     } catch {
-      /* فشل الوصول للشيت — جرّب النسخة المحفوظة محلياً */
-      const off = await lTryOffline(u, p);
-      if (off) {
-        lCU = Object.assign({}, off.row, { _u: u });
-        window._currentUser  = u;
-        window._activeApiUrl = off.apiUrl || window._activeApiUrl;
-        lUK = lFk(off.row || {}, ['user','اسم','username']);
-        lPK = lFk(off.row || {}, ['pass','كلمة','password']);
-
-        if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function') {
-          wilayatSetAllUrls(window._activeApiUrl);
-        }
-
-        PERM.init(u, off.row);
-        document.getElementById('l_welcomeName').textContent = 'مرحباً...';
-        lShow(lViews.welcome);
-        unlockNav();
-        showToast('📴 دخول بوضع عدم الاتصال — البيانات المحفوظة فقط', 'warning');
-      } else {
-        lAlert('l_loginErr','l_loginErrIco','l_loginErrTx','error',
-          'تعذّر الاتصال. إن كنت بلا إنترنت، سجّل الدخول مرة واحدة مع وجود اتصال أولاً.');
-      }
+    } catch {
+      lAlert('l_loginErr','l_loginErrIco','l_loginErrTx','error','خطأ في الاتصال. تأكد من مشاركة الجدول بشكل عام.');
     } finally {
       // ← هذا هو المهم — يعمل دائماً سواء نجح أو فشل
       document.getElementById('l_loginBtn').disabled=false;
@@ -4476,10 +4399,7 @@ if (isDup) {
         trshowMessage("✅ تم الحفظ بنجاح", false);
       trclearForm();
 // تنفيذ عمليات التحميل بشكل متوازٍ لتقليل وقت الانتظار
-await Promise.all([
-  trloadData(),
-  trloadIncompleteCount()
-]);
+await trloadData();
       } else {
         trshowMessage(res.message, true);
       }
@@ -5559,8 +5479,8 @@ async function trSelectIncompleteCase(caseNumber) {
       var res = await _origCallApi.apply(this, arguments);
       try {
         if (res && res.success) {
-          if (action === "trgetAAAData") { storeTable(res.data); setTimeout(prefetch, 1200); }
-          else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
+ if (action === "trgetAAAData") { storeTable(res.data); }
+ else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
           else if (action === "trupdateData" || action === "trupdateTempData") {
             TC.skipNextLoad = true; applyUpdate((payload||{}).data || {});
           }
@@ -6172,6 +6092,7 @@ async function bd_analyzeInactive() {
 
     /* ── ٢. تجميع آخر نشاط لكل رقم هاتف ── */
     var lastActivity = {};
+    var visitCount   = {};
     var firstTreatmentDate = null;   /* أقدم تاريخ علاج في السجل — مرجع احتساب مدة عدم النشاط */
 
     function _parseDay(s) {
@@ -6197,6 +6118,7 @@ async function bd_analyzeInactive() {
       if (!ph) return;
       /* وجود السجل نفسه كافٍ لاعتباره نشطاً حتى لو كان التاريخ غير صالح */
       if (!(ph in lastActivity)) lastActivity[ph] = null;
+      visitCount[ph] = (visitCount[ph] || 0) + 1;
       if (!dateStr) return;
       var s = String(dateStr).trim();
       var d;
@@ -6274,7 +6196,7 @@ async function bd_analyzeInactive() {
     breeders.forEach(function(b) {
       var ph = String(b.phone || '').trim();
       if (!ph) return;
-      var rec = { phone: ph, name: b.name || '', region: b.region || '' };
+      var rec = { phone: ph, name: b.name || '', region: b.region || '', visits: visitCount[ph] || 0 };
       if (ph in lastActivity) {
         var last = lastActivity[ph];
         rec.last = last;
@@ -6291,6 +6213,7 @@ async function bd_analyzeInactive() {
 
     /* النشطون: الأحدث نشاطاً أولاً | غير النشطين: أبجدياً */
     active.sort(function(a, b) {
+      if (b.visits !== a.visits) return b.visits - a.visits;
       if (a.days === null) return 1;
       if (b.days === null) return -1;
       return a.days - b.days;
@@ -6350,8 +6273,8 @@ function bd_showActivityList(mode) {
 
   var color = (mode === 'active') ? '#27ae60' : '#e67e22';
   var head  = (mode === 'active')
-    ? ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ آخر نشاط','آخر نشاط','إجراء']
-    : ['#','رقم الهاتف','اسم المربي','المنطقة','من تاريخ','مدة عدم النشاط','إجراء'];
+    ? ['#','رقم الهاتف','اسم المربي','المنطقة','تاريخ آخر نشاط','آخر نشاط','عدد الزيارات','إجراء']
+    : ['#','رقم الهاتف','اسم المربي','المنطقة','من تاريخ','مدة عدم النشاط','عدد الزيارات','إجراء'];
 
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
     head.map(function(h){ return '<th style="background:' + color + ';color:#fff;border:1px solid #ccc;padding:7px;">' + h + '</th>'; }).join('') +
@@ -6377,6 +6300,7 @@ function bd_showActivityList(mode) {
       '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
       '<td style="' + td + 'text-align:center;">' + bd_fmtDate(dCol) + '</td>' +
       '<td style="' + td + 'text-align:center;font-weight:bold;color:' + c.txt + ';">' + dTxt + '</td>' +
+      '<td style="' + td + 'text-align:center;"><span style="display:inline-block;min-width:34px;background:#00b8d9;color:#fff;border-radius:12px;padding:2px 10px;font-weight:bold;font-size:12px;">' + (r.visits || 0) + '</span></td>' +
       '<td style="' + td + 'text-align:center;">' + openBtn + '</td>' +
     '</tr>';
   });
@@ -7806,7 +7730,7 @@ var badge;
     if (vr_isRefused(r)) {
       badge = '<span class="badge" style="background:#8e44ad">رفض التحصين ⛔</span>';
       tr.className = '';
-      tr.style.background = '#f3e5f5';
+      tr.style.background = '#ff04ff';
     } else if (r.vaccinated) {
       badge = '<span class="badge badge-vacc">محصن ✓</span>';
     } else {
@@ -11186,6 +11110,21 @@ function rptCamp_d(s) {
   var d = new Date(+p[0], +p[1] - 1, +p[2]);
   return isNaN(d.getTime()) ? null : d;
 }
+/* أيام العطلة الأسبوعية: 0=الأحد 1=الاثنين 2=الثلاثاء 3=الأربعاء 4=الخميس 5=الجمعة 6=السبت */
+var RPT_OFF_DAYS = [5, 6];   // الجمعة والسبت
+
+/* عدد أيام العمل بين تاريخين شاملاً الطرفين — باستثناء أيام العطلة أعلاه */
+function rptCamp_workDays(from, to) {
+  if (!from || !to || to < from) return 0;
+  var n = 0;
+  var d2  = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  var end = new Date(to.getFullYear(),   to.getMonth(),   to.getDate());
+  while (d2 <= end) {
+    if (RPT_OFF_DAYS.indexOf(d2.getDay()) === -1) n++;
+    d2.setDate(d2.getDate() + 1);
+  }
+  return n;
+}
 function rptCamp_set(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
 function rptCamp_num(n) { return (Number(n) || 0).toLocaleString('en-US'); }
 function rptCamp_reset() {
@@ -11266,17 +11205,17 @@ async function rptCamp_load(force) {
   /* ٣) اليوم التشغيلي والحالة والأيام المتبقية */
   var dayNow = 0, state = 'غير نشطة', stColor = '#95a5a6', left = days;
   if (dFrom && today >= dFrom) {
-    dayNow = Math.floor((today - dFrom) / DAY) + 1;
+    dayNow = rptCamp_workDays(dFrom, today);
     if (days > 0 && dayNow > days) dayNow = days;
-     state = 'نشطة'; stColor = '#2bb673';
+    state = 'نشطة'; stColor = '#2bb673';
     left = (days > 0) ? Math.max(0, days - dayNow) : 0;
   }
   if (dTo && today > dTo) {
     state = 'منتهية'; stColor = '#e67e22';
     left = 0;
-    /* الحملة اكتملت — اليوم التشغيلي = كامل المدة */
+    /* الحملة اكتملت — اليوم التشغيلي = كامل أيام العمل */
     if (days > 0) dayNow = days;
-    else if (dFrom) dayNow = Math.floor((dTo - dFrom) / DAY) + 1;
+    else if (dFrom) dayNow = rptCamp_workDays(dFrom, dTo);
   }
   if (!isFinite(dayNow) || dayNow < 0) dayNow = 0;
   if (!isFinite(left)  || left  < 0) left  = 0;
@@ -11365,8 +11304,14 @@ async function rptCamp_load(force) {
     }
   }
 
-  /* ٧) المخططات البيانية */
-  rptCamp_drawCharts(c, rate, dFrom, days, dayNow);
+  /* ٧) المخططات البيانية — تستخدم ترقيماً تقويمياً */
+  var dayNowCal = 0;
+  if (dFrom && today >= dFrom) {
+    dayNowCal = Math.floor((today - dFrom) / DAY) + 1;
+    if (days > 0 && dayNowCal > days) dayNowCal = days;
+  }
+  if (dTo && today > dTo) dayNowCal = days || dayNowCal;
+  rptCamp_drawCharts(c, rate, dFrom, days, dayNowCal);
 }
 
 /* ============================================================
@@ -12534,8 +12479,8 @@ async function remoteSyncPoll() {
     var res = await r.json();
 
     if (res.events && res.events.length > 0) {
-      // حدّث الطابع الزمني
-      REMOTE_SYNC_LAST_TS = Date.now();
+           // حدّث الطابع الزمني من توقيت الخادم (يتجنب فرق الساعة بين الأجهزة)
+      REMOTE_SYNC_LAST_TS = Math.max.apply(null, res.events.map(function (ev) { return Number(ev.ts) || 0; }));
 
       // جمّع المواضيع الفريدة فقط (لتجنب تحديثات مكررة)
       var topics = {};
@@ -12560,6 +12505,14 @@ async function remoteSyncPoll() {
 // ٣. تطبيق التحديث المناسب لكل موضوع
 // ─────────────────────────────────────────────────────
 function remoteSyncApply(topic, action) {
+  var pageOf = { treatment:'treatment', breeder:'breeder', vaccination:'vaccination',
+                 samples:'samples', financial:'financialInventory' };
+  var pg = document.getElementById(pageOf[topic]);
+  if (!pg || !pg.classList.contains('active')) {
+    window._syncDirty = window._syncDirty || {};
+    window._syncDirty[topic] = true;
+    return;
+  }
   var handlers = {
     "treatment": function() {
       if (typeof trloadData === "function") trloadData();
@@ -13125,6 +13078,8 @@ setTimeout(tryWrap, 1000);
         var r = cacheSearchCaseData(ss((payload || {}).phone));
         return r.success ? r : _origBdCallApi(action, payload);
       }
+
+      /* كتابة → API مباشرة (التحديث المحلي يتم عبر applyLocalWrite) */
 
       /* أي action آخر (بما فيها trget*, syncNotify، إلخ) → API مباشرة */
       return _origBdCallApi(action, payload);
@@ -13792,7 +13747,7 @@ getState:      function () { return { enabled: state.enabled, loaded: state.load
           global._localSyncChannel.onmessage = function (e) {
             if (_origMsg) _origMsg.call(this, e);
             if (e.data && e.data.topic === "breeder" && state.enabled) {
-              setTimeout(refreshAndRepatch, 2000);
+              window._breederCacheStale = true;
             }
           };
         }
@@ -14162,7 +14117,11 @@ function sendTelegram(text) {
  
       /* شغّل الفحص فقط عند نجاح الحفظ الفعلي */
       if (res && res.success && action === "trsaveData") {
-        setTimeout(trCheckDiseaseThreshold, 2500);
+        var _n = Date.now();
+        if (!global._daLastCheck || _n - global._daLastCheck > 15 * 60 * 1000) {
+          global._daLastCheck = _n;
+          setTimeout(trCheckDiseaseThreshold, 2500);
+        }
       }
  
       return res;
@@ -14581,7 +14540,11 @@ Promise.all([
   }
   tryPatch();
 })();
-
+  // مسح الولاية عند تحديث الصفحة
+window.addEventListener('beforeunload', function() {
+  localStorage.removeItem('selected_wilayat_url');
+  localStorage.removeItem('selected_wilayat_name');
+});
 </script>
   <script>
 (function (global) {
@@ -14932,24 +14895,8 @@ global.fetch = function (input, init) {
     var silent  = SILENT_ACTIONS.indexOf(action) !== -1 || url.indexOf('ntfy.sh') !== -1;
     var isWrite = action !== '' && WRITE_ACTIONS.indexOf(action) !== -1;
     var opId    = '';
-    if (isWrite) {
-      /* ٠. تعذّر الاتصال + عملية قابلة للتأجيل → الطابور */
-      var _canQ = global.OfflineQueue && global.OfflineQueue.canQueue(action);
-      var _netDown = !navigator.onLine ||
-                     (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs);
-      if (_netDown && _canQ && bodyStr) {
-        try {
-          var _o = JSON.parse(bodyStr);
-          _o.opId = ngHash(bodyStr);
-          global.OfflineQueue.push(apiUrl(), JSON.stringify(_o), action);
-          toast('💾 حُفظت محلياً — سترفع تلقائياً عند عودة الاتصال', 'success');
-          return Promise.resolve(new Response(
-            JSON.stringify({ success: true, queued: true, message: 'محفوظة محلياً' }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          ));
-        } catch (e) {}
-      }
 
+    if (isWrite) {
       /* ١. بوابات الحجب الفورية */
       if (!navigator.onLine) {
         showModal('offline', 'blocked');
@@ -14991,7 +14938,7 @@ global.fetch = function (input, init) {
       if (!r.ok) {
         markFailure('http-' + r.status);
         if (isWrite) showModal('http-' + r.status, 'failed');
-        else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status, 'error');
+      else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status + (action ? ' — ' + action : ''), 'error');
         return r;
       }
       markSuccess(ms, silent);
@@ -15002,19 +14949,6 @@ global.fetch = function (input, init) {
       var aborted = (e && e.name === 'AbortError');
       var reason  = aborted ? 'timeout' : (navigator.onLine ? 'network' : 'offline');
       markFailure(reason);
-
-      if (isWrite && _canQ && bodyStr && reason !== 'timeout') {
-        try {
-          var _o2 = JSON.parse(bodyStr);
-          _o2.opId = opId || ngHash(bodyStr);
-          global.OfflineQueue.push(apiUrl(), JSON.stringify(_o2), action);
-          toast('💾 تعذّر الإرسال — حُفظت محلياً وسترفع لاحقاً', 'warning');
-          return new Response(
-            JSON.stringify({ success: true, queued: true, message: 'محفوظة محلياً' }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          );
-        } catch (e2) {}
-      }
 
       if (isWrite) showModal(reason, 'failed');
       else if (!silent) {
@@ -15044,213 +14978,6 @@ global.fetch = function (input, init) {
 
   console.log('[NetGuard v2] ✅ حارس الاتصال نشط — قياس سلبي بلا طلبات إضافية');
 })(window);
-</script>
-
-<!-- ============================================================
-     OfflineQueue v1.0 — طابور الحفظ عند انقطاع الشبكة
-     ============================================================ -->
-<script>
-(function (global) {
-  "use strict";
-
-  var Q_KEY = 'offline_queue_v1';
-
-  /* الإجراءات التي يُسمح بحفظها محلياً — الحفظ الجديد فقط */
-  var QUEUEABLE = [
-    'trsaveData', 'trsaveTempData',
-    'saveData',
-    'fosaveData'
-  ];
-
-  var _flushing = false;
-
-  /* ── التخزين ── */
-  function read() {
-    try { return JSON.parse(localStorage.getItem(Q_KEY) || '[]'); }
-    catch (e) { return []; }
-  }
-  function write(arr) {
-    try { localStorage.setItem(Q_KEY, JSON.stringify(arr)); return true; }
-    catch (e) { console.warn('[Queue] تعذّر الحفظ:', e.message); return false; }
-  }
-
-  function add(url, body, action) {
-    var q = read();
-    q.push({
-      id:     Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      url:    url,
-      body:   body,
-      action: action,
-      at:     Date.now(),
-      tries:  0
-    });
-    return write(q) ? q.length : 0;
-  }
-
-  /* ── شارة عدد العمليات المعلّقة ── */
-  function badge() {
-    var n = read().length;
-    var el = document.getElementById('oq-badge');
-    if (!n) { if (el) el.remove(); return; }
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'oq-badge';
-      el.style.cssText =
-        'position:fixed;top:8px;right:8px;background:#e67e22;color:#fff;' +
-        'padding:5px 14px;border-radius:20px;font-size:12px;font-weight:bold;' +
-        'z-index:99996;font-family:Tahoma,Arial,sans-serif;direction:rtl;' +
-        'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);';
-      el.onclick = function () { flush(true); };
-      document.body.appendChild(el);
-    }
-    el.textContent = '📥 ' + n + ' بانتظار الرفع — انقر للرفع الآن';
-  }
-
-  /* ── تفريغ الطابور بالتسلسل ── */
-  async function flush(manual) {
-    if (_flushing) return;
-    var q = read();
-    if (!q.length) return;
-    if (!navigator.onLine) {
-      if (manual) global.showToast('⚠️ لا يوجد اتصال بالإنترنت', 'warning');
-      return;
-    }
-
-    _flushing = true;
-    global.showToast('⏳ جاري رفع ' + q.length + ' عملية محفوظة...', 'info');
-
-    var ok = 0, fail = 0;
-
-    for (var i = 0; i < q.length; i++) {
-      var item = q[i];
-      try {
-        var r = await fetch(item.url, {
-          method: 'POST', mode: 'cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: item.body, redirect: 'follow'
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        var res = await r.json();
-        if (res && (res.success || res._dedup)) {
-          item._done = true;
-          ok++;
-        } else {
-          item.tries++;
-          fail++;
-        }
-      } catch (e) {
-        item.tries++;
-        fail++;
-        break;   /* انقطع الاتصال — أوقف الدفعة واحتفظ بالباقي */
-      }
-      await new Promise(function (rs) { setTimeout(rs, 300); });
-    }
-
-    write(q.filter(function (x) { return !x._done; }));
-    _flushing = false;
-    badge();
-
-    if (ok)   global.showToast('✅ تم رفع ' + ok + ' عملية بنجاح', 'success');
-    if (fail) global.showToast('⚠️ بقيت ' + fail + ' عملية — ستُرفع لاحقاً', 'warning');
-
-    /* تحديث الجداول بعد الرفع */
-    if (ok) {
-      if (typeof trloadData === 'function') trloadData();
-      if (typeof foloadUniqueCount === 'function') foloadUniqueCount();
-    }
-  }
-
-  /* ── الواجهة العامة ── */
-  global.OfflineQueue = {
-    canQueue: function (action) { return QUEUEABLE.indexOf(action) !== -1; },
-    push:     function (url, body, action) { var n = add(url, body, action); badge(); return n; },
-    flush:    flush,
-    count:    function () { return read().length; },
-    clear:    function () { localStorage.removeItem(Q_KEY); badge(); }
-  };
-
-  /* رفع تلقائي عند عودة الشبكة وعند تسجيل الدخول */
-  global.addEventListener('online', function () { setTimeout(function () { flush(false); }, 2000); });
-  global.addEventListener('load',   function () { setTimeout(badge, 1000); setTimeout(function () { flush(false); }, 5000); });
-
-  /* محاولة دورية كل ٣ دقائق */
-  setInterval(function () { flush(false); }, 180000);
-
-  console.log('[Queue] ✅ طابور الحفظ أوف لاين نشط');
-})(window);
-</script>
-
-<!-- ============================================================
-     تسجيل Service Worker — تشغيل التطبيق بلا إنترنت
-     ============================================================ -->
-<script>
-(function () {
-  "use strict";
-  if (!('serviceWorker' in navigator)) {
-    console.log('[SW] المتصفح لا يدعم Service Worker');
-    return;
-  }
-
-  function showUpdateBar(worker) {
-    if (document.getElementById('sw-update-bar')) return;
-    var bar = document.createElement('div');
-    bar.id = 'sw-update-bar';
-    bar.style.cssText =
-      'position:fixed;bottom:0;left:0;right:0;background:#2bb673;color:#fff;' +
-      'padding:11px 16px;font-size:13px;font-weight:bold;z-index:99999;' +
-      'font-family:Tahoma,Arial,sans-serif;direction:rtl;display:flex;' +
-      'align-items:center;justify-content:center;gap:14px;' +
-      'box-shadow:0 -2px 12px rgba(0,0,0,.2);';
-    bar.innerHTML =
-      '<span>🔄 يتوفر إصدار جديد من التطبيق</span>' +
-      '<button id="sw-update-btn" style="background:#fff;color:#2bb673;border:none;' +
-      'border-radius:6px;padding:6px 20px;font-size:12.5px;font-weight:bold;' +
-      'cursor:pointer;font-family:inherit;">تحديث الآن</button>' +
-      '<button id="sw-update-later" style="background:transparent;color:#fff;' +
-      'border:1px solid rgba(255,255,255,.6);border-radius:6px;padding:6px 14px;' +
-      'font-size:12.5px;cursor:pointer;font-family:inherit;">لاحقاً</button>';
-    document.body.appendChild(bar);
-
-    document.getElementById('sw-update-btn').onclick = function () {
-      worker.postMessage({ type: 'SKIP_WAITING' });
-    };
-    document.getElementById('sw-update-later').onclick = function () {
-      bar.remove();
-    };
-  }
-
-  var reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', function () {
-    if (reloading) return;
-    reloading = true;
-    location.reload();
-  });
-
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-      .then(function (reg) {
-        console.log('[SW] ✅ مُسجَّل — التطبيق سيعمل بلا إنترنت');
-
-        if (reg.waiting) showUpdateBar(reg.waiting);
-
-        reg.addEventListener('updatefound', function () {
-          var nw = reg.installing;
-          if (!nw) return;
-          nw.addEventListener('statechange', function () {
-            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-              showUpdateBar(nw);
-            }
-          });
-        });
-
-        /* فحص التحديثات كل 10 دقائق أثناء الاستخدام */
-        setInterval(function () { reg.update().catch(function () {}); }, 600000);
-      })
-      .catch(function (err) {
-        console.warn('[SW] ❌ فشل التسجيل:', err.message);
-      });
-  });
-})();
 </script>
 </body>
 </html>
