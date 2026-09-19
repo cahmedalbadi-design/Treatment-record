@@ -15098,7 +15098,20 @@ global.fetch = function (input, init) {
     return s === "" ? null : s;
   }
 
-  function log(msg) { console.log("[SB-Breeders] " + msg); }
+    function log(msg) { console.log("[SB-Breeders] " + msg); }
+
+  /* ترقيم صفحات — يتجاوز سقف الألف صف في PostgREST */
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
 
   /* ── تهيئة العميل وتسجيل الدخول ───────────────────────────────── */
 
@@ -15235,12 +15248,12 @@ global.fetch = function (input, init) {
     var d = payload.data || {};
 
     /* ١) قائمة أرقام الهواتف */
-    if (action === "bd_getPhoneNumbers") {
-      return sb.from("breeders").select("phone").order("phone")
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return { success: true, data: r.data.map(function (x) { return x.phone; }) };
-        });
+     if (action === "bd_getPhoneNumbers") {
+      return pageAll(function () {
+        return sb.from("breeders").select("phone").order("phone");
+      }).then(function (rows) {
+        return { success: true, data: rows.map(function (x) { return x.phone; }) };
+      });
     }
 
     /* ٢) قائمة المناطق */
@@ -15275,12 +15288,12 @@ global.fetch = function (input, init) {
     }
 
     /* ٥) جلب كل المربين */
-    if (action === "bd_getAllBreeders") {
-      return sb.from("breeders").select(SELECT_COLS).order("name")
-        .then(function (r) {
-          if (r.error) throw r.error;
-          return { success: true, data: r.data.map(toApp) };
-        });
+      if (action === "bd_getAllBreeders") {
+      return pageAll(function () {
+        return sb.from("breeders").select(SELECT_COLS).order("name");
+      }).then(function (rows) {
+        return { success: true, data: rows.map(toApp) };
+      });
     }
 
     /* ٦) بحث نصّي — يعيد [صف الرؤوس, ...الصفوف] كما كان Apps Script */
