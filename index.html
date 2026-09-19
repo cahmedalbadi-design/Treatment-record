@@ -12653,7 +12653,6 @@ function tryWrap() {
   if (++_wrapAttempts < 3) setTimeout(tryWrap, 3000);
 }
 setTimeout(tryWrap, 1000);
-<script>
 (function () {
   "use strict";
   /* تنظيف بقايا الكاش القديم */
@@ -12711,8 +12710,6 @@ setTimeout(tryWrap, 1000);
   if (document.readyState === "complete") build();
   else window.addEventListener("load", build);
 })();
-</script>
-
 (function() {
   "use strict";
 
