@@ -1350,7 +1350,6 @@ async function bootLoadAll() {
           return;
         }
         window._breederInitialized = true;
-        window.bd_API_URL = window._activeApiUrl;
         if (typeof bd_init === 'function') await bd_init();
       },
       check: function () { return bootListCount('bd_phoneList') > 0; }
@@ -1561,7 +1560,6 @@ function unlockNav() {
     { delay: 1000, fn: function () {
       if (!window._breederInitialized) {
         window._breederInitialized = true;
-        bd_API_URL = window._activeApiUrl || "";
         if (typeof bd_init === 'function') bd_init();
       }
     }},
@@ -1956,7 +1954,6 @@ setInterval(slShowInfo, 3000);
 function wilayatSetAllUrls(url) {
   window._activeApiUrl      = url;
   window.TR_API_URL         = url;
-  window.bd_API_URL         = url;
   window.VACC_API_URL       = url;
   window.SAMPLES_API_URL    = url;
   window.SETTINGS__URL      = url;
@@ -1978,7 +1975,6 @@ function wilayatSetAllUrls(url) {
   try { dim_SERVICE_URL  = url; } catch(e) {}
   try { REMOTE_SYNC_URL  = url; } catch(e) {}
   try { TR_API_URL       = url; } catch(e) {}
-  try { bd_API_URL       = url; } catch(e) {}
   try { VACC_API_URL     = url; } catch(e) {}
   try { SAMPLES_API_URL  = url; } catch(e) {}
   try { VR_API_URL       = url; } catch(e) {}
@@ -2099,7 +2095,6 @@ showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
   window._breederInitialized      = false;
   window._samplesInitialized      = false;
   if (typeof bd_clearForm === 'function') bd_clearForm();
-  if (window.BreederCache && window.BreederCache._doClear) window.BreederCache._doClear();
    resetAllPagesData();
   // إعادة تحميل الصفحات التي لا تحتاج init
   vr_allData    = [];
@@ -5603,15 +5598,12 @@ if (!tbl || tbl._tcClick) return;
 <script>
 "use strict";
 
-var bd_API_URL = "";
 var bd_isClearing = false;
+
+/* الناقل الوحيد لسجل المربي: Supabase.
+   جسر SBBreeders يستبدل هذه الدالة عند الإقلاع. */
 async function bd_callApi(action, payload) {
-  var url = window._activeApiUrl || bd_API_URL;
-  if (!url) throw new Error("رابط الخدمة غير مُعدّ");
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 function bd_showMessage(msg, isError, type) {
@@ -5671,24 +5663,62 @@ var bdCountBadge = document.getElementById("bd_fetchAllCount");
   if (el) el.value = bd_getValue("bd_phoneInput") || bd_getValue("bd_caseNumber");
 }
   
-function bd_validateSave() {
-  if(bd_getValue("bd_private")!==""){bd_showMessage("وضع تحديث — استخدم زر التحديث",true);return false;}
-  if(!bd_getValue("bd_caseNumber")){bd_showMessage("رقم الهاتف مطلوب",true);return false;}
-  if(!bd_getValue("bd_nameInput")){bd_showMessage("الاسم مطلوب",true);return false;}
-  if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);return false;}
-  if(!bd_getValue("bd_dataEntryInput")){bd_showMessage("مدخل البيانات مطلوب",true);return false;}
-  if(bd_getValue("bd_newPhoneInput")!==""){bd_showMessage("حقل الرقم الجديد يجب أن يكون فارغاً عند الحفظ",true);return false;}
+/* ── شروط الإدخال — مطابقة لقيود جدول breeders ──
+   phone: فريد وإلزامي | name: NOT NULL | region: يُنشأ تلقائياً إن لم يوجد
+   الأعداد: integer ≥ 0 | holding_expiry: date أو null
+   مدخل/معدّل البيانات: يُسجَّلان من هوية المستخدم في القاعدة — لا يُطلبان هنا */
+function bd_validateCommon() {
+  var phone = bd_getValue("bd_caseNumber");
+  if (!/^[0-9]{8,15}$/.test(phone)) {
+    bd_showMessage("رقم الهاتف يجب أن يتكون من أرقام فقط (8 خانات على الأقل)", true);
+    return false;
+  }
+  if (!bd_getValue("bd_nameInput")) {
+    bd_showMessage("اسم المربي مطلوب", true); return false;
+  }
+
+  var civil = bd_getValue("bd_civilInput");
+  if (civil && !/^[0-9]{1,15}$/.test(civil)) {
+    bd_showMessage("الرقم المدني يجب أن يكون أرقاماً فقط", true); return false;
+  }
+
+  var badCount = ["bd_animal_goat","bd_animal_sheep","bd_animal_cow","bd_animal_camel",
+                  "bd_animal_horse","bd_animal_cat","bd_animal_dog","bd_animal_poultry"]
+    .some(function (id) {
+      var v = bd_getValue(id);
+      return v !== "" && (isNaN(v) || Number(v) < 0 || Number(v) % 1 !== 0);
+    });
+  if (badCount) {
+    bd_showMessage("أعداد الحيوانات يجب أن تكون أرقاماً صحيحة غير سالبة", true); return false;
+  }
+
+  var dt = bd_getValue("bd_financialDate");
+  if (dt && !/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+    bd_showMessage("تاريخ انتهاء الحيازة غير صالح", true); return false;
+  }
   return true;
+}
+
+function bd_validateSave() {
+  if (bd_getValue("bd_private") !== "") {
+    bd_showMessage("أنت في وضع التحديث — استخدم زر التحديث", true); return false;
+  }
+  if (bd_getValue("bd_newPhoneInput") !== "") {
+    bd_showMessage("حقل الرقم الجديد يُستخدم عند التحديث فقط", true); return false;
+  }
+  return bd_validateCommon();
 }
 
 function bd_validateUpdate() {
-  if(!bd_getValue("bd_caseNumber")){bd_showMessage("رقم الهاتف مطلوب",true);return false;}
-  if(!bd_getValue("bd_nameInput")){bd_showMessage("الاسم مطلوب",true);return false;}
-  if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);return false;}
-  if(!bd_getValue("bd_dataUpdaterInput")){bd_showMessage("مدخل البيانات (التحديث) مطلوب",true);return false;}
-  return true;
+  if (!bd_getValue("bd_phoneInput")) {
+    bd_showMessage("اختر رقم المربي المراد تحديثه", true); return false;
+  }
+  var np = bd_getValue("bd_newPhoneInput");
+  if (np && !/^[0-9]{8,15}$/.test(np)) {
+    bd_showMessage("الرقم الجديد يجب أن يتكون من أرقام فقط (8 خانات على الأقل)", true); return false;
+  }
+  return bd_validateCommon();
 }
-
 async function bd_refreshDropdowns() {
   try {
     var results = await Promise.all([bd_callApi("bd_getPhoneNumbers"),bd_callApi("bd_getDataEntryOptions"),bd_callApi("bd_getRegionOptions")]);
@@ -5698,20 +5728,45 @@ async function bd_refreshDropdowns() {
     if(results[2].success)fill("bd_regionList",results[2].data);
   }catch(err){bd_showMessage("خطأ في تحميل القوائم: "+err.message,true);}
 }
+function bd_collectAnimals() {
+  return {
+    goat:    bd_getValue("bd_animal_goat"),
+    sheep:   bd_getValue("bd_animal_sheep"),
+    cow:     bd_getValue("bd_animal_cow"),
+    camel:   bd_getValue("bd_animal_camel"),
+    horse:   bd_getValue("bd_animal_horse"),
+    cat:     bd_getValue("bd_animal_cat"),
+    dog:     bd_getValue("bd_animal_dog"),
+    poultry: bd_getValue("bd_animal_poultry")
+  };
+}
 
+function bd_collectData(forUpdate) {
+  var phone = forUpdate
+    ? (bd_getValue("bd_phoneInput") || bd_getValue("bd_caseNumber"))
+    : bd_getValue("bd_caseNumber");
+  var d = {
+    phone:         phone,
+    name:          bd_getValue("bd_nameInput"),
+    possession:    bd_getValue("bd_possessionInput"),
+    region:        bd_getValue("bd_regionInput"),
+    civil:         bd_getValue("bd_civilInput"),
+    notes:         bd_getValue("bd_notes"),
+    financialDate: bd_getValue("bd_financialDate"),
+    animals:       bd_collectAnimals()
+  };
+  if (forUpdate) d.newPhone = bd_getValue("bd_newPhoneInput") || phone;
+  return d;
+}
 async function bd_saveData() {
   if(!bd_validateSave()) return;
-  var data={phone:bd_getValue("bd_caseNumber"),name:bd_getValue("bd_nameInput"),possession:"'"+bd_getValue("bd_possessionInput"),
-    region:bd_getValue("bd_regionInput"),civil:bd_getValue("bd_civilInput"),notes:bd_getValue("bd_notes"),
-    animals:{camel:bd_getValue("bd_animal_camel"),goat:bd_getValue("bd_animal_goat"),sheep:bd_getValue("bd_animal_sheep"),cow:bd_getValue("bd_animal_cow"),poultry:bd_getValue("bd_animal_poultry")},
-    financialDate:bd_getValue("bd_financialDate"),dataEntry:bd_getValue("bd_dataEntryInput")};
+  var data = bd_collectData(false);
   var btn=document.getElementById("bd_saveBtn");
   btn.disabled=true;
   bd_showMessage("جاري الحفظ...", false, "info");
   try{
     var res=await bd_callApi("bd_saveData",{data:data});
 if(res.success){bd_setLastEdited();
-if(window.BreederCache&&window.BreederCache.applyLocalWrite) window.BreederCache.applyLocalWrite("bd_saveData",{data:data});
 bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
   }catch(err){bd_showMessage("خطأ: "+err.message,true);}
   finally{btn.disabled=false;}
@@ -5719,14 +5774,8 @@ bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDrop
 
 async function bd_updateData() {
   if(!bd_validateUpdate())return;
-  var phone=bd_getValue("bd_phoneInput")||bd_getValue("bd_caseNumber");
-  if(!phone){bd_showMessage("الرجاء اختيار رقم الهاتف",true);return;}
-  var newPhone=bd_getValue("bd_newPhoneInput");
-  var data={phone:phone,newPhone:newPhone||phone,name:bd_getValue("bd_nameInput"),possession:"'"+bd_getValue("bd_possessionInput"),
-    region:bd_getValue("bd_regionInput"),civil:bd_getValue("bd_civilInput"),notes:bd_getValue("bd_notes"),
-    dataEntry:bd_getValue("bd_dataEntryInput"),dataUpdater:bd_getValue("bd_dataUpdaterInput"),
-    animals:{camel:bd_getValue("bd_animal_camel"),goat:bd_getValue("bd_animal_goat"),sheep:bd_getValue("bd_animal_sheep"),cow:bd_getValue("bd_animal_cow"),poultry:bd_getValue("bd_animal_poultry")},
-    financialDate:bd_getValue("bd_financialDate")};
+  var data  = bd_collectData(true);
+  var phone = data.phone;
     bd_showConfirm("هل أنت متأكد من تحديث بيانات الرقم: "+phone+"؟",async function(){
     var btn=document.getElementById("bd_updateBtn");
     btn.disabled=true;
@@ -5734,7 +5783,6 @@ async function bd_updateData() {
     try{
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
-if(window.BreederCache&&window.BreederCache.applyLocalWrite) window.BreederCache.applyLocalWrite("bd_updateData",{data:data});
 bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
@@ -5751,8 +5799,7 @@ async function bd_deleteData() {
     try{
       var res=await bd_callApi("bd_deleteData",{phone:phone});
 if(res.success){bd_setLastEdited();
-if(window.BreederCache&&window.BreederCache.applyLocalWrite) window.BreederCache.applyLocalWrite("bd_deleteData",{phone:phone});
-bd_showMessage("تم الحذف بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
+bd_showMessage("تم الحذف بنجاح",false);;bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -5814,14 +5861,7 @@ async function bd_updatePossession() {
   });
 }
 
-function bd_collectBreederDataForUpdate(){
-  var phone=bd_getValue("bd_phoneInput"),newPhone=bd_getValue("bd_newPhoneInput");
-  return{phone:phone,newPhone:newPhone||phone,name:bd_getValue("bd_nameInput"),possession:"'"+bd_getValue("bd_possessionInput"),
-    region:bd_getValue("bd_regionInput"),civil:bd_getValue("bd_civilInput"),notes:bd_getValue("bd_notes"),
-    dataEntry:bd_getValue("bd_dataEntryInput"),dataUpdater:bd_getValue("bd_dataUpdaterInput"),
-    animals:{camel:bd_getValue("bd_animal_camel"),goat:bd_getValue("bd_animal_goat"),sheep:bd_getValue("bd_animal_sheep"),cow:bd_getValue("bd_animal_cow"),poultry:bd_getValue("bd_animal_poultry")},
-    financialDate:bd_getValue("bd_financialDate")};
-}
+function bd_collectBreederDataForUpdate(){ return bd_collectData(true); }
 
 async function bd_saveVaccination() {
   var phone=bd_getValue("bd_phoneInput");
@@ -5932,8 +5972,6 @@ function bd_hideLoading() {
 }
 
 function bd_init(){
-  bd_API_URL = window._activeApiUrl || "";
-
   var ov = document.getElementById("bd_pageLoadingOverlay");
   if (ov) {
     ov.style.display = "flex";
@@ -6028,14 +6066,16 @@ async function bd_analyzeInactive() {
   document.body.appendChild(modal);
 
   try {
-    var url = window._activeApiUrl || bd_API_URL;
-    if (!url) throw new Error('رابط الخدمة غير مُعدّ');
-
+    /* لا اتصال مباشر من هذه الصفحة — تُستدعى واجهة كل وحدة،
+       وهي بدورها توجّه الطلب إلى مصدره الصحيح */
     async function _callUrl(action, payload) {
-      var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-      var r = await fetch(url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:body, redirect:'follow' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return await r.json();
+      if (action.indexOf('tr') === 0 && typeof trcallApi === 'function')
+        return await trcallApi(action, payload);
+      if (action === 'searchVaccinationRecords' && typeof vaccCallApi === 'function')
+        return await vaccCallApi(action, payload);
+      if (action.indexOf('fo') === 0 && typeof focallApi === 'function')
+        return await focallApi(action, payload);
+      throw new Error('الوحدة المطلوبة غير محمّلة: ' + action);
     }
 
     /* ── ١. جلب كل المربين ── */
@@ -7777,22 +7817,18 @@ async function vr_saveToBreeder(r) {
   showToast('⏳ جاري حفظ البيانات...', 'info');
 
   try {
-    var res = await vr_callApi("bd_saveData", { data: {
-      phone:        r.phone        || '',
-      name:         r.name         || '',
-      region:       r.area         || '',
-      possession:   r.possession   ? ("'" + r.possession) : '',
-      civil:        r.civil        || '',
+    var res = await bd_callApi("bd_saveData", { data: {
+      phone:        r.phone      || '',
+      name:         r.name       || '',
+      region:       r.area       || '',
+      possession:   r.possession || '',
+      civil:        r.civil      || '',
       notes: (r.notes ? r.notes + ' | ' : '') + 'تم الإضافة من طلبات التحصين',
       animals: {
-        goat:    r.goat    || '',
-        sheep:   r.sheep   || '',
-        cow:     r.cow     || '',
-        camel:   r.camel   || '',
-        poultry: ''
+        goat:  r.goat  || '', sheep: r.sheep || '',
+        cow:   r.cow   || '', camel: r.camel || ''
       },
-      financialDate: r.financialDate || '',
-      dataEntry:     r.dataEntry    || 'نظام التحصين'
+      financialDate: r.financialDate || ''
     }});
 
     if (res.success) {
@@ -7960,8 +7996,8 @@ async function vr_bulkUpdateBreeders() {
 
   try {
     box.set(5, 'جاري جلب سجل المربين...');
-    var bdRes = await vr__api('bd_getAllBreeders');
-    if (!bdRes || !bdRes.success || !Array.isArray(bdRes.data))
+    var bdRes = await bd_callApi('bd_getAllBreeders');
+  if (!bdRes || !bdRes.success || !Array.isArray(bdRes.data))
       throw new Error('تعذّر جلب سجل المربين');
 
     var map = {};
@@ -8026,12 +8062,10 @@ async function vr_bulkUpdateBreeders() {
           phone:       ph,
           newPhone:    ph,
           name:        next.name,
-          possession:  "'" + next.possession,
+           possession:  next.possession,
           region:      next.region,
           civil:       next.civil,
           notes:       vr__txt(b.notes),
-          dataEntry:   vr__txt(b.dataEntry),
-          dataUpdater: updater,
           animals: {
             goat:    next.goat,
             sheep:   next.sheep,
@@ -8057,7 +8091,7 @@ async function vr_bulkUpdateBreeders() {
       var pct = 20 + Math.round((i / pending.length) * 75);
       box.set(pct, 'جاري تحديث ' + (i + 1) + ' من ' + pending.length + ' — ' + p.label);
       try {
-        var res = await vr__api('bd_updateData', { data: p.data });
+        var res = await bd_callApi('bd_updateData', { data: p.data });
         if (res && res.success) stats.success++;
         else {
           stats.failed++;
@@ -8078,8 +8112,6 @@ async function vr_bulkUpdateBreeders() {
     /* تحديث القوائم والكاش مرة واحدة فقط بعد انتهاء الدفعة */
     if (typeof bd_refreshDropdowns     === 'function') bd_refreshDropdowns();
     if (typeof globalRefreshPhoneLists === 'function') globalRefreshPhoneLists();
-    if (window.BreederCache && window.BreederCache.getState &&
-        window.BreederCache.getState().enabled) window.BreederCache.refreshCache();
     if (typeof syncBroadcast === 'function') syncBroadcast('breeder', 'bd_updateData');
 
   } catch (err) {
@@ -12584,8 +12616,6 @@ if (res && res.success && ["trsaveData","trupdateData","trdeleteData","trsaveTem
     syncBroadcast("treatment", action);
   }, 2000);
 }
-        if (["bd_saveData","bd_updateData","bd_deleteData","bd_saveVaccinationData","bd_updateVaccinationData","bd_deleteVaccinationData"].indexOf(action) !== -1)
-          syncBroadcast("breeder", action);
       }
       return res;
     };
@@ -12602,18 +12632,6 @@ if (res && res.success && ["trsaveData","trupdateData","trdeleteData","trsaveTem
       return res;
     };
     window.vaccCallApi._sw = true;
-  }
-
-  // bd_callApi
-  if (window.bd_callApi && !window.bd_callApi._sw) {
-    var _b = window.bd_callApi;
-    window.bd_callApi = async function(action, payload) {
-      var res = await _b.apply(this, arguments);
-      if (res && res.success && ["bd_saveData","bd_updateData","bd_deleteData","bd_saveVaccinationData","bd_updateVaccinationData","bd_deleteVaccinationData","bd_updatePossessionInTreatment"].indexOf(action) !== -1)
-        syncBroadcast("breeder", action);
-      return res;
-    };
-    window.bd_callApi._sw = true;
   }
 
   // focallApi
@@ -12635,801 +12653,25 @@ function tryWrap() {
   if (++_wrapAttempts < 3) setTimeout(tryWrap, 3000);
 }
 setTimeout(tryWrap, 1000);
-
-(function (global) {
+<script>
+(function () {
   "use strict";
-
-  /* ── الثوابت ── */
-  var CACHE_KEY         = "breeder_cache_v2";
-  var CACHE_META_KEY    = "breeder_cache_meta_v2";
-  var CACHE_ENABLED_KEY = "breeder_cache_enabled";
-  var CACHE_VERSION     = "2.3";
-
-  /*
-   * actions الخاصة بـ bd_callApi التي يجب أن يعترضها الكاش للقراءة
-   * أي action آخر يمر مباشرة للـ API الأصلي
-   */
-  var READ_OPS = [
-    "bd_getPhoneNumbers",
-    "bd_searchBreeders",
-    "bd_searchCaseData",
-    "bd_getRegionOptions",
-    "bd_getDataEntryOptions",
-  ];
-
-  /* actions الكتابة — تذهب للـ API ثم تُحدِّث الكاش */
-  var WRITE_OPS = [
-    "bd_saveData",
-    "bd_updateData",
-    "bd_deleteData",
-    "bd_saveVaccinationData",
-    "bd_updateVaccinationData",
-    "bd_deleteVaccinationData",
-    "bd_updatePossessionInTreatment",
-  ];
-
-  /* ── الحالة ── */
-  var state = {
-    enabled:       false,
-    loaded:        false,
-    loading:       false,
-    totalRows:     0,
-    lastUpdate:    null,
-    phoneMap:      {},
-    phoneList:     [],
-    regionList:    [],
-    dataEntryList: [],
-  };
-
-  /* مراجع الدوال الأصلية — تُحفظ مرة واحدة فقط */
-  var _origBdCallApi        = null;
-  var _origTrFetchBreeder   = null;
-  var _origVaccFetchBreeder = null;
-  var _origFoFetchBreeder   = null;
-  var _patched              = false;
-
-  /* ═══════════════════════════════════════════════════════════════
-     ١. مساعد آمن: أي قيمة → نص
-     ═══════════════════════════════════════════════════════════════ */
-  function ss(v) {
-    if (v === null || v === undefined) return "";
-    if (typeof v === "string") return v.trim();
-    return String(v).trim();
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٢. localStorage — حفظ / قراءة / مسح (مُجزَّأ)
-     ═══════════════════════════════════════════════════════════════ */
-  function storageSave(rows) {
-    try {
-      var json = JSON.stringify(rows);
-      var CS   = 500 * 1024;
-      var n    = Math.ceil(json.length / CS);
-      localStorage.setItem(CACHE_KEY + "_chunks", n);
-      for (var i = 0; i < n; i++)
-        localStorage.setItem(CACHE_KEY + "_" + i, json.slice(i * CS, (i + 1) * CS));
-      return true;
-    } catch (e) { console.warn("[Cache] حفظ فشل:", e.message); return false; }
-  }
-
-  function storageLoad() {
-    try {
-      var n = parseInt(localStorage.getItem(CACHE_KEY + "_chunks") || "0");
-      if (!n) return null;
-      var json = "";
-      for (var i = 0; i < n; i++) {
-        var p = localStorage.getItem(CACHE_KEY + "_" + i);
-        if (!p) return null;
-        json += p;
-      }
-      return JSON.parse(json);
-    } catch (e) { console.warn("[Cache] قراءة فشلت:", e.message); return null; }
-  }
-
-  function storageClear() {
-    try {
-      var n = parseInt(localStorage.getItem(CACHE_KEY + "_chunks") || "0");
-      for (var i = 0; i < n; i++) localStorage.removeItem(CACHE_KEY + "_" + i);
-      localStorage.removeItem(CACHE_KEY + "_chunks");
-      localStorage.removeItem(CACHE_META_KEY);
-    } catch (e) {}
-  }
-
-  function metaSave(m) { try { localStorage.setItem(CACHE_META_KEY, JSON.stringify(m)); } catch (e) {} }
-  function metaLoad()  {
-    try { var v = localStorage.getItem(CACHE_META_KEY); return v ? JSON.parse(v) : null; }
-    catch (e) { return null; }
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٣. حفظ المراجع الأصلية — يجب استدعاؤها بعد تحميل كل السكريبتات
-     ═══════════════════════════════════════════════════════════════ */
-  function saveOriginals() {
-    /*
-     * نحفظ فقط إذا لم نحفظ بعد، وإذا كانت الدالة الحالية ليست
-     * نسختنا المُعترَضة (للتحقق: الدوال الأصلية لا تحمل علامة _cachePatch)
-     */
-    if (!_origBdCallApi && typeof global.bd_callApi === "function") {
-      /* إذا كانت bd_callApi مُعترَضة بالفعل من syncWrapApiCalls، نحفظها كما هي —
-         لأنها ستستدعي الأصل الأعمق داخلياً */
-      _origBdCallApi = global.bd_callApi;
-      console.log("[Cache] تم حفظ bd_callApi الأصلية");
-    }
-    if (!_origTrFetchBreeder && typeof global.trfetchBreederData === "function") {
-      _origTrFetchBreeder = global.trfetchBreederData;
-    }
-    if (!_origVaccFetchBreeder && typeof global.vaccFetchBreederData === "function") {
-      _origVaccFetchBreeder = global.vaccFetchBreederData;
-    }
-    if (!_origFoFetchBreeder && typeof global.fofetchBreederData === "function") {
-      _origFoFetchBreeder = global.fofetchBreederData;
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٤. بناء فهرس الكاش
-     ═══════════════════════════════════════════════════════════════ */
-  function buildIndex(rows) {
-    state.phoneMap      = {};
-    state.phoneList     = [];
-    state.regionList    = [];
-    state.dataEntryList = [];
-    var rSet = {}, dSet = {};
-
-    for (var i = 0; i < rows.length; i++) {
-      var r     = rows[i];
-      var phone = ss(r.phone);
-      if (!phone) continue;
-
-      state.phoneMap[phone] = r;
-      state.phoneList.push(phone);
-
-      var reg = ss(r.region);
-      var de  = ss(r.dataEntry);
-      if (reg && !rSet[reg]) { rSet[reg] = true; state.regionList.push(reg); }
-      if (de  && !dSet[de])  { dSet[de]  = true; state.dataEntryList.push(de); }
-    }
-    state.totalRows = state.phoneList.length;
-    state.loaded    = true;
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٥. جلب البيانات من API وبناء الكاش
-        — يستخدم دائماً الدالة الأصلية المحفوظة (لا المُعترَضة)
-     ═══════════════════════════════════════════════════════════════ */
-  function fetchAndBuildCache(onProgress, onDone, onError) {
-    if (state.loading) return;
-
-    var apiFn = _origBdCallApi || global.bd_callApi;
-    if (typeof apiFn !== "function") {
-      if (onError) onError("دالة bd_callApi غير موجودة");
-      return;
-    }
-
-    state.loading = true;
-    updateUI("loading");
-    if (onProgress) onProgress(0, "جاري الاتصال بالخادم...");
-      apiFn("bd_getAllBreeders")
-      .then(function (res) {
-        if (!res || !res.success || !res.data)
-          throw new Error((res && res.message) ? res.message : "فشل جلب البيانات");
-
-        if (onProgress) onProgress(60, "جاري بناء الفهرس (" + res.data.length + " مربي)...");
-
-        buildIndex(res.data);
-        storageSave(res.data);
-
-        var now = new Date().toISOString();
-        state.lastUpdate = now;
-        metaSave({ lastUpdate: now, totalRows: state.totalRows, version: CACHE_VERSION });
-
-        if (onProgress) onProgress(100, "اكتمل الكاش ✓");
-        state.loading = false;
-        updateUI("ready");
-        if (onDone) onDone(state.totalRows);
-      })
-      .catch(function (err) {
-        state.loading = false;
-        updateUI(state.loaded ? "ready" : "idle");
-        if (onError) onError(err.message || String(err));
-      });
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٦. تحميل الكاش من localStorage
-     ═══════════════════════════════════════════════════════════════ */
-  function loadFromStorage() {
-    var rows = storageLoad();
-    if (!rows || !rows.length) return false;
-    try {
-      buildIndex(rows);
-      var meta = metaLoad();
-      if (meta) state.lastUpdate = meta.lastUpdate;
-      return true;
-    } catch (e) {
-      console.warn("[Cache] بناء الفهرس فشل:", e.message);
-      return false;
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٧. دوال البحث في الكاش
-     ═══════════════════════════════════════════════════════════════ */
-  function cacheGetByPhone(phone) {
-    return state.phoneMap[ss(phone)] || null;
-  }
-
-  function cacheGetPhoneNumbers() {
-    return { success: true, data: state.phoneList.slice() };
-  }
-
-  function cacheGetRegionOptions() {
-    return { success: true, data: state.regionList.slice() };
-  }
-
-  function cacheGetDataEntryOptions() {
-    return { success: true, data: state.dataEntryList.slice() };
-  }
-
-  function cacheGetBreederData(phone) {
-    var b = cacheGetByPhone(phone);
-    if (!b) return { success: false, message: "لم يتم العثور على المربي (كاش)" };
-    return {
-      success:    true,
-      name:       ss(b.name),
-      possession: ss(b.possession),
-      region:     ss(b.region),
-      civil:      ss(b.civil),
-      data: [ss(b.name), ss(b.possession), ss(b.region), ss(b.civil), ss(b.financialDate)],
-    };
-  }
-
-  function cacheGetBreederDataArray(phone) {
-    var b = cacheGetByPhone(phone);
-    if (!b) return { success: false, data: [] };
-    return { success: true, data: [ss(b.name), ss(b.possession), ss(b.region), ss(b.civil)] };
-  }
-
-  function cacheSearchBreeders(searchText) {
-    var q = ss(searchText).toLowerCase();
-    if (!q) return { success: true, data: [] };
-    var headers = ["رقم الهاتف","الاسم","رقم الحيازة","المنطقة","الرقم المدني","الملاحظات",
-                   "الإبل","ماعز","أغنام","أبقار","دجاج","تاريخ الحيازة","معدل البيانات","مدخل البيانات"];
-    var results = [headers];
-    for (var p in state.phoneMap) {
-      var b  = state.phoneMap[p];
-      var an = b.animals || {};
-      var row = [
-        ss(b.phone), ss(b.name), ss(b.possession), ss(b.region), ss(b.civil), ss(b.notes),
-        ss(an.camel), ss(an.goat), ss(an.sheep), ss(an.cow), ss(an.poultry),
-        ss(b.financialDate), ss(b.dataUpdater), ss(b.dataEntry),
-      ];
-      if (row.join(" ").toLowerCase().indexOf(q) !== -1) results.push(row);
-    }
-    return { success: true, data: results };
-  }
-
-  function cacheSearchCaseData(phone) {
-    var b = cacheGetByPhone(phone);
-    if (!b) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم (كاش)" };
-    var an = b.animals || {};
-    return {
-      success:       true,
-      phone:         ss(b.phone),
-      name:          ss(b.name),
-      possession:    ss(b.possession),
-      region:        ss(b.region),
-      civil:         ss(b.civil),
-      notes:         ss(b.notes),
-      financialDate: ss(b.financialDate),
-      dataEntry:     ss(b.dataEntry),
-      animals: {
-        camel:   ss(an.camel),
-        goat:    ss(an.goat),
-        sheep:   ss(an.sheep),
-        cow:     ss(an.cow),
-        poultry: ss(an.poultry),
-      },
-    };
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٨. اعتراض دوال التطبيق
-     ═══════════════════════════════════════════════════════════════ */
-/* ── تحديث صف مربي واحد في الكاش بعد نجاح الكتابة (بدون جلب من الخادم) ── */
-  function cacheApplyLocalWrite(action, payload) {
-    payload = payload || {};
-    var d     = payload.data || {};
-    var strip = function (v) { return ss(v).replace(/^'/, ""); };
-    var pick  = function (nu, old) { return (nu === undefined) ? ss(old) : ss(nu); };
-
-    function dropPhone(ph) {
-      if (!ph || !state.phoneMap[ph]) return;
-      delete state.phoneMap[ph];
-      var i = state.phoneList.indexOf(ph);
-      if (i !== -1) state.phoneList.splice(i, 1);
-    }
-
-    if (action === "bd_deleteData") {
-      dropPhone(ss(payload.phone));
-
-    } else if (action === "bd_saveData" || action === "bd_updateData") {
-      var oldPh = ss(d.phone);
-      var newPh = ss(d.newPhone) || oldPh;
-      if (!newPh) return;
-
-      var prev = state.phoneMap[oldPh] || {};
-      var pan  = prev.animals || {};
-      var nan  = d.animals    || {};
-
-      var row = {
-        phone:         newPh,
-        name:          pick(d.name,          prev.name),
-        possession:    (d.possession === undefined) ? ss(prev.possession) : strip(d.possession),
-        region:        pick(d.region,        prev.region),
-        civil:         pick(d.civil,         prev.civil),
-        notes:         pick(d.notes,         prev.notes),
-        financialDate: pick(d.financialDate, prev.financialDate),
-        dataEntry:     pick(d.dataEntry,     prev.dataEntry) || ss(prev.dataEntry),
-        dataUpdater:   pick(d.dataUpdater,   prev.dataUpdater) || ss(prev.dataUpdater),
-        animals: {
-          goat:    pick(nan.goat,    pan.goat),
-          sheep:   pick(nan.sheep,   pan.sheep),
-          cow:     pick(nan.cow,     pan.cow),
-          camel:   pick(nan.camel,   pan.camel),
-          poultry: pick(nan.poultry, pan.poultry)
-        }
-      };
-
-      if (oldPh && oldPh !== newPh) dropPhone(oldPh);
-      if (!state.phoneMap[newPh]) state.phoneList.push(newPh);
-      state.phoneMap[newPh] = row;
-
-      if (row.region    && state.regionList.indexOf(row.region)       === -1) state.regionList.push(row.region);
-      if (row.dataEntry && state.dataEntryList.indexOf(row.dataEntry) === -1) state.dataEntryList.push(row.dataEntry);
-
-    } else {
-      return; /* عمليات التحصين والحيازة لا تمس سجل المربي */
-    }
-
-    state.totalRows = state.phoneList.length;
-
-    var rows = [];
-    for (var p in state.phoneMap) rows.push(state.phoneMap[p]);
-    storageSave(rows);
-
-    var now = new Date().toISOString();
-    state.lastUpdate = now;
-    metaSave({ lastUpdate: now, totalRows: state.totalRows, version: CACHE_VERSION });
-
-    refreshAllPhoneDataLists();
-    updateUI("ready");
-    console.log("[Cache] ⚡ تحديث جزئي: " + action + " — " + state.totalRows + " مربي");
-  }
-
-  function patchAppFunctions() {
-    if (!state.enabled || !state.loaded) return;
-    if (!_origBdCallApi) {
-      console.warn("[Cache] لم يتم حفظ bd_callApi الأصلية — تعذّر تطبيق الكاش");
-      return;
-    }
-
-    /* ── bd_callApi ── */
-    global.bd_callApi = async function (action, payload) {
-      /* قراءة → من الكاش */
-      if (action === "bd_getPhoneNumbers")   return cacheGetPhoneNumbers();
-      if (action === "bd_getRegionOptions")  return cacheGetRegionOptions();
-      if (action === "bd_getDataEntryOptions") return cacheGetDataEntryOptions();
-      if (action === "bd_searchBreeders")    return cacheSearchBreeders(ss((payload || {}).searchText));
-      if (action === "bd_searchCaseData") {
-        var r = cacheSearchCaseData(ss((payload || {}).phone));
-        return r.success ? r : _origBdCallApi(action, payload);
-      }
-
-      /* كتابة → API + تحديث الكاش */
- global._localSyncChannel.onmessage = function (e) {
-  if (_origMsg) _origMsg.call(this, e);
-  if (e.data && e.data.topic === "breeder" && state.enabled) {
-    setTimeout(refreshAndRepatch, 2000);
-  }
-};
-
-      /* أي action آخر (بما فيها trget*, syncNotify، إلخ) → API مباشرة */
-      return _origBdCallApi(action, payload);
-    };
-    global.bd_callApi._cachePatch = true;
-
-    /* ── trfetchBreederData ── */
-    if (_origTrFetchBreeder) {
-      global.trfetchBreederData = async function (phone) {
-        var res = cacheGetBreederData(phone);
-        if (!res.success) return _origTrFetchBreeder.apply(this, arguments);
-
-        var safeSet = global.trsafeSet || function (id, v) {
-          var el = document.getElementById(id);
-          if (el) el.value = v != null ? v : "";
-        };
-        var ids = ["tr_nameInput","tr_possessionInput","tr_regionInput","tr_civilInput","tr_quickNotesInput"];
-        ids.forEach(function (id, i) {
-          var el = document.getElementById(id);
-          if (!el) return;
-          el.value = res.data[i] || "";
-          if (!el.value.trim()) {
-            el.style.backgroundColor = "#ffcccc";
-            el.style.borderColor = "#e65050";
-          } else {
-            el.style.backgroundColor = "";
-            el.style.borderColor = "";
-          }
-        });
-
-        if (typeof global.trcheckQuickNotesDate === "function") global.trcheckQuickNotesDate(res.data[4]);
-        if (typeof global.trcallApi === "function") {
-          global.trcallApi("trgetUnpaidCasesCount", { phone: phone })
-            .then(function (ucRes) {
-              if (typeof global.trsetSpecialNote === "function") {
-                global.trsetSpecialNote(
-                  (ucRes.success && ucRes.count > 0)
-                    ? "⛔ تم علاج " + ucRes.count + " حالات لهذا المربي دون وجود حيازة حيوانية."
-                    : ""
-                );
-              }
-            })
-            .catch(function () {});
-        }
-
-        if (typeof global.trcheckPhoneInRecords === "function") global.trcheckPhoneInRecords(phone);
-        if (typeof global.trunblockButtons === "function") global.trunblockButtons();
-        if (typeof global.trshowMessage === "function") global.trshowMessage("✅تم جلب بيانات المربي", false);
-        cacheShowBadge();
-      };
-      global.trfetchBreederData._cachePatch = true;
-    }
-
-    /* ── vaccFetchBreederData ── */
-    if (_origVaccFetchBreeder) {
-      global.vaccFetchBreederData = async function (phone) {
-        var res = cacheGetBreederData(phone);
-        if (!res.success) return _origVaccFetchBreeder.apply(this, arguments);
-        var safeSet = global.vaccSafeSet || function (id, v) {
-          var el = document.getElementById(id);
-          if (el) el.value = v != null ? v : "";
-        };
-        safeSet("vacc_nameInput",       res.name);
-        safeSet("vacc_possessionInput", res.possession);
-        safeSet("vacc_regionInput",     res.region);
-        safeSet("vacc_civilInput",      res.civil);
-        cacheShowBadge();
-      };
-      global.vaccFetchBreederData._cachePatch = true;
-    }
-
-    /* ── fofetchBreederData ── */
-    if (_origFoFetchBreeder) {
-      global.fofetchBreederData = async function (phone) {
-        var res = cacheGetBreederDataArray(phone);
-        if (!res.success) return _origFoFetchBreeder.apply(this, arguments);
-        ["nameInput","possessionInput","regionInput","civilInput"].forEach(function (id, i) {
-          var el = document.getElementById(id);
-          if (el) el.value = res.data[i] || "";
-        });
-        cacheShowBadge();
-      };
-      global.fofetchBreederData._cachePatch = true;
-    }
-
-    _patched = true;
-    console.log("[Cache] ✅ مُطبَّق — " + state.totalRows + " مربي");
-  }
-
-  function unpatchAppFunctions() {
-    if (_origBdCallApi)        global.bd_callApi          = _origBdCallApi;
-    if (_origTrFetchBreeder)   global.trfetchBreederData   = _origTrFetchBreeder;
-    if (_origVaccFetchBreeder) global.vaccFetchBreederData = _origVaccFetchBreeder;
-    if (_origFoFetchBreeder)   global.fofetchBreederData   = _origFoFetchBreeder;
-    _patched = false;
-    console.log("[Cache] ↩️ تم إلغاء الاعتراض — العودة لـ API مباشر");
-  }
-
-  /* ── تحديث الكاش وإعادة الاعتراض بعد عمليات الكتابة ── */
-function refreshAndRepatch() {
-  if (!state.enabled) return;
-  var apiFn = _origBdCallApi || global.bd_callApi;
-  if (typeof apiFn !== "function") return;
-
-  // ── رسالة انتظار ──
-  var waitOverlay = document.createElement("div");
-  waitOverlay.id = "cache-wait-overlay";
-  Object.assign(waitOverlay.style, {
-    position: "fixed", inset: "0",
-    background: "rgba(0,0,0,0.5)",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    zIndex: "99998", direction: "rtl"
-  });
-  waitOverlay.innerHTML =
-    '<div style="background:#fff;border-radius:14px;border:3px solid #00b8d9;' +
-    'padding:28px 40px;text-align:center;font-family:Tahoma,Arial;' +
-    'box-shadow:0 8px 30px rgba(0,0,0,.25);min-width:260px;">' +
-    '<div style="width:48px;height:48px;border:5px solid #e0e0e0;' +
-    'border-top:5px solid #00b8d9;border-radius:50%;' +
-    'animation:spin 1s linear infinite;margin:0 auto 16px;"></div>' +
-    '<div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:8px;">⏳ جاري تحديث الكاش...</div>' +
-    '<div style="font-size:12px;color:#666;">الرجاء الانتظار حتى تصبح البيانات متاحة</div>' +
-    '</div>';
-  document.body.appendChild(waitOverlay);
-
-  function removeWaitOverlay() {
-    var el = document.getElementById("cache-wait-overlay");
-    if (el) {
-      el.style.transition = "opacity 0.3s ease";
-      el.style.opacity = "0";
-      setTimeout(function() { if (el.parentNode) el.remove(); }, 300);
-    }
-  }
-
-  state.loading = true;
-  setProgress(0, "جاري تحديث الكاش...");
-  var prog = document.getElementById("cache-prog");
-  if (prog) prog.style.display = "block";
-  var csState = document.getElementById("cs-state");
-  if (csState) csState.textContent = "يتحدث...";
-  var spill = document.getElementById("cache-spill");
-  var sText = document.getElementById("cache-spill-txt");
-  if (spill) spill.className = spill.className.replace(/\b(idle|loading|ready|off)\b/g, "").trim() + " loading";
-  if (sText) sText.textContent = "جاري التحديث...";
-
-  apiFn("bd_getAllBreeders")
-    .then(function (res) {
-      if (!res || !res.success || !res.data) {
-        state.loading = false;
-        var prog2 = document.getElementById("cache-prog");
-        if (prog2) prog2.style.display = "none";
-        removeWaitOverlay();
-        updateUI("ready");
-        return;
-      }
-      buildIndex(res.data);
-      storageSave(res.data);
-      var now = new Date().toISOString();
-      state.lastUpdate = now;
-      metaSave({ lastUpdate: now, totalRows: state.totalRows, version: CACHE_VERSION });
-      console.log("[Cache] تحديث بعد كتابة ✓ " + state.totalRows + " مربي");
-      state.loading = false;
-      removeWaitOverlay();
-      showToast("✅ تم تحديث الكاش — البيانات جاهزة الآن", "success");
-      updateUI("ready");
-      refreshAllPhoneDataLists();
-      setTimeout(refreshAllPhoneDataLists, 400);
-
-      setTimeout(function() {
-        var dl = document.getElementById("bd_phoneList");
-        if (!dl) return;
-        var phones = state.phoneList.slice().sort();
-        dl.innerHTML = "";
-        phones.forEach(function(v) {
-          var o = document.createElement("option");
-          o.value = v;
-          dl.appendChild(o);
-        });
-        var inp = document.getElementById("bd_phoneInput");
-        if (inp) {
-          inp.removeAttribute("list");
-          setTimeout(function() { inp.setAttribute("list", "bd_phoneList"); }, 50);
-        }
-      }, 600);
-    })
-.catch(function (e) {
-      console.warn("[Cache] تحديث بعد كتابة فشل:", e);
-      state.loading = false;
-      removeWaitOverlay();
-      updateUI("ready");
-    });
-}
-  /* ── تحديث datalists الهاتف في جميع الصفحات ── */
-  function refreshAllPhoneDataLists() {
-    var phones      = state.phoneList.slice().sort();
-    var regions     = state.regionList.slice().sort();
-    var dataEntries = state.dataEntryList.slice().sort();
-
-    /* ── مساعد: يملأ datalist ويُعيد ربطه بالـ input لإجبار المتصفح على التحديث ── */
-    function fillAndRebind(listId, inputId, items) {
-      var dl = document.getElementById(listId);
-      if (!dl) return;
-
-      /* الطريقة الوحيدة الموثوقة: افصل الـ datalist عن الـ input ثم أعده */
-      var inp = inputId ? document.getElementById(inputId) : null;
-      if (inp) inp.removeAttribute("list");
-
-      dl.innerHTML = "";
-      items.forEach(function (v) {
-        var o = document.createElement("option");
-        o.value = v;
-        dl.appendChild(o);
-      });
-
-      /* أعد الربط في الـ tick التالي حتى يلتقطه المتصفح */
-      if (inp) {
-        setTimeout(function () { inp.setAttribute("list", listId); }, 0);
-      }
-    }
-
-    /* قوائم الهاتف */
-    fillAndRebind("bd_phoneList",   "bd_phoneInput", phones);
-    fillAndRebind("tr_phoneList",   "tr_phoneInput", phones);
-    fillAndRebind("vacc_phoneList", "vacc_phoneInput", phones);
-    fillAndRebind("phoneList",      "phoneInput", phones);
-
-    /* المناطق ومدخلو البيانات في سجل المربي */
-    fillAndRebind("bd_regionList",     "bd_regionInput",    regions);
-    fillAndRebind("bd_dataEntryList",  "bd_dataEntryInput", dataEntries);
-    fillAndRebind("bd_dataUpdaterList","bd_dataUpdaterInput", dataEntries);
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ٩. شارة الكاش
-     ═══════════════════════════════════════════════════════════════ */
-  var _badgeTimer = null;
-  function cacheShowBadge() {
-    var b = document.getElementById("cache-hit-badge");
-    if (!b) return;
-    b.style.opacity   = "1";
-    b.style.transform = "translateX(-50%) translateY(0)";
-    if (_badgeTimer) clearTimeout(_badgeTimer);
-    _badgeTimer = setTimeout(function () {
-      b.style.opacity   = "0";
-      b.style.transform = "translateX(-50%) translateY(-6px)";
-    }, 2000);
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ١٠. واجهة المستخدم
-     ═══════════════════════════════════════════════════════════════ */
-  function createUI() {
-    var style = document.createElement("style");
-    style.textContent =
-      "#cache-fab{position:fixed;bottom:55px;left:12px;width:52px;height:52px;border-radius:50%;" +
-      "background:linear-gradient(135deg,#00b8d9,#0077a8);color:#fff;border:none;cursor:pointer;" +
-      "font-size:20px;display:flex;align-items:center;justify-content:center;" +
-      "box-shadow:0 4px 16px rgba(0,184,217,.45);z-index:9998;transition:transform .2s,box-shadow .2s;" +
-      "font-family:Tahoma,Arial,sans-serif;}" +
-      "#cache-fab:hover{transform:scale(1.12);box-shadow:0 6px 20px rgba(0,184,217,.6);}" +
-      ".cache-fab-dot{position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;" +
-      "background:#2bb673;border:2px solid #fff;display:none;}" +
-      "#cache-fab.active .cache-fab-dot{display:block;}" +
-      "#cache-panel{position:fixed;bottom:115px;left:12px;width:310px;background:#fff;" +
-      "border-radius:14px;border:3px solid #00b8d9;box-shadow:0 12px 40px rgba(0,0,0,.22);" +
-      "z-index:9997;font-family:Tahoma,Arial,sans-serif;direction:rtl;transform-origin:bottom left;" +
-      "transform:scale(0);opacity:0;transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .2s ease;overflow:hidden;}" +
-      "#cache-panel.open{transform:scale(1);opacity:1;}" +
-      "#cache-ph{background:linear-gradient(135deg,#00b8d9,#006480);color:#fff;padding:12px 14px;" +
-      "display:flex;align-items:center;justify-content:space-between;}" +
-      "#cache-ph h4{margin:0;font-size:13px;}" +
-      "#cache-pb{padding:14px;}" +
-      ".ct-row{display:flex;align-items:center;justify-content:space-between;" +
-      "background:#f0fafe;border:1px solid #b3e5fc;border-radius:8px;padding:10px 12px;margin-bottom:12px;}" +
-      ".ct-label{font-size:13px;font-weight:bold;color:#004e66;}" +
-      ".ct-sw{position:relative;width:44px;height:24px;flex-shrink:0;}" +
-      ".ct-sw input{opacity:0;width:0;height:0;}" +
-      ".ct-sl{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:24px;transition:.3s;}" +
-      ".ct-sl::before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;" +
-      "background:#fff;border-radius:50%;transition:.3s;}" +
-      "input:checked + .ct-sl{background:#00b8d9;}" +
-      "input:checked + .ct-sl::before{transform:translateX(20px);}" +
-      "#cache-stats{background:#f8f8f8;border-radius:8px;padding:10px 12px;margin-bottom:12px;" +
-      "font-size:12px;color:#444;line-height:1.9;}" +
-      "#cache-stats .cs-row{display:flex;justify-content:space-between;}" +
-      "#cache-stats .cs-val{font-weight:bold;color:#006480;}" +
-      "#cache-prog{display:none;margin-bottom:10px;}" +
-      "#cache-prog-bg{background:#e0e0e0;border-radius:20px;height:8px;overflow:hidden;margin-bottom:5px;}" +
-      "#cache-prog-bar{height:100%;background:linear-gradient(90deg,#00b8d9,#2bb673);" +
-      "border-radius:20px;width:0%;transition:width .4s ease;}" +
-      "#cache-prog-txt{font-size:11px;color:#555;text-align:center;}" +
-      ".cb-row{display:flex;gap:8px;margin-top:4px;}" +
-      ".cb{flex:1;padding:8px 0;border:none;border-radius:7px;font-size:12px;font-weight:bold;" +
-      "cursor:pointer;font-family:Tahoma,Arial,sans-serif;transition:all .2s;}" +
-      ".cb:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.15);}" +
-      ".cb:disabled{opacity:.5;cursor:not-allowed;transform:none;}" +
-      ".cb-load{background:#00b8d9;color:#fff;}" +
-      ".cb-ref{background:#2bb673;color:#fff;}" +
-      ".cb-clr{background:#e65050;color:#fff;}" +
-      "#cache-hit-badge{position:fixed;top:14px;right:50%;transform:translateX(50%) translateY(-6px);" +
-      "background:#00b8d9;color:#fff;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:bold;" +
-      "font-family:Tahoma,Arial,sans-serif;z-index:99999;opacity:0;" +
-      "transition:opacity .3s,transform .3s;pointer-events:none;}" +
-      "#cache-spill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;" +
-      "border-radius:20px;font-size:11px;font-weight:bold;margin-bottom:10px;}" +
-      "#cache-spill.idle{background:#f0f0f0;color:#888;}" +
-      "#cache-spill.loading{background:#fff3cd;color:#856404;}" +
-      "#cache-spill.ready{background:#d4edda;color:#155724;}" +
-      "#cache-spill.off{background:#f8d7da;color:#721c24;}" +
-      ".cd{width:7px;height:7px;border-radius:50%;flex-shrink:0;}" +
-      ".idle .cd{background:#aaa;}" +
-      ".loading .cd{background:#ffc107;animation:cPulse .7s infinite;}" +
-      ".ready .cd{background:#28a745;}" +
-      ".off .cd{background:#dc3545;}" +
-      "@keyframes cPulse{0%,100%{opacity:1;}50%{opacity:.3;}}";
-    document.head.appendChild(style);
-
-    var fab = document.createElement("button");
-    fab.id = "cache-fab";
-    fab.title = "نظام كاش المربين";
-    fab.innerHTML = '💾<span class="cache-fab-dot"></span>';
-    fab.onclick = togglePanel;
-    document.body.appendChild(fab);
-/* دائرة الصورة فوق زر الكاش */
-    var fabImg = document.createElement("div");
-    fabImg.id = "cache-fab-img";
-    fabImg.style.cssText =
-      "position:fixed;bottom:112px;left:12px;width:52px;height:52px;" +
-      "border-radius:50%;overflow:hidden;border:3px solid #00b8d9;" +
-      "box-shadow:0 4px 12px rgba(0,184,217,.4);z-index:9998;background:#fff;";
-    fabImg.innerHTML =
-      '<img src="https://drive.google.com/thumbnail?id=1SCikSeDL7RJvNZ9Zo52S2P0DIA1gMHoj&sz=w1000" ' +
-      'style="width:100%;height:100%;object-fit:cover;display:block;" alt="">';
-    fabImg.style.cursor = "pointer";
-    fabImg.title = "معلومات المصمم";
-    fabImg.onclick = showDesignerInfoModal;
-    document.body.appendChild(fabImg);
-    var fabImgPrintStyle = document.createElement("style");
-fabImgPrintStyle.innerHTML = "@media print { #cache-fab-img { display: none !important; } }";
-document.head.appendChild(fabImgPrintStyle);
-    var badge = document.createElement("div");
-    badge.id = "cache-hit-badge";
-    badge.textContent = "⚡ من الكاش";
-    document.body.appendChild(badge);
-
-    var panel = document.createElement("div");
-    panel.id = "cache-panel";
-    panel.innerHTML =
-      '<div id="cache-ph">' +
-        '<h4>💾 كاش بيانات المربين</h4>' +
-        '<button onclick="window.BreederCache.closePanel()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:13px;">✕</button>' +
-      '</div>' +
-      '<div id="cache-pb">' +
-        '<div id="cache-spill" class="idle"><span class="cd"></span><span id="cache-spill-txt">غير مُفعّل</span></div>' +
-        '<div class="ct-row">' +
-          '<span class="ct-label">تفعيل نظام الكاش</span>' +
-          '<label class="ct-sw">' +
-            '<input type="checkbox" id="cache-toggle" onchange="window.BreederCache.onToggle(this.checked)">' +
-            '<span class="ct-sl"></span>' +
-          '</label>' +
-        '</div>' +
-        '<div id="cache-stats">' +
-          '<div class="cs-row"><span>الحالة:</span><span class="cs-val" id="cs-state">—</span></div>' +
-          '<div class="cs-row"><span>عدد المربين:</span><span class="cs-val" id="cs-count">—</span></div>' +
-          '<div class="cs-row"><span>آخر تحديث:</span><span class="cs-val" id="cs-update">—</span></div>' +
-          '<div class="cs-row"><span>وضع الجلب:</span><span class="cs-val" id="cs-mode">API مباشر</span></div>' +
-        '</div>' +
-        '<div id="cache-prog">' +
-          '<div id="cache-prog-bg"><div id="cache-prog-bar"></div></div>' +
-          '<div id="cache-prog-txt">جاري التحميل...</div>' +
-        '</div>' +
-        '<div class="cb-row">' +
-          '<button class="cb cb-load" id="cb-load" onclick="window.BreederCache.loadCache()">⬇️ تحميل</button>' +
-          '<button class="cb cb-ref"  id="cb-ref"  onclick="window.BreederCache.refreshCache()">🔄 تحديث</button>' +
-          '<button class="cb cb-clr"  id="cb-clr"  onclick="window.BreederCache.clearCache()">🗑️ مسح</button>' +
-        '</div>' +
-        '<div style="margin-top:10px;font-size:10px;color:#888;text-align:center;line-height:1.6;">' +
-          'القراءة من الكاش | الكتابة دائماً للخادم' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(panel);
-  }
-
-  var _panelOpen = false;
-  function togglePanel() {
-    _panelOpen = !_panelOpen;
-    var p = document.getElementById("cache-panel");
-    if (p) p.classList[_panelOpen ? "add" : "remove"]("open");
-  }
-function showDesignerInfoModal() {
-    var existing = document.getElementById("designer-info-modal");
-    if (existing) { existing.remove(); return; }
-
-    var overlay = document.createElement("div");
-    overlay.id = "designer-info-modal";
-    overlay.className = "custom-modal";
-    overlay.innerHTML =
+  /* تنظيف بقايا الكاش القديم */
+  try {
+    var n = parseInt(localStorage.getItem("breeder_cache_v2_chunks") || "0", 10);
+    for (var i = 0; i < n; i++) localStorage.removeItem("breeder_cache_v2_" + i);
+    localStorage.removeItem("breeder_cache_v2_chunks");
+    localStorage.removeItem("breeder_cache_meta_v2");
+    localStorage.removeItem("breeder_cache_enabled");
+  } catch (e) {}
+
+  function showDesignerInfoModal() {
+    var old = document.getElementById("designer-info-modal");
+    if (old) { old.remove(); return; }
+    var ov = document.createElement("div");
+    ov.id = "designer-info-modal";
+    ov.className = "custom-modal";
+    ov.innerHTML =
       '<div class="modal-box" style="max-width:380px;">' +
         '<div style="font-size:50px;margin-bottom:10px;">🧑‍💻</div>' +
         '<h3 style="color:#00b8d9;margin-bottom:14px;">صُمِّم بواسطة</h3>' +
@@ -13440,284 +12682,36 @@ function showDesignerInfoModal() {
           '<div>🏢 <strong>جهة العمل:</strong> دائرة الثروة الحيوانية</div>' +
         '</div>' +
         '<div class="modal-buttons" style="margin-top:18px;">' +
-          '<button class="confirm-btn" onclick="document.getElementById(\'designer-info-modal\').remove()">' +
-          'إغلاق</button>' +
+          '<button class="confirm-btn" onclick="document.getElementById(\'designer-info-modal\').remove()">إغلاق</button>' +
         '</div>' +
       '</div>';
-    overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
-    document.body.appendChild(overlay);
-  }
-  /* ═══════════════════════════════════════════════════════════════
-     ١١. تحديث حالة الواجهة
-     ═══════════════════════════════════════════════════════════════ */
-  function updateUI(status) {
-    var spill = document.getElementById("cache-spill");
-    var sText = document.getElementById("cache-spill-txt");
-    var fab   = document.getElementById("cache-fab");
-    var prog  = document.getElementById("cache-prog");
-    if (!spill) return;
-
-    spill.className = "#cache-spill idle loading ready off".split(" ").reduce(function (c, s) {
-      return c.replace(new RegExp("\\b" + s + "\\b", "g"), "");
-    }, spill.className).trim() + " " + status;
-
-    var labels = { idle: "غير محمّل", loading: "جاري التحميل...", ready: "جاهز ✓", off: "غير مفعّل" };
-    if (sText) sText.textContent = labels[status] || status;
-
-    var csState  = document.getElementById("cs-state");
-    var csCount  = document.getElementById("cs-count");
-    var csUpdate = document.getElementById("cs-update");
-    var csMode   = document.getElementById("cs-mode");
-    var btnLoad  = document.getElementById("cb-load");
-    var btnRef   = document.getElementById("cb-ref");
-    var btnClr   = document.getElementById("cb-clr");
-
-    if (status === "loading") {
-      if (csState) csState.textContent = "يتحمل...";
-      if (btnLoad) { btnLoad.disabled = true;  btnLoad.textContent = "⏳ ..."; }
-      if (btnRef)  btnRef.disabled = true;
-      if (btnClr)  btnClr.disabled = true;
-      if (prog)    prog.style.display = "block";
-    } else if (status === "ready") {
-      if (csState)  csState.textContent  = state.enabled ? "نشط ✅" : "محمّل (غير مفعّل)";
-      if (csCount)  csCount.textContent  = state.totalRows.toLocaleString("ar-SA") + " مربي";
-      if (csUpdate && state.lastUpdate) {
-        var d = new Date(state.lastUpdate);
-        csUpdate.textContent = d.toLocaleDateString("ar-SA") + " " + d.toLocaleTimeString("ar-SA");
-      }
-      if (csMode)  csMode.textContent = state.enabled ? "⚡ كاش محلي" : "API مباشر";
-      if (fab) state.enabled ? fab.classList.add("active") : fab.classList.remove("active");
-      if (btnLoad) { btnLoad.disabled = false; btnLoad.textContent = "⬇️ تحميل"; }
-      if (btnRef)  btnRef.disabled = false;
-      if (btnClr)  btnClr.disabled = false;
-      if (prog)    prog.style.display = "none";
-    } else {
-      if (csState) csState.textContent = "—";
-      if (csMode)  csMode.textContent  = "API مباشر";
-      if (fab)     fab.classList.remove("active");
-      if (btnLoad) { btnLoad.disabled = false; btnLoad.textContent = "⬇️ تحميل"; }
-      if (btnRef)  btnRef && (btnRef.disabled = true);
-      if (prog)    prog.style.display = "none";
-    }
+    ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
   }
 
-  function setProgress(pct, msg) {
-    var bar = document.getElementById("cache-prog-bar");
-    var txt = document.getElementById("cache-prog-txt");
-    if (bar) bar.style.width = pct + "%";
-    if (txt) txt.textContent = msg || "";
+  function build() {
+    if (document.getElementById("cache-fab-img")) return;
+    var d = document.createElement("div");
+    d.id = "cache-fab-img";
+    d.style.cssText =
+      "position:fixed;bottom:55px;left:12px;width:52px;height:52px;" +
+      "border-radius:50%;overflow:hidden;border:3px solid #00b8d9;" +
+      "box-shadow:0 4px 12px rgba(0,184,217,.4);z-index:9998;background:#fff;cursor:pointer;";
+    d.title = "معلومات المصمم";
+    d.innerHTML =
+      '<img src="https://drive.google.com/thumbnail?id=1SCikSeDL7RJvNZ9Zo52S2P0DIA1gMHoj&sz=w1000" ' +
+      'style="width:100%;height:100%;object-fit:cover;display:block;" alt="">';
+    d.onclick = showDesignerInfoModal;
+    document.body.appendChild(d);
+    var st = document.createElement("style");
+    st.innerHTML = "@media print { #cache-fab-img { display:none !important; } }";
+    document.head.appendChild(st);
   }
 
-  /* ═══════════════════════════════════════════════════════════════
-     ١٢. تفعيل / تعطيل
-     ═══════════════════════════════════════════════════════════════ */
-  function enableCache(fetchIfEmpty) {
-    state.enabled = true;
-    localStorage.setItem(CACHE_ENABLED_KEY, "true");
-
-    if (!state.loaded) {
-      var ok = loadFromStorage();
-      if (!ok && fetchIfEmpty !== false) {
-        fetchAndBuildCache(
-          function (p, m) { setProgress(p, m); updateUI("loading"); },
-          function (n) {
-            patchAppFunctions();
-            updateUI("ready");
-            refreshAllPhoneDataLists();
-            if (global.showToast) global.showToast("✅ تم تحميل كاش " + n + " مربي", "success");
-          },
-          function (err) {
-            state.enabled = false;
-            localStorage.setItem(CACHE_ENABLED_KEY, "false");
-            var inp = document.getElementById("cache-toggle");
-            if (inp) inp.checked = false;
-            updateUI("off");
-            if (global.showToast) global.showToast("❌ فشل تحميل الكاش: " + err, "error");
-          }
-        );
-        return;
-      }
-    }
-
-    patchAppFunctions();
-    updateUI("ready");
-    refreshAllPhoneDataLists();
-  }
-
-  function disableCache() {
-    state.enabled = false;
-    localStorage.setItem(CACHE_ENABLED_KEY, "false");
-    unpatchAppFunctions();
-    updateUI(state.loaded ? "ready" : "idle");
-    if (global.showToast) global.showToast("⚠️ الكاش مُعطَّل — العودة لـ API مباشر", "warning");
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     ١٣. الواجهة العامة
-     ═══════════════════════════════════════════════════════════════ */
-  global.BreederCache = {
-    onToggle: function (checked) { checked ? enableCache(true) : disableCache(); },
-
-    loadCache: function () {
-      if (state.loading) return;
-      var inp = document.getElementById("cache-toggle");
-      if (inp && !inp.checked) {
-        if (global.showToast) global.showToast("⚠️ فعّل الكاش أولاً ثم اضغط تحميل", "warning");
-        return;
-      }
-      fetchAndBuildCache(
-        function (p, m) { setProgress(p, m); updateUI("loading"); },
-        function (n) {
-          if (state.enabled) { patchAppFunctions(); refreshAllPhoneDataLists(); }
-          updateUI("ready");
-          if (global.showToast) global.showToast("✅ تم تحميل " + n + " مربي", "success");
-        },
-        function (err) {
-          updateUI(state.loaded ? "ready" : "idle");
-          if (global.showToast) global.showToast("❌ " + err, "error");
-        }
-      );
-    },
-
-    refreshCache: function () {
-      if (state.loading) return;
-      if (global.showToast) global.showToast("⏳ جاري تحديث الكاش...", "info");
-
-      var apiFn = _origBdCallApi || global.bd_callApi;
-      if (typeof apiFn !== "function") {
-        if (global.showToast) global.showToast("❌ دالة API غير موجودة", "error");
-        return;
-      }
-
-      state.loading = true;
-      updateUI("loading");
-
-      apiFn("bd_getAllBreeders")
-        .then(function (res) {
-          if (!res || !res.success || !res.data)
-            throw new Error((res && res.message) || "فشل جلب البيانات");
-          buildIndex(res.data);
-          storageSave(res.data);
-          var now = new Date().toISOString();
-          state.lastUpdate = now;
-          metaSave({ lastUpdate: now, totalRows: state.totalRows, version: CACHE_VERSION });
-          state.loading = false;
-          updateUI("ready");
-          refreshAllPhoneDataLists();
-          if (state.enabled) patchAppFunctions();
-        if (global.showToast) global.showToast("✅ تم تحديث بيانات الكاش بنجاح (" + state.totalRows + " مربي)", "success");
-        })
-        .catch(function (err) {
-          state.loading = false;
-          updateUI(state.loaded ? "ready" : "idle");
-          if (global.showToast) global.showToast("❌ فشل التحديث: " + (err.message || err), "error");
-        });
-    },
-
-    clearCache: function () {
-      var modal = document.createElement("div");
-      modal.className = "custom-modal";
-      modal.innerHTML =
-        '<div class="modal-box">' +
-          '<h3>⚠️ مسح الكاش</h3>' +
-          '<p>سيتم حذف بيانات المربين المحفوظة محلياً.<br>هل أنت متأكد؟</p>' +
-          '<div class="modal-buttons">' +
-            '<button class="confirm-btn" onclick="window.BreederCache._doClear();this.closest(\'.custom-modal\').remove()">نعم، امسح</button>' +
-            '<button class="cancel-btn" onclick="this.closest(\'.custom-modal\').remove()">إلغاء</button>' +
-          '</div>' +
-        '</div>';
-      document.body.appendChild(modal);
-    },
-
-    _doClear: function () {
-      storageClear();
-      state.loaded     = false;
-      state.phoneMap   = {};
-      state.phoneList  = [];
-      state.totalRows  = 0;
-      state.lastUpdate = null;
-      unpatchAppFunctions();
-      if (state.enabled) {
-        state.enabled = false;
-        localStorage.setItem(CACHE_ENABLED_KEY, "false");
-        var inp = document.getElementById("cache-toggle");
-        if (inp) inp.checked = false;
-      }
-      updateUI("idle");
-      if (global.showToast) global.showToast("🗑️ تم مسح الكاش", "success");
-    },
-
-    closePanel: function () {
-      _panelOpen = false;
-      var p = document.getElementById("cache-panel");
-      if (p) p.classList.remove("open");
-    },
-
-getState:      function () { return { enabled: state.enabled, loaded: state.loaded, totalRows: state.totalRows }; },
-    applyLocalWrite: function (action, payload) {
-      if (!state.loaded) return;
-      try { cacheApplyLocalWrite(action, payload); } catch (e) { console.warn("[Cache]", e.message); }
-    },    searchByPhone: cacheGetByPhone,
-  };
-
-  /* ═══════════════════════════════════════════════════════════════
-     ١٤. التهيئة — تأجيل حتى بعد تحميل كل السكريبتات
-     ═══════════════════════════════════════════════════════════════ */
-  function init() {
-    createUI();
-
-    /*
-     * نحفظ المراجع الأصلية هنا — بعد تحميل جميع السكريبتات
-     * بما فيها syncWrapApiCalls التي قد تُعدّل bd_callApi
-     * نستخدم setTimeout(0) إضافية لضمان تشغيل syncWrapApiCalls أولاً
-     */
-    setTimeout(function () {
-      saveOriginals();
-
-      var savedEnabled = localStorage.getItem(CACHE_ENABLED_KEY) === "true";
-      var inp = document.getElementById("cache-toggle");
-
-      if (savedEnabled) {
-        if (inp) inp.checked = true;
-        var ok = loadFromStorage();
-        if (ok) {
-          state.enabled = true;
-          patchAppFunctions();
-          updateUI("ready");
-          refreshAllPhoneDataLists();
-          console.log("[Cache] ✅ استُعيد من localStorage (" + state.totalRows + " مربي)");
-        } else {
-          enableCache(true);
-        }
-      } else {
-        updateUI("idle");
-      }
-
-      /* مزامنة BroadcastChannel */
-      try {
-        if (global._localSyncChannel) {
-          var _origMsg = global._localSyncChannel.onmessage;
-          global._localSyncChannel.onmessage = function (e) {
-            if (_origMsg) _origMsg.call(this, e);
-            if (e.data && e.data.topic === "breeder" && state.enabled) {
-              setTimeout(refreshAndRepatch, 2000);
-            }
-          };
-        }
-      } catch (e) {}
-
-    }, 200); /* تأجير قصير بعد window.load لضمان تشغيل syncWrapApiCalls */
-  }
-
-  /* تشغيل بعد window load — ليس DOMContentLoaded — لضمان تنفيذ كل السكريبتات */
-  if (document.readyState === "complete") {
-    setTimeout(init, 100);
-  } else {
-    global.addEventListener("load", function () { setTimeout(init, 100); });
-  }
-
-})(window);
-
+  if (document.readyState === "complete") build();
+  else window.addEventListener("load", build);
+})();
+</script>
 
 (function() {
   "use strict";
@@ -14502,12 +13496,13 @@ window.addEventListener('beforeunload', function() {
   var PREFIX = 'static_lists_v1_';
 
   var MAP = {
-    phones:      ['bd_phoneList','tr_phoneList','vacc_phoneList','phoneList'],
+    /* قوائم المربي (هواتف/مناطق/مدخلو البيانات) مصدرها Supabase — لا تُكتب هنا */
+    phones:      ['tr_phoneList','vacc_phoneList','phoneList'],
     diseases:    ['tr_diseaseList'],
     drugs:       ['tr_drugList'],
-    regions:     ['bd_regionList'],
-    dataEntry:   ['tr_dataEntryList','tr_dataUpdaterList','bd_dataEntryList',
-                  'bd_dataUpdaterList','vacc_dataEntryList','vacc_dataUpdaterList',
+    regions:     [],
+    dataEntry:   ['tr_dataEntryList','tr_dataUpdaterList',
+                  'vacc_dataEntryList','vacc_dataUpdaterList',
                   'dataEntryList','dataUpdaterList'],
     tests:       ['testList'],
     sampleTypes: ['sampleTypeList']
@@ -14592,8 +13587,7 @@ window.addEventListener('beforeunload', function() {
   }
 
   function patchAll() {
-    ['trloadDropdowns','bd_refreshDropdowns','vaccLoadDropdowns','foloadDropdowns']
-      .forEach(patchSkip);
+ ['trloadDropdowns','vaccLoadDropdowns','foloadDropdowns'].forEach(patchSkip);
 
     /* بعد أي تعديل على المربين — تحديث فوري بدل التخطّي */
     if (typeof global.globalRefreshPhoneLists === 'function' &&
@@ -14956,7 +13950,9 @@ global.fetch = function (input, init) {
   var HANDLED = [
     "bd_getPhoneNumbers", "bd_getRegionOptions", "bd_getDataEntryOptions",
     "bd_searchBreeders",  "bd_searchCaseData",   "bd_getAllBreeders",
-    "bd_saveData",        "bd_updateData",       "bd_deleteData"
+    "bd_saveData",        "bd_updateData",       "bd_deleteData",
+    "bd_updatePossessionInTreatment",
+    "bd_saveVaccinationData", "bd_updateVaccinationData", "bd_deleteVaccinationData"
   ];
 
   /* ── أدوات ────────────────────────────────────────────────────── */
@@ -15241,6 +14237,33 @@ global.fetch = function (input, init) {
           }
           return { success: true, message: "تم الحذف" };
         });
+    }
+
+     /* ١٠) تحديث رقم الحيازة في جميع حالات العلاج لهذا المربي */
+    if (action === "bd_updatePossessionInTreatment") {
+      var poss = strip(payload.possession);
+      return sb.from("breeders").select("id").eq("phone", txt(payload.phone)).maybeSingle()
+        .then(function (r) {
+          if (r.error) throw r.error;
+          if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
+          return sb.from("treatment_cases")
+            .update({ possession_no_snapshot: poss,
+                      updated_by: me.id,
+                      updated_at: new Date().toISOString() })
+            .eq("breeder_id", r.data.id).select("id")
+            .then(function (u) {
+              if (u.error) throw u.error;
+              return { success: true, updatedCount: (u.data || []).length };
+            });
+        });
+    }
+
+    /* ١١) طلبات التحصين — لم يُنقل جدولها بعد */
+    if (action.indexOf("bd_") === 0 && action.indexOf("Vaccination") > 0) {
+      return Promise.resolve({
+        success: false,
+        message: "سجل طلبات التحصين لم يُنقل بعد إلى قاعدة البيانات الجديدة"
+      });
     }
 
     return Promise.resolve({ success: false, message: "إجراء غير معروف: " + action });
