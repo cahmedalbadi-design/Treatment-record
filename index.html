@@ -2648,7 +2648,27 @@ showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
 })();
 
   function lFk(obj, terms) { return Object.keys(obj).find(k=>terms.some(t=>k.includes(t))); }
+  function lParseCSV(t) {
+    const lines = t.trim().split('\n');
+    const heads = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+    return lines.slice(1).map(l => {
+      const vs = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < l.length; i++) {
+        const ch = l[i];
+        if (ch === '"') { inQuotes = !inQuotes; }
+        else if (ch === ',' && !inQuotes) { vs.push(current.trim().replace(/^"|"$/g, '')); current = ''; }
+        else { current += ch; }
+      }
+      vs.push(current.trim().replace(/^"|"$/g, ''));
+      const o = {};
+      heads.forEach((h, i) => { o[h] = vs[i] || ''; });
+      return o;
+    });
+  }
 
+  function lFk(obj, terms) { return Object.keys(obj).find(k => terms.some(t => k.includes(t))); }
 function lAlert(elId, icoId, txId, type, msg) {
     const el = document.getElementById(elId);
     if (!el) return;
