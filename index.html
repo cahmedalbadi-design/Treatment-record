@@ -14784,6 +14784,18 @@ global.fetch = function (input, init) {
   var ROUTES = {
     savedata:            function (p) { return saveCase(p.data || {}); },
     updatedata:          function (p) { return updateCase(p.data || {}); },
+    savetempdata:        function (p) {
+      return saveCase(p.data || {}).then(function (r) {
+        if (r.success) r.message = "تم الحفظ المؤقت — الحالة غير مكتملة";
+        return r;
+      });
+    },
+    updatetempdata:      function (p) {
+      return updateCase(p.data || {}).then(function (r) {
+        if (r.success) r.message = "تم التحديث المؤقت — الحالة غير مكتملة";
+        return r;
+      });
+    },
     deletedata:          function (p) { return deleteCase(p); },
     searchcasedata:      function (p) { return getCase(p); },
     getcasedata:         function (p) { return getCase(p); },
