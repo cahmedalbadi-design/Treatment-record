@@ -14722,9 +14722,9 @@ global.fetch = function (input, init) {
     return sb.from("treatment_cases")
       .select("case_no, receipt_no, amount, treated_on, is_complete, " +
               "breeders(phone, name), creator:created_by(full_name)")
-      .eq("wilayat_id", me.wilayat_id)
+       .eq("wilayat_id", me.wilayat_id)
       .gte("treated_on", from).lte("treated_on", to)
-      .order("case_no", { ascending: false })
+      .order("case_no", { ascending: true })
       .then(function (r) {
         if (r.error) throw r.error;
         var rows = (r.data || []).map(function (c) {
