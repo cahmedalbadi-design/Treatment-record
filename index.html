@@ -14673,7 +14673,47 @@ global.fetch = function (input, init) {
         return Object.assign({ success: true }, toApp(r.data));
       });
   }
+  /* بيانات المربي — تُعاد كمصفوفة بترتيب حقول شاشة العلاج */
+  function breederInfo(p) {
+    var phone = txt(p.phone);
+    if (!phone) return Promise.resolve({ success: false, message: "رقم الهاتف مطلوب" });
+    return sb.from("breeders")
+      .select("name, possession_no, civil_id, holding_expiry, regions(name)")
+      .eq("phone", phone).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
+        var b = r.data;
+        return { success: true, data: [
+          txt(b.name),
+          txt(b.possession_no),
+          b.regions ? txt(b.regions.name) : "",
+          txt(b.civil_id),
+          txt(b.holding_expiry)
+        ] };
+      });
+  }
 
+  /* عدد حالات العلاج المسجَّلة لهذا المربي بلا رقم حيازة */
+  function unpaidCount(p) {
+    var phone = txt(p.phone);
+    if (!phone) return Promise.resolve({ success: true, count: 0 });
+    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: true, count: 0 };
+        return sb.from("treatment_cases")
+          .select("possession_no_snapshot")
+          .eq("breeder_id", r.data.id)
+          .then(function (r2) {
+            if (r2.error) throw r2.error;
+            var n = (r2.data || []).filter(function (x) {
+              return txt(x.possession_no_snapshot) === "";
+            }).length;
+            return { success: true, count: n };
+          });
+      });
+  }
   /* ٥) السجل اليومي */
   function dailyLog(p) {
     var from = toISO(p.startDate || p.dateFrom) || today();
@@ -14747,6 +14787,8 @@ global.fetch = function (input, init) {
     deletedata:          function (p) { return deleteCase(p); },
     searchcasedata:      function (p) { return getCase(p); },
     getcasedata:         function (p) { return getCase(p); },
+    getbreederdata:      function (p) { return breederInfo(p); },
+    getunpaidcasescount: function (p) { return unpaidCount(p); },
     loaddata:            function (p) { return dailyLog(p); },
     getaaadata:          function (p) { return dailyLog(p); },
     getdailydata:        function (p) { return dailyLog(p); },
