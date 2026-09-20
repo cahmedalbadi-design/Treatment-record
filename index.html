@@ -15440,5 +15440,36 @@ global.fetch = function (input, init) {
 
 })(window);
 </script>
+  <script>
+(function (g) {
+  "use strict";
+  function patch() {
+    if (!g.trcallApi || !g.trcallApi._sbPatch) { setTimeout(patch, 400); return; }
+    if (g.trcallApi._refreshPatch) return;
+
+    /* تعطيل الكاش: بُني على أعمدة الورقة القديمة ولم يعد يُستدعى أصلاً */
+    if (g.TreatmentCache && g.TreatmentCache.clear) g.TreatmentCache.clear();
+
+    var WRITES = ["trsaveData","trupdateData","trdeleteData",
+                  "trsaveTempData","trupdateTempData"];
+    var orig = g.trcallApi;
+
+    g.trcallApi = async function (action, payload) {
+      var res = await orig.apply(this, arguments);
+      if (res && res.success && WRITES.indexOf(action) !== -1) {
+        setTimeout(function () {
+          if (typeof g.trloadData === "function") g.trloadData();
+          if (typeof g.trloadIncompleteCount === "function") g.trloadIncompleteCount();
+        }, 150);
+      }
+      return res;
+    };
+    g.trcallApi._refreshPatch = true;
+    g.trcallApi._sbPatch = true;
+    console.log("[Refresh] ✅ تحديث السجل اليومي بعد كل عملية كتابة");
+  }
+  patch();
+})(window);
+</script>
 </body>
 </html>
