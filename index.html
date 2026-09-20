@@ -14920,5 +14920,478 @@ global.fetch = function (input, init) {
 
 })(window);
 </script>
+  <script>
+/* ════════════════════════════════════════════════════════════════════
+   جسر سجل التحصين — Supabase
+   ────────────────────────────────────────────────────────────────────
+   يعترض vaccCallApi. أي إجراء غير مغطّى يمر إلى Apps Script ويُسجَّل
+   اسمه في Console. يُوضع بعد وحدة الدخول (SBAuth) وبجوار الجسور الأخرى.
+   ════════════════════════════════════════════════════════════════════ */
+
+(function (global) {
+  "use strict";
+
+  var USE_SUPABASE = true;
+
+  var sb = null, me = null, ready = null;
+  var unknown = {};
+
+  /* ── خرائط ثابتة ─────────────────────────────────────────────── */
+  var VT = { intox: 1, pock: 2, fmd: 3, lumpy: 4, rabies: 5 };
+  var SP = { goat: 1, sheep: 2, cow: 3, camel: 4, horse: 5 };
+  var SP_NAME = { 1: "ماعز", 2: "أغنام", 3: "أبقار", 4: "جمال", 5: "خيول" };
+
+  /* حقول النموذج المسموحة: اسم الحقل -> [vaccine_type_id, species_id] */
+  var FIELDS = {
+    intox_sheep: [1, 2], intox_goat: [1, 1],
+    pock_sheep:  [2, 2], pock_goat:  [2, 1],
+    fmd_sheep:   [3, 2], fmd_goat:   [3, 1], fmd_cow: [3, 3],
+    lumpy_cow:   [4, 3], lumpy_goat: [4, 1], lumpy_sheep: [4, 2], lumpy_camel: [4, 4],
+    rabies_sheep:[5, 2], rabies_goat:[5, 1], rabies_cow: [5, 3],
+    rabies_camel:[5, 4], rabies_horse:[5, 5]
+  };
+
+  function log(m)   { console.log("[SB-Vacc] " + m); }
+  function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v) { return txt(v).replace(/^'/, ""); }
+  function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? 0 : n; }
+  function today()  { return new Date().toISOString().slice(0, 10); }
+
+  function toISO(v) {
+    var s = strip(v);
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+
+  /* ── التهيئة ─────────────────────────────────────────────────── */
+  function init() {
+    if (ready) return ready;
+    ready = global.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = global.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
+  }
+
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
+  /* ── ربط المربي: يُنشأ تلقائياً إن لم يكن مسجَّلاً ───────────── */
+  function breederId(d) {
+    var phone = txt(d.phone);
+    if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
+    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (r.data) return r.data.id;
+        return sb.from("breeders").insert({
+          wilayat_id: me.wilayat_id,
+          phone:      phone,
+          name:       txt(d.name) || "غير مسجَّل",
+          civil_id:   txt(d.civil),
+          created_by: me.id
+        }).select("id").single().then(function (r2) {
+          if (r2.error) throw r2.error;
+          log("أُنشئ مربٍّ جديد: " + phone);
+          return r2.data.id;
+        });
+      });
+  }
+
+  /* ── بناء صفوف الجرعات من النموذج ───────────────────────────── */
+  function buildDoses(d) {
+    var out = [];
+    Object.keys(FIELDS).forEach(function (k) {
+      var n = int(d[k]);
+      if (n > 0) out.push({ vaccine_type_id: FIELDS[k][0], species_id: FIELDS[k][1],
+                            dose_no: 1, animal_count: n });
+    });
+    return out;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     الإجراءات
+     ════════════════════════════════════════════════════════════ */
+
+  function saveData(d) {
+    var doses = buildDoses(d);
+    if (!doses.length)
+      return Promise.resolve({ success: false, message: "يجب تعبئة مربع واحد على الأقل" });
+
+    return breederId(d).then(function (bid) {
+      return sb.rpc("next_case_no", { p_table: "vaccination_records", p_wilayat: me.wilayat_id })
+        .then(function (r) {
+          var now = new Date().toISOString();
+          return sb.from("vaccination_records").insert({
+            wilayat_id: me.wilayat_id,
+            case_no:    (r.error || !r.data) ? null : r.data,
+            breeder_id: bid,
+            possession_no_snapshot: strip(d.possession),
+            notes:         txt(d.notes),
+            vaccinated_on: toISO(d.financialDate) || today(),
+            created_by:    me.id,
+            created_at:    now,
+            updated_at:    now
+          }).select("id, case_no").single();
+        })
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var id = r.data.id;
+          doses.forEach(function (x) { x.record_id = id; });
+          return sb.from("vaccination_doses").insert(doses).then(function (r2) {
+            if (r2.error) throw r2.error;
+            return { success: true, message: "تم الحفظ", caseNumber: r.data.case_no };
+          });
+        });
+    });
+  }
+
+  function updateData(d) {
+    var no = int(d.caseNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم الحالة مطلوب" });
+    var doses = buildDoses(d);
+    if (!doses.length)
+      return Promise.resolve({ success: false, message: "يجب تعبئة مربع واحد على الأقل" });
+
+    return sb.from("vaccination_records").select("id")
+      .eq("wilayat_id", me.wilayat_id).eq("case_no", no).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) throw new Error("لم يتم العثور على الحالة رقم " + no);
+        var id = r.data.id;
+        return breederId(d).then(function (bid) {
+          return sb.from("vaccination_records").update({
+            breeder_id: bid,
+            possession_no_snapshot: strip(d.possession),
+            notes:         txt(d.notes),
+            vaccinated_on: toISO(d.financialDate) || today(),
+            updated_by:    me.id,
+            updated_at:    new Date().toISOString()
+          }).eq("id", id);
+        })
+        .then(function () { return sb.from("vaccination_doses").delete().eq("record_id", id); })
+        .then(function () {
+          doses.forEach(function (x) { x.record_id = id; });
+          return sb.from("vaccination_doses").insert(doses);
+        })
+        .then(function (r2) {
+          if (r2.error) throw r2.error;
+          return { success: true, message: "تم التحديث" };
+        });
+      });
+  }
+
+  function deleteData(p) {
+    var no = int(p.caseNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم الحالة مطلوب" });
+    return sb.from("vaccination_records").delete()
+      .eq("wilayat_id", me.wilayat_id).eq("case_no", no)
+      .then(function (r) {
+        if (r.error) throw r.error;
+        return { success: true, message: "تم الحذف" };   /* الجرعات تُحذف تلقائياً */
+      });
+  }
+
+  var REC_COLS =
+    "id, case_no, possession_no_snapshot, notes, vaccinated_on, wilayat_id, " +
+    "created_at, updated_at, " +
+    "breeders ( phone, name, civil_id, regions(name) ), " +
+    "vaccination_doses ( vaccine_type_id, species_id, dose_no, animal_count ), " +
+    "creator:created_by(full_name), editor:updated_by(full_name)";
+
+  /* اسم حقل النموذج من (نوع اللقاح، نوع الحيوان) */
+  var REV = {};
+  Object.keys(FIELDS).forEach(function (k) { REV[FIELDS[k][0] + "_" + FIELDS[k][1]] = k; });
+
+  function toForm(c) {
+    var b = c.breeders || {}, o = {
+      success:       true,
+      caseNumber:    c.case_no,
+      phone:         txt(b.phone),
+      name:          txt(b.name),
+      possession:    txt(c.possession_no_snapshot),
+      region:        b.regions ? txt(b.regions.name) : "",
+      civil:         txt(b.civil_id),
+      financialDate: txt(c.vaccinated_on),
+      notes:         txt(c.notes),
+      dataEntry:     c.creator ? txt(c.creator.full_name) : "",
+      dataUpdater:   c.editor  ? txt(c.editor.full_name)  : ""
+    };
+    Object.keys(FIELDS).forEach(function (k) { o[k] = ""; });
+    (c.vaccination_doses || []).forEach(function (d) {
+      var k = REV[d.vaccine_type_id + "_" + d.species_id];
+      if (k) o[k] = d.animal_count;
+    });
+    return o;
+  }
+
+  function searchCase(p) {
+    var no = int(p.caseNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم الحالة مطلوب" });
+    return sb.from("vaccination_records").select(REC_COLS)
+      .eq("wilayat_id", me.wilayat_id).eq("case_no", no).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على الحالة رقم " + no };
+        return toForm(r.data);
+      });
+  }
+
+  function breederData(p) {
+    return sb.from("breeders")
+      .select("name, possession_no, civil_id, regions(name)")
+      .eq("phone", txt(p.phone)).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
+        return { success: true,
+                 name:       txt(r.data.name),
+                 possession: txt(r.data.possession_no),
+                 region:     r.data.regions ? txt(r.data.regions.name) : "",
+                 civil:      txt(r.data.civil_id) };
+      });
+  }
+
+  /* ── جدول تحصينات المربي المعروض أسفل النموذج ───────────────── */
+  function byPhone(p) {
+    var phone = txt(p.phone);
+    if (!phone) return Promise.resolve({ success: false, rows: [] });
+    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, rows: [] };
+        return sb.from("vaccination_records").select(REC_COLS)
+          .eq("breeder_id", r.data.id).order("vaccinated_on", { ascending: false });
+      })
+      .then(function (r) {
+        if (!r || r.rows) return r;
+        if (r.error) throw r.error;
+        var headers = ["التاريخ", "رقم الحالة", "اللقاحات", "إجمالي الجرعات"];
+        var rows = (r.data || []).map(function (c) {
+          var byVt = {}, total = 0;
+          (c.vaccination_doses || []).forEach(function (d) {
+            (byVt[d.vaccine_type_id] = byVt[d.vaccine_type_id] || [])
+              .push(SP_NAME[d.species_id] + " " + d.animal_count);
+            total += d.animal_count;
+          });
+          var VN = { 1: "التسمم المعوي", 2: "طاعون/جدري", 3: "الحمى القلاعية",
+                     4: "التهاب الجلد العقدي", 5: "السعار" };
+          var s = Object.keys(byVt).sort().map(function (k) {
+            return VN[k] + ": " + byVt[k].join("، ");
+          }).join(" | ");
+          return [txt(c.vaccinated_on), c.case_no, s, total];
+        });
+        return { success: true, headers: headers, rows: rows };
+      });
+  }
+
+  /* ── البحث في سجل التحصين: صفوف مصفوفات بترتيب أعمدة الورقة ─── */
+  var COL = { 6:[1,2], 7:[1,1], 8:[2,2], 9:[2,1], 10:[3,2], 11:[3,1], 12:[3,3],
+              13:[5,2], 14:[5,1], 15:[5,3], 16:[5,4], 17:[5,5],
+              18:[4,3], 19:[4,2], 20:[4,1], 21:[4,4] };
+
+  function toArray(c) {
+    var b = c.breeders || {}, a = new Array(27).fill("");
+    a[0] = c.case_no;
+    a[1] = txt(b.phone);
+    a[2] = txt(b.name);
+    a[3] = txt(c.possession_no_snapshot);
+    a[4] = b.regions ? txt(b.regions.name) : "";
+    a[5] = txt(b.civil_id);
+    var map = {};
+    (c.vaccination_doses || []).forEach(function (d) {
+      map[d.vaccine_type_id + "_" + d.species_id] = d.animal_count;
+    });
+    Object.keys(COL).forEach(function (i) {
+      var v = map[COL[i][0] + "_" + COL[i][1]];
+      a[i] = (v === undefined) ? "" : v;
+    });
+    a[22] = txt(c.notes);
+    a[23] = c.editor  ? txt(c.editor.full_name)  : "";
+    a[24] = txt(c.updated_at);
+    a[25] = c.creator ? txt(c.creator.full_name) : "";
+    a[26] = txt(c.vaccinated_on);
+    return a;
+  }
+
+  function searchRecords(p) {
+    var f = p.filters || {};
+    return pageAll(function () {
+      var q = sb.from("vaccination_records").select(REC_COLS)
+                .order("vaccinated_on", { ascending: false });
+      if (txt(f.caseNumber)) q = q.eq("case_no", int(f.caseNumber));
+      if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
+      if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
+      return q;
+    }).then(function (data) {
+      var rows = data.map(toArray);
+      /* المرشّحات النصّية تُطبَّق محلياً لأنها على جدول مرتبط */
+      var out = rows.filter(function (r) {
+        if (txt(f.phone)      && String(r[1]).indexOf(txt(f.phone))      === -1) return false;
+        if (txt(f.name)       && String(r[2]).indexOf(txt(f.name))       === -1) return false;
+        if (txt(f.possession) && String(r[3]).indexOf(txt(f.possession)) === -1) return false;
+        if (txt(f.region)     && String(r[4]).indexOf(txt(f.region))     === -1) return false;
+        if (txt(f.civil)      && String(r[5]).indexOf(txt(f.civil))      === -1) return false;
+        return true;
+      });
+      return { success: true, rows: out, recordCount: out.length };
+    });
+  }
+
+  /* ── إجمالي الجرعات حسب اللقاح ──────────────────────────────── */
+  function allTotals(p) {
+    var f = p.filters || {};
+    return pageAll(function () {
+      var q = sb.from("vaccination_records")
+                .select("id, vaccination_doses(vaccine_type_id, species_id, animal_count)");
+      if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
+      if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
+      return q;
+    }).then(function (data) {
+      var VN = { 1: "التسمم المعوي", 2: "طاعون / جدري (مركب)", 3: "الحمى القلاعية",
+                 4: "التهاب الجلد العقدي", 5: "السعار" };
+      var acc = {}, count = 0;
+      [1,2,3,4,5].forEach(function (v) { acc[v] = { 1:0, 2:0, 3:0, 4:0, 5:0 }; });
+      data.forEach(function (r) {
+        count++;
+        (r.vaccination_doses || []).forEach(function (d) {
+          acc[d.vaccine_type_id][d.species_id] += d.animal_count;
+        });
+      });
+      var rows = [], tot = [0, 0, 0, 0, 0, 0];
+      [1,2,3,4,5].forEach(function (v) {
+        var a = acc[v];
+        var sum = a[1] + a[2] + a[3] + a[4] + a[5];
+        /* ترتيب الأعمدة في الواجهة: أغنام، ماعز، أبقار، جمل، خيول، الإجمالي */
+        rows.push([VN[v], a[2], a[1], a[3], a[4], a[5], sum]);
+        tot[0] += a[2]; tot[1] += a[1]; tot[2] += a[3];
+        tot[3] += a[4]; tot[4] += a[5]; tot[5] += sum;
+      });
+      return { success: true, rows: rows, totals: tot, recordCount: count };
+    });
+  }
+
+  /* ── عدد الحيوانات المحصنة: أقصى عدد لكل نوع لتفادي الازدواج ── */
+  function maxAnimals(p) {
+    var f = p.filters || {};
+    return pageAll(function () {
+      var q = sb.from("vaccination_records")
+                .select("id, breeders(phone, name, regions(name)), " +
+                        "vaccination_doses(species_id, animal_count)");
+      if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
+      if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
+      return q;
+    }).then(function (data) {
+      var byBr = {};
+      data.forEach(function (r) {
+        var b = r.breeders || {}, ph = txt(b.phone);
+        if (txt(f.phone) && ph.indexOf(txt(f.phone)) === -1) return;
+        var e = byBr[ph] || (byBr[ph] = {
+          phone: ph, name: txt(b.name),
+          region: b.regions ? txt(b.regions.name) : "",
+          sp: { 1:0, 2:0, 3:0, 4:0, 5:0 }
+        });
+        var cur = { 1:0, 2:0, 3:0, 4:0, 5:0 };
+        (r.vaccination_doses || []).forEach(function (d) {
+          if (d.animal_count > cur[d.species_id]) cur[d.species_id] = d.animal_count;
+        });
+        [1,2,3,4,5].forEach(function (s) { if (cur[s] > e.sp[s]) e.sp[s] = cur[s]; });
+      });
+      var keys = Object.keys(byBr).sort(function (a, b) {
+        return byBr[a].name.localeCompare(byBr[b].name, "ar");
+      });
+      var headers = ["م", "رقم الهاتف", "اسم المربي", "المنطقة",
+                     "ماعز", "أغنام", "أبقار", "جمال", "خيول", "الإجمالي"];
+      var rows = [], t = [0, 0, 0, 0, 0, 0];
+      keys.forEach(function (k, i) {
+        var e = byBr[k], s = e.sp;
+        var sum = s[1] + s[2] + s[3] + s[4] + s[5];
+        rows.push([i + 1, e.phone, e.name, e.region,
+                   s[1] || "", s[2] || "", s[3] || "", s[4] || "", s[5] || "", sum]);
+        t[0] += s[1]; t[1] += s[2]; t[2] += s[3]; t[3] += s[4]; t[4] += s[5]; t[5] += sum;
+      });
+      return { success: true, headers: headers, rows: rows,
+               totals: ["", "", t[0], t[1], t[2], t[3], t[4], t[5]],
+               recordCount: rows.length };
+    });
+  }
+
+  function names(table, col, filterW) {
+    var q = sb.from(table).select(col).order(col);
+    if (filterW) q = q.eq("wilayat_id", me.wilayat_id);
+    return pageAll(function () { return q; }).then(function (rows) {
+      return { success: true, data: rows.map(function (x) { return x[col]; }) };
+    });
+  }
+
+  /* ── الموجّه ─────────────────────────────────────────────────── */
+  var ROUTES = {
+    saveData:                    function (p) { return saveData(p.data || {}); },
+    updateData:                  function (p) { return updateData(p.data || {}); },
+    deleteData:                  function (p) { return deleteData(p); },
+    searchCaseData:              function (p) { return searchCase(p); },
+    getBreederData:              function (p) { return breederData(p); },
+    getVaccinationDataByPhone:   function (p) { return byPhone(p); },
+    searchVaccinationRecords:    function (p) { return searchRecords(p); },
+    getAllTotalVaccinatedAnimals:function (p) { return allTotals(p); },
+    getMaxAnimalsPerBreeder:     function (p) { return maxAnimals(p); },
+    getPhoneNumbers:             function ()  { return names("breeders", "phone", true); },
+    getDataEntryOptions:         function ()  { return names("profiles", "full_name", true); }
+  };
+
+  function patch() {
+    if (!USE_SUPABASE) { log("معطَّل"); return; }
+    if (typeof global.vaccCallApi !== "function") { setTimeout(patch, 400); return; }
+    if (global.vaccCallApi._sbPatch) return;
+
+    var viaSheets = global.vaccCallApi;
+
+    global.vaccCallApi = async function (action, payload) {
+      if (!ROUTES[action]) {
+        if (!unknown[action]) {
+          unknown[action] = true;
+          log("⚠️ إجراء غير مغطّى — يمر إلى Apps Script: " + action);
+        }
+        return viaSheets.apply(this, arguments);
+      }
+      try {
+        await init();
+        return await ROUTES[action](payload || {});
+      } catch (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        log("خطأ في " + action + ": " + msg);
+        return { success: false, message: msg };
+      }
+    };
+
+    global.vaccCallApi._sbPatch = true;
+    log("✅ سجل التحصين موصول بـ Supabase");
+  }
+
+  patch();
+  if (document.readyState === "complete") setTimeout(patch, 1000);
+  else global.addEventListener("load", function () { setTimeout(patch, 1000); });
+
+  global.SBVaccination = {
+    unknownActions: function () { return Object.keys(unknown); }
+  };
+
+})(window);
+</script>
 </body>
 </html>
