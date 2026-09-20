@@ -5422,11 +5422,11 @@ async function trSelectIncompleteCase(caseNumber) {
         if (res && res.success) {
           if (action === "trgetAAAData") { storeTable(res.data); setTimeout(prefetch, 1200); }
           else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
-          else if (action === "trupdateData" || action === "trupdateTempData") {
-            TC.skipNextLoad = true; applyUpdate((payload||{}).data || {});
+            else if (action === "trupdateData" || action === "trupdateTempData") {
+            applyUpdate((payload||{}).data || {});
           }
           else if (action === "trdeleteData") {
-            TC.skipNextLoad = true; applyDelete((payload||{}).caseNumber);
+            applyDelete((payload||{}).caseNumber);
           }
         }
       } catch (e) { console.warn("[TrCache]", e.message); }
