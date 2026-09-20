@@ -7379,7 +7379,6 @@ async function vaccInit() {
       </select>
       <button onclick="vr_loadData()" style="background:#00b8d9;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🔄 تحديث</button>
       <button onclick="vr_printTable()" style="background:#8e44ad;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🖨️ طباعة</button>
-      <button onclick="vr_bulkUpdateBreeders()" style="background:#2bb673;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🔃 تحديث بيانات المربين</button>
     </div>
 
     <div class="stats">
@@ -7567,7 +7566,8 @@ function vr_parseDate(val) {
   }
   if (vr_dataLoaded) vr_render();
 }
-  function vr_isRefused(r) {
+    function vr_isRefused(r) {
+  if (typeof r.refused === 'boolean') return r.refused;
   var notes = (r.notes || '').toString();
   var keywords = ['رفض', 'لا يرغب', 'عدم رغبة', 'غير راغب', 'لا يريد', 'عدم الرغبة'];
   return keywords.some(function(k) { return notes.indexOf(k) !== -1; });
@@ -14819,5 +14819,106 @@ global.fetch = function (input, init) {
 
 })(window);
   </script>
+  <script>
+/* ════════════════════════════════════════════════════════════════════
+   جسر متابعة طلبات التحصين — Supabase
+   يعترض getFortificationsData ويعيد نفس شكل بيانات Apps Script
+   ════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  "use strict";
+
+  var USE_SUPABASE = true;
+  var sb = null, me = null, ready = null;
+
+  function log(m) { console.log("[SB-VaccReq] " + m); }
+  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function n2s(v) { return (v === null || v === undefined || v === 0) ? "" : String(v); }
+
+  function init() {
+    if (ready) return ready;
+    ready = global.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = global.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
+  }
+
+  /* ترقيم صفحات — يتجاوز سقف الألف صف */
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
+  function load() {
+    return pageAll(function () {
+      return sb.from("vaccination_requests_view")
+               .select("phone,name,area,possession,civil,financial_date,notes," +
+                       "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
+               .order("name");
+    }).then(function (rows) {
+      return {
+        data: rows.map(function (r) {
+          return {
+            phone:         txt(r.phone),
+            name:          txt(r.name),
+            area:          txt(r.area),
+            possession:    txt(r.possession),
+            civil:         txt(r.civil),
+            financialDate: txt(r.financial_date),
+            notes:         txt(r.notes),
+            goat:          n2s(r.goat),
+            sheep:         n2s(r.sheep),
+            cow:           n2s(r.cow),
+            camel:         n2s(r.camel),
+            entryDate:     txt(r.entry_date),
+            vaccinated:    !!r.vaccinated,
+            refused:       !!r.is_refused,
+            summary:       txt(r.summary)
+          };
+        })
+      };
+    });
+  }
+
+  function patch() {
+    if (!USE_SUPABASE) { log("معطَّل"); return; }
+    if (typeof global.vr_callApi !== "function") { setTimeout(patch, 400); return; }
+    if (global.vr_callApi._sbPatch) return;
+
+    var viaSheets = global.vr_callApi;
+
+    global.vr_callApi = async function (action, payload) {
+           if (action !== "getFortificationsData") {
+        return { error: "إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action };
+      }
+      try {
+        await init();
+        return await load();
+      } catch (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        log("خطأ: " + msg);
+        return { error: msg };
+      }
+    };
+
+    global.vr_callApi._sbPatch = true;
+    log("✅ متابعة طلبات التحصين موصولة بـ Supabase");
+  }
+
+  patch();
+  if (document.readyState === "complete") setTimeout(patch, 900);
+  else global.addEventListener("load", function () { setTimeout(patch, 900); });
+
+})(window);
+</script>
 </body>
 </html>
