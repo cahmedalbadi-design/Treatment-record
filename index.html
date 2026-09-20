@@ -4036,19 +4036,8 @@ function trcheckPhoneInRecords(phone) {
  * @returns {Promise<object>}
  */
 async function trcallApi(action, payload) {
-  if (!TR_API_URL) throw new Error("رابط الخدمة غير مُعدّ");
-
-  const body = JSON.stringify(Object.assign({ action }, payload || {}));
-  const response = await fetch(TR_API_URL, {
-    method:   "POST",
-    mode:     "cors",
-    headers:  { "Content-Type": "text/plain;charset=utf-8" },
-    body,
-    redirect: "follow",
-  });
-
-  if (!response.ok) throw new Error("HTTP " + response.status);
-  return await response.json();
+  console.warn("[SB] إجراء غير مغطّى في قاعدة البيانات الجديدة:", action);
+  throw new Error("الإجراء غير مدعوم بعد: " + action);
 }
 
 
