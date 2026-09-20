@@ -14128,7 +14128,8 @@ global.fetch = function (input, init) {
     /* ١) قائمة أرقام الهواتف */
      if (action === "bd_getPhoneNumbers") {
       return pageAll(function () {
-        return sb.from("breeders").select("phone").order("phone");
+        return sb.from("breeders").select("phone")
+                 .eq("wilayat_id", me.wilayat_id).order("phone");
       }).then(function (rows) {
         return { success: true, data: rows.map(function (x) { return x.phone; }) };
       });
@@ -14168,7 +14169,8 @@ global.fetch = function (input, init) {
     /* ٥) جلب كل المربين */
       if (action === "bd_getAllBreeders") {
       return pageAll(function () {
-        return sb.from("breeders").select(SELECT_COLS).order("name");
+        return sb.from("breeders").select(SELECT_COLS)
+                 .eq("wilayat_id", me.wilayat_id).order("name");
       }).then(function (rows) {
         return { success: true, data: rows.map(toApp) };
       });
@@ -14181,6 +14183,7 @@ global.fetch = function (input, init) {
 
       var like = "%" + q + "%";
       return sb.from("breeders").select(SELECT_COLS)
+        .eq("wilayat_id", me.wilayat_id)
         .or("phone.ilike." + like + ",name.ilike." + like +
             ",civil_id.ilike." + like + ",possession_no.ilike." + like)
         .limit(200)
