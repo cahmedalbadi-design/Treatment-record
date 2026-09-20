@@ -1446,8 +1446,12 @@ async function bootLoadAll() {
     }
   ];
 
+  ov.set(3, 'جاري تجهيز الاتصال بسجل المربين...');
+  for (var w = 0; w < 40 && !(window.bd_callApi && window.bd_callApi._sbPatch); w++) {
+    await new Promise(function (r) { setTimeout(r, 150); });
+  }
+
 ov.set(5, 'جاري تجهيز القوائم الثابتة...');
-  if (window.StaticLists) { try { await StaticLists.load(); } catch (e) {} }
 
   var failed = [];
   for (var i = 0; i < steps.length; i++) {
@@ -5726,7 +5730,9 @@ async function bd_refreshDropdowns() {
     if(results[0].success)fill("bd_phoneList",results[0].data);
     if(results[1].success){fill("bd_dataEntryList",results[1].data);fill("bd_dataUpdaterList",results[1].data);}
     if(results[2].success)fill("bd_regionList",results[2].data);
-  }catch(err){bd_showMessage("خطأ في تحميل القوائم: "+err.message,true);}
+    if(!results[0].success) throw new Error(results[0].message || "تعذّر جلب أرقام الهواتف");
+    if(!results[0].data || !results[0].data.length) throw new Error("قاعدة البيانات أعادت صفر مربي — تحقق من ترحيل بيانات العيادة أو من صلاحيات RLS");
+  }catch(err){bd_showMessage("خطأ في تحميل القوائم: "+err.message,true);throw err;}
 }
 function bd_collectAnimals() {
   return {
@@ -5988,7 +5994,7 @@ function bd_init(){
 var safeHide = setTimeout(function(){ bd_hideLoading(); }, 5000);
   return bd_refreshDropdowns()
     .then(function(){ clearTimeout(safeHide); bd_hideLoading(); })
-    .catch(function(){ clearTimeout(safeHide); bd_hideLoading(); });
+    .catch(function(e){ clearTimeout(safeHide); bd_hideLoading(); throw e; });
 }
 
 async function bd_fetchAll() {
@@ -14300,7 +14306,8 @@ global.fetch = function (input, init) {
     log("✅ سجل المربي موصول بـ Supabase");
   }
 
-  /* تأخير كافٍ ليكتمل تحميل كل السكربتات الأخرى */
+   /* تأخير كافٍ ليكتمل تحميل كل السكربتات الأخرى */
+  patch();
   if (document.readyState === "complete") setTimeout(patch, 900);
   else global.addEventListener("load", function () { setTimeout(patch, 900); });
 
