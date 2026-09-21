@@ -15471,5 +15471,163 @@ global.fetch = function (input, init) {
   patch();
 })(window);
 </script>
+  <script>
+/* ════════════════════════════════════════════════════════════════════
+   جسر التقارير — Supabase
+   المتحصلات اليومية + الأدوية المصروفة + تتبع المرض
+   المصدر: treatment_cases / treatment_drugs / treatment_diagnoses
+   ════════════════════════════════════════════════════════════════════ */
+(function (g) {
+  "use strict";
+
+  var sb = null, me = null, ready = null;
+
+  function log(m) { console.log("[SB-Reports] " + m); }
+  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
+
+  function init() {
+    if (ready) return ready;
+    ready = g.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = g.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
+  }
+
+  /* ترقيم صفحات — يتجاوز سقف الألف صف */
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
+  /* حالات العلاج للعيادة الحالية ضمن المدى — التاريخ الفارغ = بلا حد */
+  function casesQuery(cols, p) {
+    var from = iso(p.dateFrom), to = iso(p.dateTo);
+    return pageAll(function () {
+      var q = sb.from("treatment_cases").select(cols)
+                .eq("wilayat_id", me.wilayat_id).order("id");
+      if (from) q = q.gte("treated_on", from);
+      if (to)   q = q.lte("treated_on", to);
+      return q;
+    });
+  }
+
+  /* ── ١) المتحصلات اليومية ─────────────────────────────────────── */
+  function financial(p) {
+    return casesQuery("id, receipt_no, amount, treated_on, breeders(phone, name)", p)
+      .then(function (rows) {
+        var list = [], total = 0;
+        rows.forEach(function (c) {
+          var a = num(c.amount);
+          if (a <= 0) return;
+          total += a;
+          var b = c.breeders || {};
+          list.push({ phone: txt(b.phone), name: txt(b.name),
+                      receipt: c.receipt_no || "", amount: a, date: c.treated_on });
+        });
+        list.sort(function (x, y) { return (Number(x.receipt) || 0) - (Number(y.receipt) || 0); });
+        return { success: true, filteredData: list, annualTotal: total };
+      });
+  }
+
+  /* ── ٢) الأدوية المصروفة ──────────────────────────────────────── */
+  function drugsReport(p) {
+    return casesQuery("id, treatment_drugs(quantity, drugs(name))", p)
+      .then(function (rows) {
+        var acc = {};
+        rows.forEach(function (c) {
+          (c.treatment_drugs || []).forEach(function (d) {
+            var n = txt(d.drugs && d.drugs.name);
+            if (!n) return;
+            var e = acc[n] || (acc[n] = { name: n, qty: 0, count: 0 });
+            e.qty += num(d.quantity);
+            e.count++;
+          });
+        });
+        return Object.keys(acc).map(function (k) {
+          acc[k].qty = Math.round(acc[k].qty * 1000) / 1000;
+          return acc[k];
+        }).sort(function (a, b) { return a.name.localeCompare(b.name, "ar"); });
+      });
+  }
+
+  /* ── ٣) تتبع المرض ────────────────────────────────────────────── */
+  function diseaseList() {
+    return pageAll(function () {
+      return sb.from("diseases").select("name").order("name");
+    }).then(function (rows) { return rows.map(function (x) { return x.name; }); });
+  }
+
+  function diseaseMonthly(p) {
+    var want = txt(p.disease);
+    return casesQuery(
+      "id, treated_on, breeders(regions(name)), " +
+      "treatment_diagnoses(animal_count, diseases(name), species(name_ar))", p
+    ).then(function (rows) {
+      var monthly = {}, byAnimal = {}, byRegion = {};
+      rows.forEach(function (c) {
+        var m = txt(c.treated_on).slice(0, 7);
+        var region = (c.breeders && c.breeders.regions)
+                   ? txt(c.breeders.regions.name) : "";
+        region = region || "غير محدد";
+
+        (c.treatment_diagnoses || []).forEach(function (d) {
+          var dn = txt(d.diseases && d.diseases.name);
+          if (!dn || (want && dn !== want)) return;
+          var n  = parseInt(d.animal_count, 10) || 1;   /* عدد الإصابات = عدد الحيوانات */
+          var sp = txt(d.species && d.species.name_ar) || "غير محدد";
+          if (m.length === 7) monthly[m] = (monthly[m] || 0) + n;
+          byAnimal[sp]     = (byAnimal[sp]     || 0) + n;
+          byRegion[region] = (byRegion[region] || 0) + n;
+        });
+      });
+      return { success: true, monthly: monthly, byAnimal: byAnimal,
+               byRegion: byRegion, rawRows: [] };
+    });
+  }
+
+  /* ── الاعتراض ────────────────────────────────────────────────── */
+  var TARGETS = {
+    fin_callApi: { getFinancialData:      financial },
+    dim_callApi: { getFinancialInventory: drugsReport },
+    dtr_callApi: { getDiseaseList:        diseaseList,
+                   getDiseaseMonthlyData: diseaseMonthly }
+  };
+
+  function patchOne(name) {
+    var fn = g[name];
+    if (typeof fn !== "function") return false;
+    if (fn._sbPatch) return true;
+    var routes = TARGETS[name];
+    g[name] = async function (action, payload) {
+      var r = routes[action];
+      if (!r) throw new Error("إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action);
+      await init();
+      return await r(payload || {});
+    };
+    g[name]._sbPatch = true;
+    log("✅ " + name + " موصول بـ Supabase");
+    return true;
+  }
+
+  function patch() {
+    var ok = Object.keys(TARGETS).map(patchOne);
+    if (ok.indexOf(false) !== -1) setTimeout(patch, 400);
+  }
+  patch();
+
+})(window);
+</script>
 </body>
 </html>
