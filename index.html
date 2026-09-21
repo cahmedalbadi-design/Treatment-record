@@ -14775,6 +14775,144 @@ global.fetch = function (input, init) {
     });
   }
 
+  /* ════════════════════════════════════════════════════════════════
+     إجراءات مضافة: الحالات غير المكتملة / البحث / تقرير الحيوانات
+     ════════════════════════════════════════════════════════════════ */
+
+  function trPageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
+  function byId(x, y) {
+    var a = x.id, b = y.id;
+    return (typeof a === "number" && typeof b === "number")
+      ? a - b : String(a).localeCompare(String(b));
+  }
+
+  /* ١) نافذة الحالات غير المكتملة */
+  function incompleteCases() {
+    return trPageAll(function () {
+      return sb.from("treatment_cases")
+        .select("id, case_no, breeders(phone, name), creator:created_by(full_name)")
+        .eq("wilayat_id", me.wilayat_id).eq("is_complete", false)
+        .order("case_no", { ascending: true }).order("id");
+    }).then(function (list) {
+      return { success: true, cases: list.map(function (c) {
+        var b = c.breeders || {};
+        return { caseNumber: c.case_no, name: txt(b.name), phone: txt(b.phone),
+                 dataEntry: c.creator ? txt(c.creator.full_name) : "" };
+      }) };
+    });
+  }
+
+  /* ٢) البحث في سجل العلاج — نفس تخطيط الورقة القديمة (47 عموداً)
+     0-5 بيانات المربي | 6-20 الأمراض ×5 | 21-30 الأدوية ×5 | 31 المكان
+     32-39 الحيوانات | 40 الإيصال | 41 الملاحظات | 42 المبلغ
+     43 معدل البيانات | 44 الحالة | 45 مدخل البيانات | 46 التاريخ */
+  var SEARCH_HEADERS = (function () {
+    var h = ["رقم الحالة", "رقم الهاتف", "اسم المربي", "رقم الحيازة", "المنطقة", "الرقم المدني"];
+    for (var i = 1; i <= 5; i++) h.push("المرض " + i, "نوع الحيوان " + i, "العدد " + i);
+    for (var j = 1; j <= 5; j++) h.push("الدواء " + j, "الكمية " + j);
+    h.push("مكان العلاج", "ماعز", "أغنام", "أبقار", "جمال", "خيول", "قطط", "كلاب", "دواجن",
+           "رقم الإيصال", "الملاحظات", "المبلغ", "معدل البيانات", "الحالة",
+           "مدخل البيانات", "التاريخ");
+    return h;
+  })();
+
+  var SEARCH_COLS =
+    "id, case_no, receipt_no, amount, notes, treated_on, is_complete, possession_no_snapshot, " +
+    "goats, sheep, cattle, camels, horses, cats, dogs, poultry, " +
+    "breeders ( phone, name, civil_id, regions(name) ), treatment_places ( name ), " +
+    "treatment_diagnoses ( id, animal_count, diseases(name), species(name_ar) ), " +
+    "treatment_drugs ( id, quantity, drugs(name) ), " +
+    "creator:created_by(full_name), editor:updated_by(full_name)";
+
+  function searchRow(c) {
+    var b = c.breeders || {}, a = [];
+    a.push(c.case_no, txt(b.phone), txt(b.name), txt(c.possession_no_snapshot),
+           b.regions ? txt(b.regions.name) : "", txt(b.civil_id));
+
+    var dz = (c.treatment_diagnoses || []).slice().sort(byId);
+    for (var i = 0; i < 5; i++) {
+      var d = dz[i];
+      a.push(d && d.diseases ? txt(d.diseases.name)   : "",
+             d && d.species  ? txt(d.species.name_ar) : "",
+             d ? d.animal_count : "");
+    }
+
+    var dr = (c.treatment_drugs || []).slice().sort(byId);
+    for (var j = 0; j < 5; j++) {
+      var m = dr[j];
+      a.push(m && m.drugs ? txt(m.drugs.name) : "", m ? m.quantity : "");
+    }
+
+    a.push(c.treatment_places ? txt(c.treatment_places.name) : "",
+           c.goats || "", c.sheep || "", c.cattle || "", c.camels || "",
+           c.horses || "", c.cats || "", c.dogs || "", c.poultry || "",
+           c.receipt_no || "",
+           txt(c.notes),
+           (c.amount === null || c.amount === undefined) ? "" : c.amount,
+           c.editor ? txt(c.editor.full_name) : "",
+           c.is_complete ? "مكتملة" : "غير مكتملة",
+           c.creator ? txt(c.creator.full_name) : "",
+           txt(c.treated_on));
+    return a;
+  }
+
+  function searchCases(p) {
+    var kw    = txt(p.keyword).toLowerCase();
+    var from  = toISO(p.startDate), to = toISO(p.endDate);
+    var limit = parseInt(p.limit, 10) || 0;
+
+    return trPageAll(function () {
+      var q = sb.from("treatment_cases").select(SEARCH_COLS)
+        .eq("wilayat_id", me.wilayat_id)
+        .order("case_no", { ascending: false }).order("id");
+      if (from) q = q.gte("treated_on", from);
+      if (to)   q = q.lte("treated_on", to);
+      return q;
+    }).then(function (list) {
+      var rows = list.map(searchRow);
+      if (kw) rows = rows.filter(function (r) {
+        return r.join(" ").toLowerCase().indexOf(kw) !== -1;
+      });
+      var total = rows.length;
+      if (limit > 0) rows = rows.slice(0, limit);
+      return { success: true, data: [SEARCH_HEADERS.slice()].concat(rows), count: total };
+    });
+  }
+
+  /* ٣) إجمالي الحيوانات المعالجة */
+  function animalsReport(p) {
+    var from = toISO(p.startDate), to = toISO(p.endDate);
+    var F = ["goats", "sheep", "cattle", "camels", "horses", "cats", "dogs", "poultry"];
+
+    return trPageAll(function () {
+      var q = sb.from("treatment_cases").select("id, " + F.join(", "))
+        .eq("wilayat_id", me.wilayat_id).order("id");
+      if (from) q = q.gte("treated_on", from);
+      if (to)   q = q.lte("treated_on", to);
+      return q;
+    }).then(function (list) {
+      var t = [0, 0, 0, 0, 0, 0, 0, 0];
+      list.forEach(function (c) { F.forEach(function (f, i) { t[i] += (c[f] || 0); }); });
+      var total = t.reduce(function (s, x) { return s + x; }, 0);
+      return { success: true, data: [
+        ["ماعز", "أغنام", "أبقار", "جمال", "خيول", "قطط", "كلاب", "دواجن",
+         "الإجمالي", "عدد الحالات"],
+        t.concat([total, list.length])
+      ] };
+    });
+  }
+
   /* ── موجّه الإجراءات ─────────────────────────────────────────── */
 
   function key(a) {
@@ -14815,7 +14953,10 @@ global.fetch = function (input, init) {
     gettreatmentplacelist: function () { return names("treatment_places", "name"); },
     getphonenumbers:     function ()  { return names("breeders", "phone", true); },
     getdataentrylist:    function ()  { return names("profiles", "full_name", true); },
-    getdataentryoptions: function ()  { return names("profiles", "full_name", true); }
+    getdataentryoptions: function ()  { return names("profiles", "full_name", true); },
+    getincompletecases:     function ()  { return incompleteCases(); },
+    searchintreatmentsheet: function (p) { return searchCases(p); },
+    getanimalsreport:       function (p) { return animalsReport(p); }
   };
 
   function patch() {
