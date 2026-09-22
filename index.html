@@ -8262,7 +8262,7 @@ function fo_stRemove(v){fo_stSel.splice(fo_stSel.indexOf(v),1);fo_stRefresh();}
 function fo_stClear(){fo_stSel=[];fo_stRefresh();}
 function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim();}).filter(Boolean):[];fo_stRefresh();}
 </script>        
-        <div class="row"><label>تاريخ المرض</label><input id="diseaseDate"></div>
+        <div class="row"><label>تاريخ المرض</label><input type="date" id="diseaseDate"></div>
         <div class="row"><label>الصفة التشريحية</label><input id="anatomicalFeature"></div>
         <div class="row"><label>توصيف الحالة</label><input id="pathologyDesc"></div>
         <div class="row"><label>عدد المريضة</label><input type="number" id="sickCount"></div>
@@ -16229,6 +16229,778 @@ global.fetch = function (input, init) {
     if (ok.indexOf(false) !== -1) setTimeout(patch, 400);
   }
   patch();
+
+})(window);
+</script>
+  <script>
+/* ════════════════════════════════════════════════════════════════════
+   جسر العينات + طباعة العينات + الحملة + طلبات التحصين + القوائم
+   مطابق لبنية: samples / sample_tests / sample_specimen_types /
+   lab_tests / sample_types / vacc_campaigns / vaccination_requests
+   ════════════════════════════════════════════════════════════════════ */
+(function (g) {
+  "use strict";
+
+  var sb = null, me = null, ready = null;
+  var viaSheets = { fo: null, camp: null };   /* الأصل — للترحيل فقط */
+
+  function log(m)   { console.log("[SB-Samples] " + m); }
+  function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v) { return txt(v).replace(/^'/, ""); }
+  function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? null : n; }
+  function nz(v)    { return (v === null || v === undefined) ? "" : v; }
+  function pad(n)   { return ("0" + n).slice(-2); }
+  function ymd(d)   { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function today()  { return ymd(new Date()); }
+
+  function toISO(v) {
+    var s = strip(v);
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
+    var d = new Date(s);                          /* تاريخ محلي — بلا انزياح UTC */
+    return isNaN(d.getTime()) ? null : ymd(d);
+  }
+  function dmy(iso) {
+    var m = txt(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? m[3] + "/" + m[2] + "/" + m[1] : txt(iso);
+  }
+
+  function init() {
+    if (ready) return ready;
+    ready = g.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = g.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
+  }
+
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
+  function list(table, col, byWilayat, activeOnly) {
+    return pageAll(function () {
+      var q = sb.from(table).select(col).order(col);
+      if (byWilayat)  q = q.eq("wilayat_id", me.wilayat_id);
+      if (activeOnly) q = q.eq("is_active", true);
+      return q;
+    }).then(function (rows) {
+      return { success: true, data: rows.map(function (x) { return x[col]; }).filter(Boolean) };
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     المرجعيات
+     ════════════════════════════════════════════════════════════ */
+  var ref = { species: null, tests: null, stypes: null };
+
+  var SPECIES_ALIAS = {
+    "ماعز": "goat", "أغنام": "sheep", "اغنام": "sheep", "ضأن": "sheep", "غنم": "sheep",
+    "أبقار": "cow", "ابقار": "cow", "بقر": "cow",
+    "جمال": "camel", "إبل": "camel", "ابل": "camel", "خيول": "horse"
+  };
+  var FORM_LABEL = { goat: "ماعز", sheep: "أغنام", cow: "أبقار", camel: "جمال", horse: "خيول" };
+
+  function loadSpecies() {
+    if (ref.species) return Promise.resolve(ref.species);
+    return sb.from("species").select("id, code, name_ar").then(function (r) {
+      if (r.error) throw r.error;
+      ref.species = r.data || [];
+      return ref.species;
+    });
+  }
+  function speciesIdSync(name) {
+    var n = txt(name);
+    if (!n || !ref.species) return null;
+    var code = SPECIES_ALIAS[n];
+    var hit = ref.species.filter(function (s) {
+      return code ? s.code === code : txt(s.name_ar) === n;
+    })[0];
+    return hit ? hit.id : null;
+  }
+  function speciesLabel(sp) {
+    if (!sp) return "";
+    return FORM_LABEL[txt(sp.code).toLowerCase()] || txt(sp.name_ar);
+  }
+
+  function loadNames(key, table) {
+    if (ref[key]) return Promise.resolve(ref[key]);
+    return pageAll(function () { return sb.from(table).select("id, name").order("id"); })
+      .then(function (rows) { ref[key] = rows; return rows; });
+  }
+
+  /* أسماء ← معرّفات، مع إنشاء الناقص */
+  function idsFor(key, table, names) {
+    var want = [];
+    names.forEach(function (n) { n = txt(n); if (n && want.indexOf(n) === -1) want.push(n); });
+    if (!want.length) return Promise.resolve({});
+    return loadNames(key, table).then(function (rows) {
+      var map = {};
+      rows.forEach(function (x) { map[txt(x.name)] = x.id; });
+      var missing = want.filter(function (n) { return !map[n]; });
+      if (!missing.length) return map;
+      return sb.from(table).insert(missing.map(function (n) { return { name: n }; }))
+        .select("id, name").then(function (r) {
+          if (r.error) {
+            log("⚠️ تعذّر إضافة (" + missing.join("، ") + ") إلى " + table + ": " + r.error.message);
+            return map;
+          }
+          (r.data || []).forEach(function (x) { map[txt(x.name)] = x.id; rows.push(x); });
+          return map;
+        });
+    });
+  }
+
+  function regionId(name) {
+    var n = txt(name);
+    if (!n) return Promise.resolve(null);
+    return sb.from("regions").select("id").eq("wilayat_id", me.wilayat_id).eq("name", n)
+      .maybeSingle().then(function (r) {
+        if (r.data) return r.data.id;
+        return sb.from("regions").insert({ wilayat_id: me.wilayat_id, name: n })
+          .select("id").single().then(function (i) { return i.data ? i.data.id : null; });
+      });
+  }
+
+  function lookupBreeder(phone) {
+    if (!phone) return Promise.resolve(null);
+    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+      .then(function (r) { return (r.data && r.data.id) || null; });
+  }
+
+  /* samples.breeder_id إلزامي — يُنشأ المربي من بيانات النموذج إن لم يوجد */
+  function breederId(d) {
+    var phone = txt(d.phone);
+    if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
+    return lookupBreeder(phone).then(function (id) {
+      if (id) return id;
+      return regionId(d.region).then(function (rid) {
+        return sb.from("breeders").insert({
+          wilayat_id: me.wilayat_id, phone: phone,
+          name: txt(d.name) || "غير مسجَّل",
+          possession_no: strip(d.possession), region_id: rid,
+          civil_id: txt(d.civil), created_by: me.id
+        }).select("id").single();
+      }).then(function (r) {
+        if (r.error) throw r.error;
+        log("أُنشئ مربٍّ جديد: " + phone);
+        return r.data.id;
+      });
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     العينات
+     ════════════════════════════════════════════════════════════ */
+  var SAMPLE_COLS =
+    "id, sample_no, possession_no_snapshot, sex, age, disease_onset, anatomical_findings, " +
+    "case_history, suspected_disease, sick_count, contact_count, dead_count, taken_on, " +
+    "sent_on, notes, created_at, legacy_entry, legacy_updater, " +
+    "species(code, name_ar), breeders(phone, name, civil_id, regions(name)), " +
+    "sample_specimen_types(sample_types(name)), " +
+    "sample_tests(id, result, result_on, lab_tests(name)), " +
+    "creator:created_by(full_name), editor:updated_by(full_name)";
+
+  function sampleCols(innerBreeder) {
+    return innerBreeder ? SAMPLE_COLS.replace("breeders(", "breeders!inner(") : SAMPLE_COLS;
+  }
+
+  function toApp(s) {
+    var b = s.breeders || {};
+    var o = {
+      caseNumberrt:      s.sample_no,
+      phone:             txt(b.phone),
+      name:              txt(b.name),
+      possession:        txt(s.possession_no_snapshot),
+      region:            b.regions ? txt(b.regions.name) : "",
+      civil:             txt(b.civil_id),
+      financialDate:     toISO(s.created_at) || "",
+      animalType:        speciesLabel(s.species),
+      gender:            txt(s.sex),
+      age:               txt(s.age),
+      sampleType:        (s.sample_specimen_types || [])
+                           .map(function (x) { return x.sample_types ? txt(x.sample_types.name) : ""; })
+                           .filter(Boolean).join("، "),
+      diseaseDate:       txt(s.disease_onset),
+      anatomicalFeature: txt(s.anatomical_findings),
+      pathologyDesc:     txt(s.case_history),
+      sickCount:         nz(s.sick_count),
+      contactCount:      nz(s.contact_count),
+      deathCount:        nz(s.dead_count),
+      sampleTakenDate:   txt(s.taken_on),
+      sampleSentDate:    txt(s.sent_on),
+      suspectedDisease:  txt(s.suspected_disease),
+      notes:             txt(s.notes),
+      dataEntry:         s.creator ? txt(s.creator.full_name) : txt(s.legacy_entry),
+      dataUpdater:       s.editor  ? txt(s.editor.full_name)  : txt(s.legacy_updater)
+    };
+    for (var k = 1; k <= 5; k++) { o["test" + k] = ""; o["result" + k] = ""; }
+    (s.sample_tests || []).slice().sort(function (a, b) { return a.id - b.id; })
+      .slice(0, 5).forEach(function (t, i) {
+        o["test" + (i + 1)]   = t.lab_tests ? txt(t.lab_tests.name) : "";
+        o["result" + (i + 1)] = txt(t.result);
+      });
+    return o;
+  }
+
+  function sexOf(v) { v = txt(v); return (v === "ذكر" || v === "أنثى") ? v : null; }
+
+  function toRow(d, bid, spid) {
+    return {
+      breeder_id:             bid,
+      species_id:             spid,
+      possession_no_snapshot: strip(d.possession) || null,
+      sex:                    sexOf(d.gender),
+      age:                    txt(d.age) || null,
+      disease_onset:          toISO(d.diseaseDate),
+      anatomical_findings:    txt(d.anatomicalFeature) || null,
+      case_history:           txt(d.pathologyDesc) || null,
+      suspected_disease:      txt(d.suspectedDisease) || null,
+      sick_count:             int(d.sickCount)    || 0,
+      contact_count:          int(d.contactCount) || 0,
+      dead_count:             int(d.deathCount)   || 0,
+      taken_on:               toISO(d.sampleTakenDate),
+      sent_on:                toISO(d.sampleSentDate),
+      notes:                  txt(d.notes) || null
+    };
+  }
+
+  function testPairs(d) {
+    var out = [];
+    for (var k = 1; k <= 5; k++) {
+      var t = txt(d["test" + k]);
+      if (t) out.push({ name: t, result: txt(d["result" + k]) || null });
+    }
+    return out;
+  }
+  function typeNames(d) {
+    return txt(d.sampleType).split(/[،,]/)
+      .map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  /* بناء صفوف الأبناء. keep: تواريخ النتائج السابقة | noDate: للترحيل */
+  function childRows(sampleId, d, tm, sm, keep, noDate) {
+    var tests = [], types = [], seen = {};
+    testPairs(d).forEach(function (p) {
+      var id = tm[p.name];
+      if (!id) return;
+      var key = id + "|" + (p.result || "");
+      tests.push({
+        sample_id: sampleId, test_id: id, result: p.result,
+        result_on: (!p.result || noDate) ? null : ((keep && keep[key]) || today())
+      });
+    });
+    typeNames(d).forEach(function (n) {
+      var id = sm[n];
+      if (id && !seen[id]) { seen[id] = 1; types.push({ sample_id: sampleId, sample_type_id: id }); }
+    });
+    return { tests: tests, types: types };
+  }
+
+  async function writeChildren(sampleId, d, keep) {
+    var tm = await idsFor("tests",  "lab_tests",    testPairs(d).map(function (p) { return p.name; }));
+    var sm = await idsFor("stypes", "sample_types", typeNames(d));
+    var c  = childRows(sampleId, d, tm, sm, keep, false);
+    if (c.tests.length) { var a = await sb.from("sample_tests").insert(c.tests);          if (a.error) throw a.error; }
+    if (c.types.length) { var b = await sb.from("sample_specimen_types").insert(c.types); if (b.error) throw b.error; }
+  }
+
+  function nextNo() {
+    return sb.from("samples").select("sample_no").eq("wilayat_id", me.wilayat_id)
+      .order("sample_no", { ascending: false }).limit(1).then(function (r) {
+        if (r.error) throw r.error;
+        return ((r.data && r.data[0]) ? r.data[0].sample_no : 0) + 1;
+      });
+  }
+
+  async function saveSample(d) {
+    await loadSpecies();
+    var bid = await breederId(d);
+    var row = toRow(d, bid, speciesIdSync(d.animalType));
+    if (!row.taken_on || !row.sent_on)
+      return { success: false, message: "تاريخ أخذ العينة وتاريخ إرسالها مطلوبان" };
+    row.wilayat_id = me.wilayat_id;
+    row.created_by = me.id;
+
+    for (var attempt = 0; attempt < 5; attempt++) {
+      row.sample_no = await nextNo();
+      var r = await sb.from("samples").insert(row).select("id, sample_no").single();
+      if (!r.error) {
+        try { await writeChildren(r.data.id, d, null); }
+        catch (e) { await sb.from("samples").delete().eq("id", r.data.id); throw e; }
+        return { success: true, sampleNumber: r.data.sample_no, message: "تم الحفظ" };
+      }
+      if (r.error.code !== "23505") throw r.error;   /* تزامن على نفس الرقم — أعد المحاولة */
+    }
+    throw new Error("تعذّر حجز رقم عينة جديد — أعد المحاولة");
+  }
+
+  async function updateSample(d) {
+    var no = int(d.caseNumberrt);
+    if (!no) return { success: false, message: "رقم العينة مطلوب" };
+
+    var f = await sb.from("samples").select("id, sample_tests(test_id, result, result_on)")
+      .eq("wilayat_id", me.wilayat_id).eq("sample_no", no).maybeSingle();
+    if (f.error) throw f.error;
+    if (!f.data) return { success: false, message: "لم يتم العثور على العينة رقم " + no };
+    var id = f.data.id;
+
+    /* الاحتفاظ بتاريخ النتيجة إن لم تتغير */
+    var keep = {};
+    (f.data.sample_tests || []).forEach(function (t) {
+      if (t.result_on) keep[t.test_id + "|" + (t.result || "")] = t.result_on;
+    });
+
+    await loadSpecies();
+    var bid = await breederId(d);
+    var row = toRow(d, bid, speciesIdSync(d.animalType));
+    if (!row.taken_on || !row.sent_on)
+      return { success: false, message: "تاريخ أخذ العينة وتاريخ إرسالها مطلوبان" };
+    row.updated_by = me.id;
+    row.updated_at = new Date().toISOString();
+
+    var u = await sb.from("samples").update(row).eq("id", id);
+    if (u.error) throw u.error;
+    var d1 = await sb.from("sample_tests").delete().eq("sample_id", id);
+    if (d1.error) throw d1.error;
+    var d2 = await sb.from("sample_specimen_types").delete().eq("sample_id", id);
+    if (d2.error) throw d2.error;
+    await writeChildren(id, d, keep);
+    return { success: true, message: "تم التحديث" };
+  }
+
+  function deleteSample(p) {
+    var no = int(p.caseNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم العينة مطلوب" });
+    return sb.from("samples").delete().eq("wilayat_id", me.wilayat_id).eq("sample_no", no)
+      .select("id").then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data || !r.data.length)
+          return { success: false, message: "لم يتم العثور على العينة رقم " + no };
+        return { success: true, message: "تم الحذف" };   /* الفحوصات والأنواع تُحذف تلقائياً */
+      });
+  }
+
+  function getSample(p) {
+    var no = int(p.caseNumber);
+    if (!no) return Promise.resolve({ success: false, message: "رقم العينة مطلوب" });
+    return sb.from("samples").select(SAMPLE_COLS).eq("wilayat_id", me.wilayat_id)
+      .eq("sample_no", no).maybeSingle().then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على العينة رقم " + no };
+        return Object.assign({ success: true }, toApp(r.data));
+      });
+  }
+
+  function searchSamples(p) {
+    var phone = txt(p.phone), no = int(p.caseNumber), limit = int(p.limit) || 0;
+    return pageAll(function () {
+      var q = sb.from("samples").select(sampleCols(!!phone)).eq("wilayat_id", me.wilayat_id)
+                .order("sample_no", { ascending: false });
+      if (phone) q = q.ilike("breeders.phone", "%" + phone + "%");
+      if (no)    q = q.eq("sample_no", no);
+      return q;
+    }).then(function (rows) {
+      var data = rows.map(toApp), count = data.length;
+      if (limit > 0) data = data.slice(0, limit);
+      return { success: true, data: data, count: count };
+    });
+  }
+
+  function uniqueCount() {
+    return pageAll(function () {
+      return sb.from("samples").select("breeder_id, sample_no")
+               .eq("wilayat_id", me.wilayat_id).order("sample_no");
+    }).then(function (rows) {
+      var s = {}, last = "";
+      rows.forEach(function (x) { if (x.breeder_id) s[x.breeder_id] = 1; last = x.sample_no; });
+      return { success: true, count: Object.keys(s).length, lastSample: last || "—" };
+    });
+  }
+
+  function breederData(p) {
+    return sb.from("breeders").select("name, possession_no, civil_id, regions(name)")
+      .eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على بيانات" };
+        var b = r.data;
+        return { success: true, data: [txt(b.name), txt(b.possession_no),
+                 b.regions ? txt(b.regions.name) : "", txt(b.civil_id)] };
+      });
+  }
+
+  var FO = {
+    fogetPhoneNumbers:      function ()  { return list("breeders", "phone", true); },
+    fogetDataEntryOptions:  function ()  { return list("profiles", "full_name", true, true); },
+    fogetTestOptions:       function ()  { return list("lab_tests", "name", false, true); },
+    fogetSampleTypeOptions: function ()  { return list("sample_types", "name", false, true); },
+    fogetUniquePhoneCount:  function ()  { return uniqueCount(); },
+    fogetBreederData:       function (p) { return breederData(p); },
+    fosaveData:             function (p) { return saveSample(p.data || {}); },
+    foupdateData:           function (p) { return updateSample(p.data || {}); },
+    fodeleteData:           function (p) { return deleteSample(p); },
+    fosearchCaseData:       function (p) { return getSample(p); },
+    fosearchSamplesData:    function (p) { return searchSamples(p); }
+  };
+
+  /* ════════════════════════════════════════════════════════════
+     طباعة نماذج العينات
+     ════════════════════════════════════════════════════════════ */
+  function printData(p) {
+    var no = int(p.sampleNo);
+    if (!no) return Promise.resolve(null);
+    return sb.from("samples").select(SAMPLE_COLS).eq("wilayat_id", me.wilayat_id)
+      .eq("sample_no", no).maybeSingle().then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return null;
+        var o = toApp(r.data), tests = [];
+        for (var k = 1; k <= 5; k++) if (o["test" + k]) tests.push(o["test" + k]);
+        return {
+          sampleNo: o.caseNumberrt, ownerName: o.name, note: o.notes,
+          species: o.animalType, ageSex: [o.age, o.gender].filter(Boolean).join(" / "),
+          contactAnimals: o.contactCount, sickAnimals: o.sickCount, deadAnimals: o.deathCount,
+          specimen: o.sampleType, dateTaken: dmy(o.sampleTakenDate), dateSent: dmy(o.sampleSentDate),
+          caseHistory: o.pathologyDesc, postmortem: o.anatomicalFeature,
+          vetName: o.dataEntry, requestedTests: tests.join("، ")
+        };
+      });
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     حملة التحصين — سجل نشط واحد لكل عيادة
+     ════════════════════════════════════════════════════════════ */
+  function activeCamp() {
+    return sb.from("vacc_campaigns").select("id, date_from, date_to, work_days, target_count")
+      .eq("wilayat_id", me.wilayat_id).eq("is_active", true)
+      .order("id", { ascending: false }).limit(1).then(function (r) {
+        if (r.error) throw r.error;
+        return (r.data && r.data[0]) || null;
+      });
+  }
+  function campGet() {
+    return activeCamp().then(function (c) {
+      c = c || {};
+      return { success: true, dateFrom: txt(c.date_from), dateTo: txt(c.date_to),
+               days: nz(c.work_days), target: nz(c.target_count) };
+    });
+  }
+  function campSave(p) {
+    var row = { date_from: toISO(p.dateFrom), date_to: toISO(p.dateTo),
+                work_days: int(p.days), target_count: int(p.target) };
+    if (!row.date_from || !row.date_to)
+      return Promise.resolve({ success: false, message: "تاريخ البداية والنهاية مطلوبان" });
+    return activeCamp().then(function (c) {
+      if (c) return sb.from("vacc_campaigns").update(row).eq("id", c.id);
+      row.wilayat_id = me.wilayat_id; row.created_by = me.id; row.is_active = true;
+      return sb.from("vacc_campaigns").insert(row);
+    }).then(function (r) {
+      if (r.error) throw r.error;
+      return { success: true };
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     طلبات التحصين من سجل المربي
+     التحديث والحذف يطبّقان على أحدث طلب لرقم الهاتف
+     ════════════════════════════════════════════════════════════ */
+  var REFUSE_WORDS = ["رفض", "لا يرغب", "عدم رغبة", "غير راغب", "لا يريد", "عدم الرغبة"];
+
+  function vrqRow(d) {
+    var a = d.animals || {}, notes = txt(d.notes);
+    return {
+      name: txt(d.name) || null, region_name: txt(d.region) || null,
+      possession_no: strip(d.possession) || null, civil_id: txt(d.civil) || null,
+      holding_expiry: toISO(d.financialDate), notes: notes || null,
+      goats: int(a.goat) || 0, sheep: int(a.sheep) || 0,
+      cattle: int(a.cow) || 0, camels: int(a.camel) || 0,
+      is_refused: REFUSE_WORDS.some(function (w) { return notes.indexOf(w) !== -1; })
+    };
+  }
+  function latestReq(phone) {
+    return sb.from("vaccination_requests").select("id")
+      .eq("wilayat_id", me.wilayat_id).eq("phone", phone)
+      .order("entry_date", { ascending: false }).order("id", { ascending: false }).limit(1)
+      .then(function (r) {
+        if (r.error) throw r.error;
+        return (r.data && r.data[0]) ? r.data[0].id : null;
+      });
+  }
+  async function vrqSave(d) {
+    var phone = txt(d.phone);
+    if (!phone) return { success: false, message: "رقم الهاتف مطلوب" };
+    var row = vrqRow(d);
+    row.wilayat_id = me.wilayat_id; row.phone = phone; row.entry_date = today();
+    row.breeder_id = await lookupBreeder(phone);
+    var r = await sb.from("vaccination_requests").insert(row);
+    if (r.error) throw r.error;
+    return { success: true, message: "تم حفظ طلب التحصين" };
+  }
+  async function vrqUpdate(d) {
+    var phone = txt(d.phone);
+    var id = await latestReq(phone);
+    if (!id) return { success: false, message: "لا يوجد طلب تحصين لهذا الرقم" };
+    var row = vrqRow(d), np = txt(d.newPhone) || phone;
+    row.phone = np;
+    row.breeder_id = await lookupBreeder(np);
+    var r = await sb.from("vaccination_requests").update(row).eq("id", id);
+    if (r.error) throw r.error;
+    return { success: true, message: "تم تحديث طلب التحصين" };
+  }
+  async function vrqDelete(p) {
+    var id = await latestReq(txt(p.phone));
+    if (!id) return { success: false, message: "لا يوجد طلب تحصين لهذا الرقم" };
+    var r = await sb.from("vaccination_requests").delete().eq("id", id);
+    if (r.error) throw r.error;
+    return { success: true, message: "تم حذف طلب التحصين" };
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     القوائم المحفوظة — إيقاف الحفظ من الشيت
+     ════════════════════════════════════════════════════════════ */
+  var LIST_IDS = ["bd_phoneList", "tr_phoneList", "vacc_phoneList", "phoneList",
+                  "tr_diseaseList", "tr_drugList", "tr_dataEntryList", "testList", "sampleTypeList"];
+  var lastRefresh = null;
+
+  function refreshLists() {
+    var fns = ["bd_refreshDropdowns", "trloadDropdowns", "vaccLoadDropdowns", "foloadDropdowns"];
+    ref.tests = null; ref.stypes = null;
+    return Promise.allSettled(fns.map(function (n) {
+      return (typeof g[n] === "function") ? g[n]() : Promise.resolve();
+    })).then(function () { lastRefresh = new Date().toISOString(); });
+  }
+
+  function replaceStaticLists() {
+    var old = g.StaticLists;
+    if (!old) return false;
+    if (old._sb) return true;
+    try { old.clear(); } catch (e) {}
+    try {
+      Object.keys(localStorage).forEach(function (k) {
+        if (k.indexOf("static_lists_v1_") === 0) localStorage.removeItem(k);
+      });
+    } catch (e) {}
+    g.StaticLists = {
+      _sb: true, load: refreshLists, refresh: refreshLists, clear: function () {},
+      info: function () {
+        if (!lastRefresh) return null;
+        var n = 0;
+        LIST_IDS.forEach(function (id) {
+          var dl = document.getElementById(id);
+          if (dl) n += dl.querySelectorAll("option").length;
+        });
+        return { savedAt: lastRefresh, version: "supabase", itemCount: n };
+      }
+    };
+    log("✅ القوائم المحفوظة موقوفة — القوائم تُجلب من Supabase");
+    return true;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     الترحيل من Google Sheets — يُشغَّل يدوياً مرة لكل عيادة
+     ════════════════════════════════════════════════════════════ */
+  async function migrateSamples() {
+    await init();
+    if (!viaSheets.fo) throw new Error("دالة Apps Script الأصلية غير متاحة");
+
+    log("⏳ جلب العينات من Google Sheets...");
+    var res = await viaSheets.fo("fosearchSamplesData", { showAll: true });
+    if (!res || !res.success || !Array.isArray(res.data))
+      throw new Error("تعذّر جلب العينات من Google Sheets");
+
+    var pr = await sb.from("profiles").select("id, full_name").eq("wilayat_id", me.wilayat_id);
+    var byName = {};
+    (pr.data || []).forEach(function (p) { byName[txt(p.full_name)] = p.id; });
+
+    var br = await pageAll(function () {
+      return sb.from("breeders").select("id, phone").eq("wilayat_id", me.wilayat_id).order("id");
+    });
+    var byPhone = {};
+    br.forEach(function (b) { byPhone[txt(b.phone)] = b.id; });
+
+    /* كل أسماء الفحوصات والأنواع: من العينات + من قوائم الشيت */
+    var allTests = [], allTypes = [];
+    res.data.forEach(function (d) {
+      allTests = allTests.concat(testPairs(d).map(function (p) { return p.name; }));
+      allTypes = allTypes.concat(typeNames(d));
+    });
+    try {
+      var lt = await viaSheets.fo("fogetTestOptions");
+      var ls = await viaSheets.fo("fogetSampleTypeOptions");
+      allTests = allTests.concat((lt && lt.data) || []);
+      allTypes = allTypes.concat((ls && ls.data) || []);
+    } catch (e) {}
+    var tm = await idsFor("tests",  "lab_tests",    allTests);
+    var sm = await idsFor("stypes", "sample_types", allTypes);
+    await loadSpecies();
+
+    var stats = { total: res.data.length, inserted: 0, skipped: 0,
+                  breedersCreated: 0, invalid: [] };
+    var prepared = [], seenNo = {};
+
+    for (var i = 0; i < res.data.length; i++) {
+      var d = res.data[i], no = int(d.caseNumberrt);
+      if (!no)       { stats.invalid.push("صف بلا رقم عينة"); continue; }
+      if (seenNo[no]) { stats.invalid.push(no + " — رقم مكرر في الشيت"); continue; }
+
+      var taken = toISO(d.sampleTakenDate), sent = toISO(d.sampleSentDate);
+      taken = taken || sent; sent = sent || taken;
+      if (!taken)            { stats.invalid.push(no + " — بلا تاريخ أخذ أو إرسال"); continue; }
+      var phone = txt(d.phone);
+      if (!phone)            { stats.invalid.push(no + " — بلا رقم هاتف"); continue; }
+
+      var bid = byPhone[phone];
+      if (!bid) {
+        try { bid = await breederId(d); byPhone[phone] = bid; stats.breedersCreated++; }
+        catch (e) { stats.invalid.push(no + " — تعذّر إنشاء المربي: " + e.message); continue; }
+      }
+
+      var en = txt(d.dataEntry), up = txt(d.dataUpdater);
+      var row = toRow(d, bid, speciesIdSync(d.animalType));
+      row.taken_on       = taken;
+      row.sent_on        = sent;
+      row.wilayat_id     = me.wilayat_id;
+      row.sample_no      = no;
+      row.created_by     = byName[en] || null;
+      row.legacy_entry   = byName[en] ? null : (en || null);
+      row.updated_by     = byName[up] || null;
+      row.legacy_updater = byName[up] ? null : (up || null);
+
+      seenNo[no] = 1;
+      prepared.push({ d: d, row: row });
+    }
+
+    for (var j = 0; j < prepared.length; j += 200) {
+      var chunk = prepared.slice(j, j + 200);
+      var u = await sb.from("samples")
+        .upsert(chunk.map(function (x) { return x.row; }),
+                { onConflict: "wilayat_id,sample_no", ignoreDuplicates: true })
+        .select("id, sample_no");
+      if (u.error) throw u.error;
+
+      var idByNo = {};
+      (u.data || []).forEach(function (x) { idByNo[x.sample_no] = x.id; });
+      stats.inserted += (u.data || []).length;
+      stats.skipped  += chunk.length - (u.data || []).length;
+
+      var tests = [], types = [];
+      chunk.forEach(function (x) {
+        var id = idByNo[x.row.sample_no];
+        if (!id) return;
+        var c = childRows(id, x.d, tm, sm, null, true);
+        tests = tests.concat(c.tests);
+        types = types.concat(c.types);
+      });
+      if (tests.length) { var t1 = await sb.from("sample_tests").insert(tests);          if (t1.error) throw t1.error; }
+      if (types.length) { var t2 = await sb.from("sample_specimen_types").insert(types); if (t2.error) throw t2.error; }
+      log("… " + Math.min(j + 200, prepared.length) + " / " + prepared.length);
+    }
+
+    log("✅ ترحيل العينات: أُدخل " + stats.inserted + " | موجود مسبقاً " + stats.skipped +
+        " | مربون جدد " + stats.breedersCreated + " | مرفوض " + stats.invalid.length);
+    if (stats.invalid.length) console.table(stats.invalid);
+    return stats;
+  }
+
+  async function migrateCampaign() {
+    await init();
+    if (!viaSheets.camp) throw new Error("دالة Apps Script الأصلية غير متاحة");
+    var c = await viaSheets.camp("getVaccCampaign");
+    if (!c || !c.success || !c.dateFrom || !c.dateTo) {
+      log("ℹ️ لا توجد بيانات حملة في Google Sheets");
+      return null;
+    }
+    var r = await campSave(c);
+    log(r.success ? "✅ ترحيل الحملة: " + c.dateFrom + " → " + c.dateTo : "❌ " + r.message);
+    return r;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     الاعتراض
+     soft = true → الخطأ يُعاد كـ {success:false} بدل رميه
+     ════════════════════════════════════════════════════════════ */
+  function route(name, routes, keepKey, soft) {
+    var fn = g[name];
+    if (typeof fn !== "function") return false;
+    if (fn._sbPatch) return true;
+    if (keepKey && !viaSheets[keepKey]) viaSheets[keepKey] = fn;
+    g[name] = async function (action, payload) {
+      var r = routes[action];
+      if (!r) throw new Error("إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action);
+      try {
+        await init();
+        return await r(payload || {});
+      } catch (err) {
+        var msg = (err && err.message) ? err.message : String(err);
+        log("خطأ في " + action + ": " + msg);
+        if (soft) return { success: false, message: msg };
+        throw err;
+      }
+    };
+    g[name]._sbPatch = true;
+    log("✅ " + name + " موصول بـ Supabase");
+    return true;
+  }
+
+  function patchRpt() {
+    var fn = g.rpt_callApi;
+    if (typeof fn !== "function") return false;
+    if (fn._campPatch) return true;
+    g.rpt_callApi = async function (action, payload) {
+      if (action === "getVaccCampaign") { await init(); return await campGet(); }
+      return fn.apply(this, arguments);
+    };
+    g.rpt_callApi._campPatch = true;
+    return true;
+  }
+
+  /* يلتف على جسر المربي بعد تركيبه — ويحمل _sbPatch حتى لا يُعاد تغليفه */
+  function patchBd() {
+    var fn = g.bd_callApi;
+    if (typeof fn !== "function" || !fn._sbPatch) return false;
+    if (fn._vrqPatch) return true;
+    var routes = {
+      bd_saveVaccinationData:   function (p) { return vrqSave(p.data || {}); },
+      bd_updateVaccinationData: function (p) { return vrqUpdate(p.data || {}); },
+      bd_deleteVaccinationData: function (p) { return vrqDelete(p); }
+    };
+    var w = async function (action, payload) {
+      var r = routes[action];
+      if (!r) return fn.apply(this, arguments);
+      try { await init(); return await r(payload || {}); }
+      catch (err) { return { success: false, message: (err && err.message) || String(err) }; }
+    };
+    w._sbPatch = true; w._vrqPatch = true;
+    g.bd_callApi = w;
+    log("✅ طلبات التحصين في سجل المربي موصولة بـ Supabase");
+    return true;
+  }
+
+  function patch() {
+    var ok = [
+      route("focallApi", FO, "fo", true),
+      route("db_call",   { searchSampleData: printData }),
+      route("camp_api",  { getVaccCampaign: campGet, saveVaccCampaign: campSave }, "camp", true),
+      patchRpt(),
+      patchBd(),
+      replaceStaticLists()
+    ];
+    if (ok.indexOf(false) !== -1) setTimeout(patch, 400);
+  }
+  patch();
+
+  g.SBMigrate = { samples: migrateSamples, campaign: migrateCampaign };
 
 })(window);
 </script>
