@@ -7311,6 +7311,19 @@ function vr_animalCell(r) {
          ';color:' + color + ';border-radius:12px;padding:2px 10px;font-weight:bold;font-size:12px;">' +
          total + '</span>';
 }
+  /* ملخص الحيوانات المطلوب تحصينها — من طلب التحصين (لغير المحصنين) */
+function vr_requestSummary(r) {
+  var parts = [];
+  var add = function(label, v) {
+    var x = parseFloat(String(v == null ? '' : v).replace(/,/g, '').trim());
+    if (!isNaN(x) && x > 0) parts.push(label + ' ' + x);
+  };
+  add('ماعز', r.goat); add('أغنام', r.sheep);
+  add('أبقار', r.cow); add('جمال', r.camel);
+  if (!parts.length) return '—';
+  return '<span style="color:#7a0000;font-weight:bold;">📋 مطلوب تحصين:</span> ' +
+         vr_escapeHtml(parts.join('، '));
+}
 function vr_escapeHtml(s) {
   if (s === null || s === undefined) return "";
   return String(s)
@@ -7400,13 +7413,9 @@ function vr_parseDate(val) {
   }
   if (vr_dataLoaded) vr_render();
 }
-    function vr_isRefused(r) {
-  if (typeof r.refused === 'boolean') return r.refused;
-  var notes = (r.notes || '').toString();
-  var keywords = ['رفض', 'لا يرغب', 'عدم رغبة', 'غير راغب', 'لا يريد', 'عدم الرغبة'];
-  return keywords.some(function(k) { return notes.indexOf(k) !== -1; });
+function vr_isRefused(r) {
+  return r.refused === true;
 }
-
 /* ── أنواع الحيوانات التي يجب أن يغطيها كل لقاح ── */
 var VR_VACCINE_ANIMALS = {
   intox:  ['sheep','goat'],
@@ -7586,13 +7595,60 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
       '<td style="' + nameCellStyle + '">' + nameContent + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(r.area) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(vr_formatDate(r.entryDate)) + '</td>' +
-      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + badge + '</td>' +
-      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + vr_escapeHtml(r.summary || "—") + '</td>' +
+      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + vr_refuseBtn(r) + '</td>' +
+      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + (r.vaccinated ? vr_escapeHtml(r.summary || "—") : vr_requestSummary(r)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
     tbody.appendChild(tr);
   });
 }
+/* زر رفض / إلغاء رفض التحصين — لغير المحصنين فقط */
+function vr_refuseBtn(r) {
+  if (r.vaccinated) return '';
+  var ref = vr_isRefused(r);
+  var ph  = vr_escapeHtml(r.phone).replace(/'/g, "\\'");
+  return ' <button class="vr-refuse-btn" onclick="vr_toggleRefused(\'' + ph + '\')" ' +
+    'style="padding:2px 8px;font-size:11px;border-radius:10px;margin-right:4px;' +
+    'background:' + (ref ? '#95a5a6' : '#8e44ad') + ';color:#fff;">' +
+    (ref ? '↩️ إلغاء الرفض' : '⛔ رفض') + '</button>';
+}
 
+async function vr_toggleRefused(phone) {
+  if (typeof PERM !== 'undefined' && PERM.isActionAllowed && !PERM.isActionAllowed('update')) {
+    showToast('⛔ ليس لديك صلاحية لتنفيذ هذا الإجراء', 'error'); return;
+  }
+  phone = String(phone).trim();
+  var r = vr_allData.filter(function (x) { return String(x.phone).trim() === phone; })[0];
+  if (!r) return;
+  var makeRefused = !vr_isRefused(r);
+
+  var ok = await vr__confirm(
+    makeRefused ? '⛔ تسجيل رفض التحصين' : '↩️ إلغاء رفض التحصين',
+    (makeRefused ? 'سيتم تسجيل أن المربي <strong>' : 'سيتم إلغاء حالة الرفض للمربي <strong>') +
+    vr_escapeHtml(r.name) + '</strong> (' + vr_escapeHtml(phone) + ').'
+  );
+  if (!ok) return;
+
+  showToast('⏳ جاري الحفظ...', 'info');
+  try {
+    var sb = await window.SBAuth.client();
+    var q = await sb.from('vaccination_requests').select('id')
+      .eq('wilayat_id', window._sbProfile.wilayat_id).eq('phone', phone)
+      .order('entry_date', { ascending: false }).order('id', { ascending: false }).limit(1);
+    if (q.error) throw q.error;
+    var req = q.data && q.data[0];
+    if (!req) throw new Error('لا يوجد طلب تحصين لهذا الرقم');
+
+    var u = await sb.from('vaccination_requests')
+      .update({ is_refused: makeRefused }).eq('id', req.id);
+    if (u.error) throw u.error;
+
+    r.refused = makeRefused;
+    vr_render();
+    showToast(makeRefused ? '✅ تم تسجيل رفض التحصين' : '✅ تم إلغاء حالة الرفض', 'success');
+  } catch (e) {
+    showToast('❌ ' + (e.message || e), 'error');
+  }
+}
 // ربط أحداث الفلترة (مرة واحدة فقط)
 async function vr_saveToBreeder(r) {
   // ── 1) بناء وعرض النافذة المنبثقة ──
@@ -16579,8 +16635,6 @@ global.fetch = function (input, init) {
      طلبات التحصين من سجل المربي
      التحديث والحذف يطبّقان على أحدث طلب لرقم الهاتف
      ════════════════════════════════════════════════════════════ */
-  var REFUSE_WORDS = ["رفض", "لا يرغب", "عدم رغبة", "غير راغب", "لا يريد", "عدم الرغبة"];
-
   function vrqRow(d) {
     var a = d.animals || {}, notes = txt(d.notes);
     return {
@@ -16588,8 +16642,7 @@ global.fetch = function (input, init) {
       possession_no: strip(d.possession) || null, civil_id: txt(d.civil) || null,
       holding_expiry: toISO(d.financialDate), notes: notes || null,
       goats: int(a.goat) || 0, sheep: int(a.sheep) || 0,
-      cattle: int(a.cow) || 0, camels: int(a.camel) || 0,
-      is_refused: REFUSE_WORDS.some(function (w) { return notes.indexOf(w) !== -1; })
+      cattle: int(a.cow) || 0, camels: int(a.camel) || 0
     };
   }
   function latestReq(phone) {
