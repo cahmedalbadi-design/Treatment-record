@@ -13462,6 +13462,23 @@ Promise.all([
   /* ── إجراءات خلفية: تُقاس ولا تُنبّه ولا تُحجب ──────────── */
   var SILENT_ACTIONS = ['syncNotify','syncGetEvents'];
 
+  /* ── عمليات الكتابة إلى جداول Supabase (REST) ───────────── */
+  function sbWriteMethod(url, init) {
+    var m = ((init && init.method) || 'GET').toUpperCase();
+    if (m === 'GET' || m === 'HEAD') return '';
+    if (url.indexOf('/rest/v1/') === -1)     return '';
+    if (url.indexOf('/rest/v1/rpc/') !== -1) return '';   /* الدوال: next_case_no وlogin_email */
+    return m;
+  }
+
+  /* بصمة الطلب بعد تحييد الطوابع الزمنية (updated_at وغيرها)
+     حتى يُكتشف الطلب المكرر ولو اختلف توقيته بأجزاء من الثانية */
+  function sbKeyOf(method, url, body) {
+    var b = (typeof body === 'string') ? body : '';
+    b = b.replace(/"\d{4}-\d{2}-\d{2}T[^"]*"/g, '"~"');
+    return 'sb_' + ngHash(method + ' ' + url + ' ' + b);
+  }
+
   var _origFetch  = global.fetch.bind(global);
   var _slowStreak = 0;
   var _lastFailAt = 0;
@@ -13561,7 +13578,7 @@ Promise.all([
 
   /* ── نافذة المنع / الفشل ────────────────────────────────── */
   /* mode: 'blocked' = لم يُرسل الطلب | 'failed' = أُرسل وفشل */
-  function showModal(reason, mode) {
+  function showModal(reason, mode, isSb) {
     if (document.getElementById('netguard-modal')) return;
 
     var detail, safety, color;
@@ -13580,7 +13597,14 @@ Promise.all([
       detail = 'انقطع الاتصال بالخادم أثناء تنفيذ العملية.';
     }
 
-    if (mode === 'blocked' || reason === 'offline' || reason === 'network') {
+    if (mode === 'blocked') {
+      safety = '<strong>لم يتم حفظ أو تعديل أي بيانات.</strong> تحقق من الإنترنت ثم أعد المحاولة.';
+      color  = '#e65050';
+    } else if (isSb) {
+      safety = 'ربما نُفِّذت العملية قبل انقطاع الاتصال — ' +
+               '<strong>تحقق من السجل قبل إعادة المحاولة</strong> لتجنب التكرار.';
+      color  = '#e67e22';
+    } else if (reason === 'offline' || reason === 'network') {
       safety = '<strong>لم يتم حفظ أو تعديل أي بيانات.</strong> تحقق من الإنترنت ثم أعد المحاولة.';
       color  = '#e65050';
     } else {
@@ -13649,6 +13673,28 @@ global.fetch = function (input, init) {
     var isWrite = action !== '' && WRITE_ACTIONS.indexOf(action) !== -1;
     var opId    = '';
 
+    /* ── Supabase ── */
+    var isSb  = /\/(rest|auth)\/v1\//.test(url);
+    var sbw   = sbWriteMethod(url, init);
+    var sbKey = '';
+
+    if (sbw) {
+      if (!navigator.onLine) {
+        showModal('offline', 'blocked', true);
+        return Promise.reject(new Error('لا يوجد اتصال بالإنترنت — لم يتم تنفيذ العملية'));
+      }
+      if (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs && _lastReason !== 'timeout') {
+        showModal('locked', 'blocked', true);
+        return Promise.reject(new Error('الاتصال بقاعدة البيانات منقطع — لم يتم تنفيذ العملية'));
+      }
+      sbKey = sbKeyOf(sbw, url, init && init.body);
+      if (_inflight[sbKey]) {
+        toast('⏳ نفس العملية قيد التنفيذ — انتظر النتيجة', 'warning');
+        return Promise.reject(new Error('العملية قيد التنفيذ بالفعل'));
+      }
+      _inflight[sbKey] = true;
+    }
+
     if (isWrite) {
       /* ١. بوابات الحجب الفورية */
       if (!navigator.onLine) {
@@ -13677,17 +13723,21 @@ global.fetch = function (input, init) {
       } catch (e) { opId = ''; }
     }
 
-    function release() { if (opId) delete _inflight[opId]; }
-
+    function release() {
+      if (opId)  delete _inflight[opId];
+      if (sbKey) delete _inflight[sbKey];
+    }
     var t0 = now();
-    var limit = isWrite ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
-
+    var limit = (isWrite || sbw) ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
     return fetchTimed(input, init, limit).then(function (r) {
       release();
       var ms = now() - t0;
       if (!r.ok) {
+        /* أخطاء Supabase من نوع 4xx أخطاء بيانات (تكرار، صلاحيات، كلمة مرور)
+           يعالجها الجسر نفسه — الاتصال سليم فلا حجب ولا تنبيه */
+        if (isSb && r.status < 500) { markSuccess(ms, silent); return r; }
         markFailure('http-' + r.status);
-        if (isWrite) showModal('http-' + r.status, 'failed');
+        if (isWrite || sbw) showModal('http-' + r.status, 'failed', !!sbw);
         else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status, 'error');
         return r;
       }
@@ -13700,7 +13750,7 @@ global.fetch = function (input, init) {
       var reason  = aborted ? 'timeout' : (navigator.onLine ? 'network' : 'offline');
       markFailure(reason);
 
-      if (isWrite) showModal(reason, 'failed');
+      if (isWrite || sbw) showModal(reason, 'failed', !!sbw);
       else if (!silent) {
         toast(aborted ? '⏱️ انتهت مهلة الاتصال بالخادم'
                       : '❌ انقطع الاتصال بالخادم', 'error');
