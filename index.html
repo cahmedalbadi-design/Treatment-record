@@ -5734,7 +5734,10 @@ async function bd_updateVaccination() {
   if(!phone){bd_showMessage("الرجاء اختيار الرقم",true);return;}
   if(!name){bd_showMessage("الاسم مطلوب",true);return;}
   if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);document.getElementById("bd_regionInput").focus();return;}
-  if(!dataUpdater){bd_showMessage("مدخل البيانات (التحديث) مطلوب",true);return;}  var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
+  if(!dataUpdater){bd_showMessage("مدخل البيانات (التحديث) مطلوب",true);return;}
+  var _np=bd_getValue("bd_newPhoneInput");
+  if(_np&&_np!==phone){bd_showMessage("لتغيير رقم الهاتف استخدم زر (تحديث) لسجل المربي أولاً",true);return;}
+  var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
   if(![goat,sheep,cow].some(function(v){return v!==""&&Number(v)>0;})){bd_showMessage("يجب إدخال عدد حيوان",true);return;}
   var newPhone=bd_getValue("bd_newPhoneInput");
   var vacData={phone:phone,newPhone:newPhone||phone,name:name,civil:bd_getValue("bd_civilInput"),region:bd_getValue("bd_regionInput"),
