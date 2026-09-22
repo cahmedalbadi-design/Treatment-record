@@ -1333,9 +1333,9 @@ async function bootLoadAll() {
     bootOpenTreatment();
   }
 
-  if (!window._activeApiUrl) {
-    ov.set(0, 'رابط الخدمة غير معرّف');
-    ov.fail(['رابط الخدمة (api_url) غير معرّف لهذا المستخدم'],
+  if (!window._sbProfile || !window._sbProfile.wilayat_id) {
+    ov.set(0, 'لا توجد عيادة مرتبطة بالحساب');
+    ov.fail(['الحساب غير مرتبط بعيادة — أعد تسجيل الدخول أو راجع مسؤول النظام'],
       function () { window._bootRunning = false; ov.close(); },
       function () { window._bootRunning = false; ov.close(); });
     return;
@@ -1362,7 +1362,6 @@ async function bootLoadAll() {
           return;
         }
         window._treatmentInitialized = true;
-        window.TR_API_URL = window._activeApiUrl;
         if (typeof trinit === 'function') await trinit();
       },
       check: function () {
@@ -1663,41 +1662,18 @@ lockNav();
 
 <!-- الصفحات -->
 <div id="home" class="page">
-  <!-- ===== قسم اختيار الولاية ===== -->
+    <!-- ===== بطاقة العيادة الحالية ===== -->
 <div style="padding:15px 0 5px 0;">
   <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;">
-    
-    <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:12px;">
-      🗺️ اختيار الولاية
+    <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:10px;">
+      🏥 العيادة الحالية
     </div>
-
-    <label style="font-size:13px;font-weight:bold;color:#004e66;display:block;margin-bottom:6px;">
-      اختر الولاية :
-    </label>
-
-    <select id="wilayatSelect"
-      style="width:100%;padding:8px 10px;border:2px solid #ddd;border-radius:5px;
-             font-size:14px;font-family:inherit;margin-bottom:12px;color:#333;">
-      <option value="">— اختر الولاية —</option>
-      <option value="https://script.google.com/macros/s/AKfycbwi9CkCDB_0-TEEzYNm0OHzaQeJGmAn2XBgWdu0whh1RcYz9pCF8RA94O7jMMHUSpAUIw/exec">شناص</option>
-      <option value="https://script.google.com/macros/s/AKfycbzEUVgUVBiK3diev7vq-pYQ51zB-Ujq88f_xdAKGX2PXUzE1Io3FZEaWPi3xHUF5ckXGg/exec">لوى</option>
-      <option value="https://script.google.com/macros/s/AKfycbyz2zN7GFcvLTRBa7r2qbu8B1Q8i9EQdmOwwxRGCWzJrxPZp2h3b6f5jpNLcq-Mfc9q/exec">صحم</option>
-      <option value="https://script.google.com/macros/s/AKfycbzN0d0fPRzmfhaxKLbZnK0WAIKlLam0bZEUrJPUnEKOYQvsPXVA7-db7sQw9sWJhR7k/exec">صحار</option>
-      <option value="https://script.google.com/macros/s/AKfycbwnCUYiFL6j9yenFS6jmA9Dqktha6nyb-vKGtWKHpopFy6TtU8IQjdgTfCi7dcUMy1q/exec">الخابورة</option>
-      <option value="https://script.google.com/macros/s/AKfycbyYcOAj-NeT18g_f4TZ4SsZK-7YCFHWDHRu0FZPfoqOKpfawx3jTqiBXTA5Xoq_w_YL/exec">السويق</option>
-       <option value="https://script.google.com/macros/s/AKfycbzCHdhVnEJU5nq-OYZXTH_wLo-wDfx8pzsIYRosMaWyUsE1mepgAyonUAZ85rqp0i4S/exec">دائرة الثروة الحيوانية</option>
-    </select>
-
-    <button id="wilayatApplyBtn" onclick="wilayatApply()"
-      style="width:100%;padding:10px;background:#2bb673;color:#fff;border:none;
-             border-radius:5px;font-size:14px;font-weight:bold;font-family:inherit;cursor:pointer;">
-      ✅ تطبيق الولاية
-    </button>
-
-<div id="wilayatStatus" style="margin-top:10px;font-size:13px;font-weight:bold;
-         text-align:center;display:none;"></div>
+    <div id="clinicInfoName" style="font-size:16px;font-weight:bold;color:#1b5e20;text-align:center;
+         background:#eafaf1;border:2px solid #2bb673;border-radius:5px;padding:8px;">—</div>
+    <div style="font-size:12px;color:#666;line-height:1.9;margin-top:8px;">
+      تُحدَّد العيادة تلقائياً من حساب المستخدم ولا يمكن تغييرها من هذه الصفحة.
+    </div>
   </div>
-
   <!-- ===== بطاقة المدى الزمني لحملة التحصين ===== -->
   <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
     <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:12px;">
@@ -1936,24 +1912,13 @@ setInterval(slShowInfo, 3000);
 </script>
 
 <script>
-// تحميل الولاية المحفوظة عند فتح الصفحة
-(function() {
-  var saved = localStorage.getItem('selected_wilayat_url');
-  var savedName = localStorage.getItem('selected_wilayat_name');
-  if (saved) {
-    // تطبيق الرابط المحفوظ على كل متغيرات التطبيق
-    wilayatSetAllUrls(saved);
-    var status = document.getElementById('wilayatStatus');
-    if (status) {
-      status.style.display = 'block';
-      status.style.color = '#2bb673';
-      status.textContent = '✅ الولاية الحالية: ' + (savedName || saved);
-    }
-    // تعيين القيمة في القائمة
-    var sel = document.getElementById('wilayatSelect');
-    if (sel) sel.value = saved;
-  }
-})();
+// عرض اسم العيادة الحالية من ملف المستخدم
+function clinicInfoRefresh() {
+  var el = document.getElementById('clinicInfoName');
+  if (!el) return;
+  var p = window._sbProfile;
+  el.textContent = (p && p.wilayat && p.wilayat.name) ? p.wilayat.name : '—';
+}
 
 function wilayatSetAllUrls(url) {
   window._activeApiUrl      = url;
@@ -1982,136 +1947,6 @@ function wilayatSetAllUrls(url) {
   try { VR_API_URL       = url; } catch(e) {}
 }
 
-async function wilayatApply() {
-  var sel = document.getElementById('wilayatSelect');
-  var status = document.getElementById('wilayatStatus');
-
-  if (!sel.value) {
-    showToast('الرجاء اختيار ولاية أولاً', 'warning');
-    return;
-  }
-
-  var name = sel.options[sel.selectedIndex].text;
-  var url  = sel.value;
-
-  // تطبيق الرابط على كل متغيرات التطبيق
-  wilayatSetAllUrls(url);
-
-  // حفظ الاختيار في localStorage
-  localStorage.setItem('selected_wilayat_url', url);
-  localStorage.setItem('selected_wilayat_name', name);
-
-  // ===== إظهار شاشة الانتظار =====
-  var loadingOverlay = document.createElement('div');
-  loadingOverlay.id = 'wilayatLoadingOverlay';
-  loadingOverlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(255,255,255,0.97);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    z-index:99999;font-family:Tahoma,Arial,sans-serif;direction:rtl;
-  `;
-  loadingOverlay.innerHTML = `
-    <div style="text-align:center;">
-      <div style="width:70px;height:70px;border:7px solid #e0e0e0;
-           border-top:7px solid #00b8d9;border-radius:50%;
-           animation:spin 1s linear infinite;margin:0 auto 20px;"></div>
-      <div style="font-size:20px;font-weight:bold;color:#00b8d9;margin-bottom:10px;">
-        ⏳ جاري تحميل ملفات ولاية ${name}
-      </div>
-      <div id="wilayatLoadingStep" style="font-size:14px;color:#666;margin-bottom:20px;">
-        جاري الاتصال بالخادم...
-      </div>
-      <div style="width:300px;height:10px;background:#e0e0e0;border-radius:20px;overflow:hidden;">
-        <div id="wilayatProgressBar" style="height:100%;width:0%;background:#00b8d9;
-             border-radius:20px;transition:width 0.4s ease;"></div>
-      </div>
-      <div id="wilayatProgressText" style="font-size:13px;color:#00b8d9;
-           margin-top:8px;font-weight:bold;">0%</div>
-    </div>
-  `;
-  document.body.appendChild(loadingOverlay);
-
-  function setStep(msg, percent) {
-    var stepEl = document.getElementById('wilayatLoadingStep');
-    var barEl  = document.getElementById('wilayatProgressBar');
-    var pctEl  = document.getElementById('wilayatProgressText');
-    if (stepEl) stepEl.textContent = msg;
-    if (barEl)  barEl.style.width  = percent + '%';
-    if (pctEl)  pctEl.textContent  = percent + '%';
-  }
-
-  try {
-   // خطوة 1 — كل القوائم الثابتة بطلب واحد
-    setStep('جاري تحميل القوائم الثابتة...', 40);
-    if (window.StaticLists) {
-      try { await StaticLists.refresh(); } catch (e) {}
-    }
-    // خطوة 2 — السجل اليومي للعلاج
-    setStep('جاري تحميل السجل اليومي...', 70);
-    await Promise.allSettled([
-      (async function() {
-        if (typeof trloadData === 'function') await trloadData();
-      })(),
-      (async function() {
-        if (typeof trloadIncompleteCount === 'function') await trloadIncompleteCount();
-      })()
-    ]);
-// خطوة 3 — إحصاءات العينات (بيانات متغيرة — تُجلب دائماً)
-    setStep('جاري تحميل إحصاءات العينات...', 92);
-    try {
-      if (typeof focallApi === 'function') {
-        var r3 = await focallApi('fogetUniquePhoneCount');
-        if (r3.success || r3.count !== undefined) {
-          var uc = document.getElementById('uniqueCountDisplay');
-          var ls = document.getElementById('lastSampleDisplay');
-          if (uc) uc.textContent = r3.count || 0;
-          if (ls) ls.textContent = r3.lastSample || '—';
-        }
-      }
-    } catch (e) {}
-    setStep('✅ تم تحميل جميع البيانات بنجاح!', 100);
-    await new Promise(function(r){ setTimeout(r, 700); });
-
-  } catch(err) {
-    setStep('⚠️ تم التحميل مع بعض الأخطاء', 100);
-    await new Promise(function(r){ setTimeout(r, 800); });
-  }
-
-  // إخفاء شاشة الانتظار
-  loadingOverlay.style.transition = 'opacity 0.4s ease';
-  loadingOverlay.style.opacity = '0';
-  setTimeout(function() {
-    if (loadingOverlay.parentNode) loadingOverlay.remove();
-  }, 400);
-
-  // إظهار رسالة النجاح
-  status.style.display = 'block';
-  status.style.color = '#2bb673';
-  status.textContent = '✅ الولاية الحالية: ' + name;
-
-showToast('✅ تم تحميل ولاية ' + name + ' بنجاح', 'success');
-
-  // إعادة تهيئة جميع الصفحات بالرابط الجديد
-  window._treatmentInitialized    = false;
-  window._vaccinationInitialized  = false;
-  window._vrInitialized           = false;
-  window._breederInitialized      = false;
-  window._samplesInitialized      = false;
-  if (typeof bd_clearForm === 'function') bd_clearForm();
-   resetAllPagesData();
-  // إعادة تحميل الصفحات التي لا تحتاج init
-  vr_allData    = [];
-  vr_dataLoaded = false;
-
-  if (typeof trloadData          === 'function') trloadData();
-  if (typeof trloadIncompleteCount === 'function') trloadIncompleteCount();
-  if (typeof vr_loadData         === 'function') vr_loadData();
-  if (typeof ani_loadData        === 'function') ani_loadData();
-  if (typeof dim_loadData        === 'function') dim_loadData();
-  if (typeof rpt_loadReport      === 'function') rpt_loadReport();
-  if (typeof dtr_loadData        === 'function') dtr_loadData();
- if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
-
-}
 </script>
   <!-- زر المظهر مستقل عن نظام التبويبات -->
   <div style="padding:15px 0;">
@@ -2722,13 +2557,17 @@ if (!u || !p) {
     lCU                 = me;
     window._sbProfile   = me;
     window._currentUser = me.username;
+    if (!me.wilayat_id) {
+      try { await sb.auth.signOut(); } catch (e) {}
+      lCU = null;
+      window._sbProfile   = null;
+      window._currentUser = null;
+      throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مسؤول النظام');
+    }
+
+    /* رابط Apps Script اختياري — يُستخدم فقط لأدوات الترحيل SBMigrate */
     window._activeApiUrl = (me.wilayat && me.wilayat.api_url) || '';
-
-    if (!window._activeApiUrl)
-      throw new Error('لا يوجد رابط خدمة لعيادة ' +
-        ((me.wilayat && me.wilayat.name) || '—'));
-
-    if (typeof wilayatSetAllUrls === 'function')
+    if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function')
       wilayatSetAllUrls(window._activeApiUrl);
 
     PERM.init(me.username, {
@@ -2741,6 +2580,7 @@ if (!u || !p) {
 
     document.getElementById('l_welcomeName').textContent = 'مرحباً...';
     lShow(lViews.welcome);
+    if (typeof clinicInfoRefresh === 'function') clinicInfoRefresh();
     unlockNav();
     return true;
   }
@@ -2769,13 +2609,12 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
   lShow(lViews.login);
   lockNav();
 
-  // إعادة ضبط اختيار الولاية
-  var sel = document.getElementById('wilayatSelect');
-  if (sel) sel.value = '';
-  var status = document.getElementById('wilayatStatus');
-  if (status) { status.style.display = 'none'; status.textContent = ''; }
-  localStorage.removeItem('selected_wilayat_url');
-  localStorage.removeItem('selected_wilayat_name');
+  if (typeof clinicInfoRefresh === 'function') clinicInfoRefresh();
+  /* تنظيف مفاتيح النظام القديم إن وُجدت */
+  try {
+    localStorage.removeItem('selected_wilayat_url');
+    localStorage.removeItem('selected_wilayat_name');
+  } catch (e) {}
 
   showPage('login');
 });
@@ -11776,7 +11615,6 @@ function foDismissOverdueAlert() {
     tempupdate: "تحديث مؤقت",
     bdsave: "حفظ بيانات التحصين", 
     bdupdate: "تحديث بيانات التحصين",
-    apply: "تطبيق الولاية",
     camp_save: "حفظ حملة التحصيت",
     camp_load: "جلب حملة التحصين",
   };
@@ -11823,9 +11661,7 @@ function foDismissOverdueAlert() {
     reports: [
       { selector: "#reports .print-btn", action: "print" },
     ],
-    financialInventory: [
-      { id: "wilayatApplyBtn", action: "apply" },
-    ],
+
      home: [
       { id: "camp_saveBtn",   action: "camp_save"   },
       { id: "camp_loadBtn", action: "camp_load" },
@@ -13448,11 +13284,6 @@ Promise.all([
   }
   tryPatch();
 })();
-  // مسح الولاية عند تحديث الصفحة
-window.addEventListener('beforeunload', function() {
-  localStorage.removeItem('selected_wilayat_url');
-  localStorage.removeItem('selected_wilayat_name');
-});
 </script>
   <script>
 (function (global) {
@@ -13810,10 +13641,7 @@ global.fetch = function (input, init) {
         showModal('offline', 'blocked');
         return Promise.reject(new Error('لا يوجد اتصال بالإنترنت — لم يتم تنفيذ العملية'));
       }
-      if (!apiUrl()) {
-        showModal('no-url', 'blocked');
-        return Promise.reject(new Error('رابط الخدمة غير معرّف — لم يتم تنفيذ العملية'));
-      }
+ 
       if (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs && _lastReason !== 'timeout') {
         showModal('locked', 'blocked');
         return Promise.reject(new Error('الاتصال بقاعدة البيانات منقطع — لم يتم تنفيذ العملية'));
