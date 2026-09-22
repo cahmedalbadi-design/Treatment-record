@@ -1968,7 +1968,6 @@ function wilayatSetAllUrls(url) {
   window.dtr_SERVICE_URL    = url;
   window.ani_SERVICE_URL    = url;
   window.rpt_SERVICE_URL    = url;
-  window.REMOTE_SYNC_URL    = url;
   // تحديث المتغيرات المحلية داخل السكريبتات مباشرة
   try { fin_SERVICE_URL  = url; } catch(e) {}
   try { dtr_SERVICE_URL  = url; } catch(e) {}
@@ -1977,7 +1976,6 @@ function wilayatSetAllUrls(url) {
   try { SETTINGS__URL    = url; } catch(e) {}
   try { DB__URL          = url; } catch(e) {}
   try { dim_SERVICE_URL  = url; } catch(e) {}
-  try { REMOTE_SYNC_URL  = url; } catch(e) {}
   try { TR_API_URL       = url; } catch(e) {}
   try { VACC_API_URL     = url; } catch(e) {}
   try { SAMPLES_API_URL  = url; } catch(e) {}
@@ -7492,7 +7490,7 @@ vr_allData = res.data || [];
     vr_dataLoaded = true;
     // جلب أرقام هواتف المربين المسجلين
     try {
-      var bdRes = await vr_callApi("bd_getPhoneNumbers");
+      var bdRes = await bd_callApi("bd_getPhoneNumbers");
       vr_registeredPhones = new Set((bdRes.data || []).map(function(p){ return p.toString().trim(); }));
     } catch(e) {
       vr_registeredPhones = new Set();
@@ -12400,89 +12398,41 @@ function showUserBadge(name, role) {
 })(window);
 
 "use strict";
-
-// ─────────────────────────────────────────────────────
-// نظام المزامنة بين الأجهزة v3.0
-// يعتمد على Polling للـ Google Apps Script
-// ─────────────────────────────────────────────────────
-
-var REMOTE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyz2zN7GFcvLTRBa7r2qbu8B1Q8i9EQdmOwwxRGCWzJrxPZp2h3b6f5jpNLcq-Mfc9q/exec";
-var REMOTE_SYNC_INTERVAL = 60000; // كل 60 ثانية (يقلل ضغط الخادم بنسبة 75%)
-var REMOTE_SYNC_LAST_TS  = Date.now(); // نتتبع آخر وقت تحديث
-var remoteSyncTimer = null;
+// نظام المزامنة v4.0 — Supabase Realtime (Broadcast)
+// قناة واحدة لكل عيادة — بلا استطلاع دوري وبلا Apps Script
+var REMOTE_SYNC_CHANNEL  = null;   // القناة النشطة
+var REMOTE_SYNC_CLIENT   = null;   // عميل Supabase المالك للقناة
+var REMOTE_SYNC_STARTING = null;   // يمنع الاتصال المزدوج
+var REMOTE_SYNC_TIMERS   = {};     // تجميع الإشعارات لكل موضوع
+var REMOTE_SYNC_DEBOUNCE = 1500;
 
 // معرّف فريد لكل جهاز/تبويبة (لتجنب تطبيق التحديث على مُرسِله)
 window._syncTabId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 // ─────────────────────────────────────────────────────
-// ١. إرسال حدث التغيير للـ API (بعد أي حفظ/تحديث/حذف)
+// ١. إرسال إشعار التغيير — مُجمَّع لكل موضوع لمنع التكرار
 // ─────────────────────────────────────────────────────
-window.syncBroadcast = async function(topic, action, data) {
-  try {
-    var body = JSON.stringify({
-      action: "syncNotify",
-      topic:  topic,
-      op:     action,
-      tabId:  window._syncTabId,
-      ts:     Date.now()
-    });
-    await fetch(REMOTE_SYNC_URL, {
-      method: "POST", mode: "cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: body, redirect: "follow"
-    });
-  } catch(e) {
-    // صامت — لا يعطّل العمل الأساسي
-  }
-
-  // مزامنة المتصفح الحالي أيضاً (للتبويبات المتعددة)
-  try {
-    if (window._localSyncChannel) {
-      window._localSyncChannel.postMessage({ topic: topic, action: action, tabId: window._syncTabId, ts: Date.now() });
-    }
-  } catch(e) {}
+window.syncBroadcast = function (topic, action) {
+  if (!topic) return;
+  clearTimeout(REMOTE_SYNC_TIMERS[topic]);
+  REMOTE_SYNC_TIMERS[topic] = setTimeout(function () {
+    delete REMOTE_SYNC_TIMERS[topic];
+    syncSendNow(topic, action);
+  }, REMOTE_SYNC_DEBOUNCE);
 };
 
-// ─────────────────────────────────────────────────────
-// ٢. استطلاع الـ API (Polling)
-// ─────────────────────────────────────────────────────
-async function remoteSyncPoll() {
-  if (!window._isLoggedIn) return;
+function syncSendNow(topic, action) {
+  var msg = { topic: topic, action: action || "", tabId: window._syncTabId, ts: Date.now() };
+
+  /* التبويبات الأخرى في نفس المتصفح */
+  try { if (window._localSyncChannel) window._localSyncChannel.postMessage(msg); } catch (e) {}
+
+  /* الأجهزة الأخرى في نفس العيادة */
+  if (!REMOTE_SYNC_CHANNEL) return;
   try {
-    var body = JSON.stringify({
-      action: "syncGetEvents",
-      since:  REMOTE_SYNC_LAST_TS,
-      tabId:  window._syncTabId
-    });
-    var r = await fetch(REMOTE_SYNC_URL, {
-      method: "POST", mode: "cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: body, redirect: "follow"
-    });
-    if (!r.ok) return;
-    var res = await r.json();
-
-    if (res.events && res.events.length > 0) {
-      // حدّث الطابع الزمني
-      REMOTE_SYNC_LAST_TS = Date.now();
-
-      // جمّع المواضيع الفريدة فقط (لتجنب تحديثات مكررة)
-      var topics = {};
-      res.events.forEach(function(ev) {
-        if (ev.tabId !== window._syncTabId) {
-          topics[ev.topic] = ev.op;
-        }
-      });
-
-      // طبّق التحديثات
-      Object.keys(topics).forEach(function(topic) {
-        remoteSyncApply(topic, topics[topic]);
-        remoteSyncShowToast(topic);
-      });
-    }
-  } catch(e) {
-    // صامت
-  }
+    var p = REMOTE_SYNC_CHANNEL.send({ type: "broadcast", event: "change", payload: msg });
+    if (p && typeof p.then === "function") p.catch(function () {});
+  } catch (e) {}
 }
 
 // ─────────────────────────────────────────────────────
@@ -12556,16 +12506,54 @@ function remoteSyncShowToast(topic) {
 // ٥. تشغيل/إيقاف الـ Polling مع تسجيل الدخول/الخروج
 // ─────────────────────────────────────────────────────
 function remoteSyncStart() {
-  if (remoteSyncTimer) return;
-  REMOTE_SYNC_LAST_TS = Date.now();
-  remoteSyncTimer = setInterval(remoteSyncPoll, REMOTE_SYNC_INTERVAL);
-  console.log("[SYNC] ✅ مزامنة بين الأجهزة نشطة (كل", REMOTE_SYNC_INTERVAL/1000, "ث)");
+  if (REMOTE_SYNC_CHANNEL)  return Promise.resolve();
+  if (REMOTE_SYNC_STARTING) return REMOTE_SYNC_STARTING;
+  if (!window.SBAuth)       return Promise.resolve();
+
+  REMOTE_SYNC_STARTING = (async function () {
+    try {
+      var sb = await window.SBAuth.client();
+      if (!window._isLoggedIn) return;                 /* خرج المستخدم أثناء الاتصال */
+      var me = window._sbProfile || window.SBAuth.me;
+      if (!me || !me.wilayat_id) throw new Error("لا توجد عيادة مرتبطة بالمستخدم");
+
+      var ch = sb.channel("vet-sync-w" + me.wilayat_id, {
+        config: { broadcast: { self: false } }
+      });
+
+      ch.on("broadcast", { event: "change" }, function (e) {
+        var m = (e && e.payload) || {};
+        if (!m.topic || m.tabId === window._syncTabId) return;
+        remoteSyncApply(m.topic, m.action);
+        remoteSyncShowToast(m.topic);
+      });
+
+      ch.subscribe(function (status) {
+        if (status === "SUBSCRIBED")
+          console.log("[SYNC] ✅ متصل بقناة العيادة " + me.wilayat_id + " (Supabase Realtime)");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+          console.warn("[SYNC] ⚠️ حالة القناة:", status);
+      });
+
+      REMOTE_SYNC_CHANNEL = ch;
+      REMOTE_SYNC_CLIENT  = sb;
+    } catch (e) {
+      console.warn("[SYNC] تعذّر الاتصال:", (e && e.message) || e);
+    } finally {
+      REMOTE_SYNC_STARTING = null;
+    }
+  })();
+  return REMOTE_SYNC_STARTING;
 }
 
 function remoteSyncStop() {
-  if (remoteSyncTimer) { clearInterval(remoteSyncTimer); remoteSyncTimer = null; }
+  Object.keys(REMOTE_SYNC_TIMERS).forEach(function (k) { clearTimeout(REMOTE_SYNC_TIMERS[k]); });
+  REMOTE_SYNC_TIMERS = {};
+  if (!REMOTE_SYNC_CHANNEL) return;
+  try { REMOTE_SYNC_CLIENT.removeChannel(REMOTE_SYNC_CHANNEL); } catch (e) {}
+  REMOTE_SYNC_CHANNEL = null;
+  REMOTE_SYNC_CLIENT  = null;
 }
-
 // ربط مع تسجيل الدخول/الخروج
 (function() {
   function patchNav() {
@@ -12599,57 +12587,40 @@ try {
 // ─────────────────────────────────────────────────────
 // ٧. ربط API calls الموجودة (نفس منطق الكود الأصلي)
 // ─────────────────────────────────────────────────────
+var SYNC_WRITE_MAP = {
+  trcallApi:   { topic: "treatment",
+                 actions: ["trsaveData","trupdateData","trdeleteData","trsaveTempData","trupdateTempData"] },
+  vaccCallApi: { topic: "vaccination",
+                 actions: ["saveData","updateData","deleteData"] },
+  focallApi:   { topic: "samples",
+                 actions: ["fosaveData","foupdateData","fodeleteData"] },
+  bd_callApi:  { topic: "breeder",
+                 actions: ["bd_saveData","bd_updateData","bd_deleteData","bd_updatePossessionInTreatment",
+                           "bd_saveVaccinationData","bd_updateVaccinationData","bd_deleteVaccinationData"] }
+};
+
+/* يغلّف الدالة ويحافظ على علامات الجسور (_sbPatch وغيرها) حتى لا تُعاد تغليفها */
+function syncWrapOne(name, cfg) {
+  var fn = window[name];
+  if (typeof fn !== "function" || fn._sw) return;
+  var wrapped = async function (action, payload) {
+    var res = await fn.apply(this, arguments);
+    if (res && res.success && cfg.actions.indexOf(action) !== -1) syncBroadcast(cfg.topic, action);
+    return res;
+  };
+  Object.keys(fn).forEach(function (k) { wrapped[k] = fn[k]; });
+  wrapped._sw = true;
+  window[name] = wrapped;
+}
+
 function syncWrapApiCalls() {
-  // trcallApi
-  if (window.trcallApi && !window.trcallApi._sw) {
-    var _t = window.trcallApi;
-    window.trcallApi = async function(action, payload) {
-      var res = await _t.apply(this, arguments);
-      if (res && res.success) {
-if (res && res.success && ["trsaveData","trupdateData","trdeleteData","trsaveTempData","trupdateTempData"].indexOf(action) !== -1) {
-  // إلغاء الطلب السابق وإرسال طلب جديد بعد ثانيتين (لتجميع التعديلات)
-  if (window._syncDebounceTimer) clearTimeout(window._syncDebounceTimer);
-  window._syncDebounceTimer = setTimeout(function() {
-    syncBroadcast("treatment", action);
-  }, 2000);
-}
-      }
-      return res;
-    };
-    window.trcallApi._sw = true;
-  }
-
-  // vaccCallApi
-  if (window.vaccCallApi && !window.vaccCallApi._sw) {
-    var _v = window.vaccCallApi;
-    window.vaccCallApi = async function(action, payload) {
-      var res = await _v.apply(this, arguments);
-      if (res && res.success && ["saveData","updateData","deleteData"].indexOf(action) !== -1)
-        syncBroadcast("vaccination", action);
-      return res;
-    };
-    window.vaccCallApi._sw = true;
-  }
-
-  // focallApi
-  if (window.focallApi && !window.focallApi._sw) {
-    var _f = window.focallApi;
-    window.focallApi = async function(action, payload) {
-      var res = await _f.apply(this, arguments);
-      if (res && res.success && ["fosaveData","foupdateData","fodeleteData"].indexOf(action) !== -1)
-        syncBroadcast("samples", action);
-      return res;
-    };
-    window.focallApi._sw = true;
-  }
+  Object.keys(SYNC_WRITE_MAP).forEach(function (n) { syncWrapOne(n, SYNC_WRITE_MAP[n]); });
 }
 
-var _wrapAttempts = 0;
-function tryWrap() {
-  syncWrapApiCalls();
-  if (++_wrapAttempts < 3) setTimeout(tryWrap, 3000);
-}
-setTimeout(tryWrap, 1000);
+/* فحص دوري خفيف: أي جسر يُركَّب لاحقاً يُغلَّف تلقائياً.
+   التغليف المتعدد لا يسبب تكراراً لأن syncBroadcast مُجمَّع. */
+syncWrapApiCalls();
+setInterval(syncWrapApiCalls, 2000);
 (function () {
   "use strict";
   /* تنظيف بقايا الكاش القديم */
