@@ -1087,7 +1087,7 @@ function showPage(pageId) {
     window._vaccinationInitialized = true;
     if (typeof vaccInit === 'function') vaccInit();
   }
-  if (pageId === 'vaccinationRequests' && !window._vrInitialized) {
+  if (pageId === 'vaccinationRequests') {
     window._vrInitialized = true;
     if (typeof vr_loadData === 'function') vr_loadData();
   }
@@ -14972,21 +14972,33 @@ global.fetch = function (input, init) {
   }
 
   function load() {
-    return pageAll(function () {
-      return sb.from("vaccination_requests_view")
-               .select("phone,name,area,possession,civil,financial_date,notes," +
-                       "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
-               .order("name");
-    }).then(function (rows) {
+    return Promise.all([
+      pageAll(function () {
+        return sb.from("vaccination_requests_view")
+                 .select("phone,name,area,possession,civil,financial_date,notes," +
+                         "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
+                 .order("name");
+      }),
+      pageAll(function () {
+        return sb.from("breeders")
+                 .select("phone, name, possession_no, civil_id, holding_expiry, regions(name)")
+                 .eq("wilayat_id", me.wilayat_id).order("id");
+      })
+    ]).then(function (res) {
+      var rows = res[0], br = {};
+      res[1].forEach(function (b) { br[txt(b.phone)] = b; });
+      /* قيمة سجل المربي أولاً — وإن كانت فارغة تُؤخذ قيمة الطلب */
+      function pick(bv, rv) { return txt(bv) ? txt(bv) : txt(rv); }
       return {
         data: rows.map(function (r) {
+          var b = br[txt(r.phone)] || {};
           return {
             phone:         txt(r.phone),
-            name:          txt(r.name),
-            area:          txt(r.area),
-            possession:    txt(r.possession),
-            civil:         txt(r.civil),
-            financialDate: txt(r.financial_date),
+            name:          pick(b.name, r.name),
+            area:          pick(b.regions && b.regions.name, r.area),
+            possession:    pick(b.possession_no, r.possession),
+            civil:         pick(b.civil_id, r.civil),
+            financialDate: pick(b.holding_expiry, r.financial_date),
             notes:         txt(r.notes),
             goat:          n2s(r.goat),
             sheep:         n2s(r.sheep),
