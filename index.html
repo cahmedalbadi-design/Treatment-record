@@ -5621,6 +5621,7 @@ async function bd_updateData() {
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
 bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
+      else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -13931,8 +13932,15 @@ global.fetch = function (input, init) {
     var boot = loadLib().then(function () {
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY)
         throw new Error("لم تُملأ قيم SUPABASE_URL أو SUPABASE_ANON_KEY");
-      if (!sb) sb = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      return sb;
+      if (!sb) sb = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: {
+          /* منع المتصفح من إعادة نتائج قراءة مخزّنة */
+          fetch: function (url, opts) {
+            return global.fetch(url, Object.assign({}, opts, { cache: "no-store" }));
+          }
+        }
+      });
+    return sb;
     });
 
     if (barePlease) return boot;
@@ -14145,17 +14153,25 @@ global.fetch = function (input, init) {
         var row = toRow(d, rid);
         row.updated_by = me.id;
         row.updated_at = new Date().toISOString();
-        return sb.from("breeders").update(row).eq("phone", txt(d.phone));
+        return sb.from("breeders").update(row).eq("phone", txt(d.phone)).select("id");
       }).then(function (r) {
-        if (r.error) throw r.error;
+        if (r.error) {
+          if (r.error.code === "23505")
+            return { success: false, message: "الرقم الجديد مسجَّل لمربٍّ آخر" };
+          throw r.error;
+        }
+        if (!r.data || !r.data.length)
+          return { success: false, message: "لم يُحدَّث أي سجل — تحقق من رقم الهاتف أو صلاحيات الحساب" };
         return { success: true, message: "تم التحديث" };
       });
     }
 
     /* ٩) حذف مربٍّ */
     if (action === "bd_deleteData") {
-      return sb.from("breeders").delete().eq("phone", txt(payload.phone))
+      return sb.from("breeders").delete().eq("phone", txt(payload.phone)).select("id")
         .then(function (r) {
+          if (!r.error && (!r.data || !r.data.length))
+            return { success: false, message: "لم يُحذف أي سجل — تحقق من رقم الهاتف أو صلاحيات الحساب" };
           if (r.error) {
             if (r.error.code === "23503")
               return { success: false, message: "لا يمكن الحذف — للمربي سجلات علاج أو تحصين" };
