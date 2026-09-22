@@ -14079,11 +14079,9 @@ global.fetch = function (input, init) {
         global.BreederCache.onToggle(false);
     } catch (e) {}
 
-    var viaSheets = global.bd_callApi;
-
     global.bd_callApi = async function (action, payload) {
       if (HANDLED.indexOf(action) === -1)
-        return viaSheets.apply(this, arguments);
+        return { success: false, message: "إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action };
 
       try {
         await init();
@@ -14769,16 +14767,14 @@ global.fetch = function (input, init) {
         global.TreatmentCache.unpatchApi();
     } catch (e) {}
 
-    var viaSheets = global.trcallApi;
-
     global.trcallApi = async function (action, payload) {
       var k = key(action);
       if (!ROUTES[k]) {
         if (!unknown[action]) {
           unknown[action] = true;
-          log("⚠️ إجراء غير مغطّى — يمر إلى Apps Script: " + action);
+          log("⛔ إجراء غير مدعوم — رُفض: " + action);
         }
-        return viaSheets.apply(this, arguments);
+        return { success: false, message: "إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action };
       }
       try {
         await init();
@@ -15346,15 +15342,13 @@ global.fetch = function (input, init) {
     if (typeof global.vaccCallApi !== "function") { setTimeout(patch, 400); return; }
     if (global.vaccCallApi._sbPatch) return;
 
-    var viaSheets = global.vaccCallApi;
-
     global.vaccCallApi = async function (action, payload) {
       if (!ROUTES[action]) {
         if (!unknown[action]) {
           unknown[action] = true;
-          log("⚠️ إجراء غير مغطّى — يمر إلى Apps Script: " + action);
+          log("⛔ إجراء غير مدعوم — رُفض: " + action);
         }
-        return viaSheets.apply(this, arguments);
+        return { success: false, message: "إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action };
       }
       try {
         await init();
@@ -16021,8 +16015,8 @@ global.fetch = function (input, init) {
   function patch() {
     var ok = [
       wrap("ani_callApi", { getVaccinationByRegion: byRegion }, false),
-      /* getVaccCampaign يبقى على Apps Script حتى ننقل بيانات الحملة */
-      wrap("rpt_callApi", { getReportData: report }, true),
+      /* getVaccCampaign يُعترض لاحقاً في جسر العينات (patchRpt) */
+      wrap("rpt_callApi", { getReportData: report }, false),
       patchDp()
     ];
     if (ok.indexOf(false) !== -1) setTimeout(patch, 400);
