@@ -7327,7 +7327,7 @@ async function vr_loadData() {
     }
 vr_allData = res.data || [];
     vr_dataLoaded = true;
-    // جلب أرقام هواتف المربين المسجلين
+    // جلب أرقام هواتف المربين المسجلين — من جسر سجل المربي (Supabase)
     try {
       var bdRes = await bd_callApi("bd_getPhoneNumbers");
       vr_registeredPhones = new Set((bdRes.data || []).map(function(p){ return p.toString().trim(); }));
@@ -7668,6 +7668,20 @@ async function vr_saveToBreeder(r) {
     if (res.success) {
       showToast('✅ تم حفظ ' + r.name + ' في سجل المربي', 'success');
       vr_registeredPhones.add(r.phone.toString().trim());
+
+      /* ربط طلبات التحصين لهذا الرقم بالمربي الجديد */
+      try {
+        var sbc = await window.SBAuth.client();
+        var ph  = r.phone.toString().trim();
+        var br  = await sbc.from('breeders').select('id').eq('phone', ph).maybeSingle();
+        if (br.data && window._sbProfile) {
+          await sbc.from('vaccination_requests')
+            .update({ breeder_id: br.data.id })
+            .eq('wilayat_id', window._sbProfile.wilayat_id)
+            .eq('phone', ph)
+            .is('breeder_id', null);
+        }
+      } catch (e) { console.warn('[VR] تعذّر ربط الطلب بالمربي:', e.message || e); }
       vr_render();            // إعادة رسم الجدول لتحديث الحالة
     } else {
       showToast('❌ ' + (res.message || 'فشل الحفظ'), 'error');
