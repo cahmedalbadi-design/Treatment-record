@@ -16101,7 +16101,7 @@ global.fetch = function (input, init) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col);
       if (byWilayat)  q = q.eq("wilayat_id", me.wilayat_id);
-      if (activeOnly) q = q.eq("is_active", true);
+      if (activeOnly) q = q.or("is_active.is.null,is_active.eq.true");
       return q;
     }).then(function (rows) {
       return { success: true, data: rows.map(function (x) { return x[col]; }).filter(Boolean) };
@@ -16451,8 +16451,8 @@ global.fetch = function (input, init) {
   var FO = {
     fogetPhoneNumbers:      function ()  { return list("breeders", "phone", true); },
     fogetDataEntryOptions:  function ()  { return list("profiles", "full_name", true, true); },
-    fogetTestOptions:       function ()  { return list("lab_tests", "name", false, true); },
-    fogetSampleTypeOptions: function ()  { return list("sample_types", "name", false, true); },
+        fogetTestOptions:       function ()  { return list("lab_tests", "name", false, false); },
+    fogetSampleTypeOptions: function ()  { return list("sample_types", "name", false, false); },
     fogetUniquePhoneCount:  function ()  { return uniqueCount(); },
     fogetBreederData:       function (p) { return breederData(p); },
     fosaveData:             function (p) { return saveSample(p.data || {}); },
