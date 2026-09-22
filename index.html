@@ -16672,6 +16672,20 @@ global.fetch = function (input, init) {
   async function vrqSave(d) {
     var phone = txt(d.phone);
     if (!phone) return { success: false, message: "رقم الهاتف مطلوب" };
+
+    /* منع التكرار: الرقم لديه طلب تحصين مسجَّل مسبقاً */
+    var ex = await sb.from("vaccination_requests").select("id, entry_date")
+      .eq("wilayat_id", me.wilayat_id).eq("phone", phone)
+      .order("entry_date", { ascending: false }).limit(1);
+    if (ex.error) throw ex.error;
+    if (ex.data && ex.data.length) {
+      var dt = ex.data[0].entry_date;
+      return { success: false,
+               message: "⚠️ هذا الرقم لديه طلب تحصين مسجَّل مسبقاً" +
+                        (dt ? " بتاريخ " + dmy(dt) : "") +
+                        " — استخدم زر (✏️ تحديث طلبات التحصين)" };
+    }
+
     var row = vrqRow(d);
     row.wilayat_id = me.wilayat_id; row.phone = phone; row.entry_date = today();
     row.breeder_id = await lookupBreeder(phone);
