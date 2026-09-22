@@ -5619,8 +5619,19 @@ async function bd_updateData() {
     bd_showMessage("جاري التحديث...", false, "info");
     try{
 var res=await bd_callApi("bd_updateData",{data:data});
-if(res.success){bd_setLastEdited();
-bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
+if(res.success){
+  var savedPhone = res.phone || data.newPhone || phone;
+  bd_clearForm();
+  document.getElementById("bd_lastEditedPhone").value = savedPhone;
+  document.getElementById("bd_phoneInput").value = savedPhone;
+  document.getElementById("bd_private").value = savedPhone;
+  await bd_loadCaseData(savedPhone);   /* إعادة القراءة من القاعدة = تأكيد ما حُفظ فعلياً */
+  bd_showMessage("✅ تم التحديث بنجاح", false);
+  bd_refreshDropdowns();
+  setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);
+} else {
+  bd_showMessage(res.message || "فشل التحديث", true);
+}
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -14143,15 +14154,25 @@ global.fetch = function (input, init) {
     if (action === "bd_updateData") {
       return regionId(d.region).then(function (rid) {
         var row = toRow(d, rid);
+        delete row.wilayat_id;               /* لا يُعدَّل مفتاح العيادة عند التحديث */
         row.updated_by = me.id;
         row.updated_at = new Date().toISOString();
-        return sb.from("breeders").update(row).eq("phone", txt(d.phone));
+        return sb.from("breeders").update(row)
+          .eq("wilayat_id", me.wilayat_id)
+          .eq("phone", txt(d.phone))
+          .select("phone");                  /* لمعرفة عدد الصفوف المحدَّثة فعلياً */
       }).then(function (r) {
-        if (r.error) throw r.error;
-        return { success: true, message: "تم التحديث" };
+        if (r.error) {
+          if (r.error.code === "23505")
+            return { success: false, message: "الرقم الجديد مسجَّل لمربٍّ آخر" };
+          throw r.error;
+        }
+        if (!r.data || !r.data.length)
+          return { success: false,
+                   message: "لم يُحدَّث أي سجل — المربي غير موجود في عيادتك أو لا تملك صلاحية التعديل" };
+        return { success: true, message: "تم التحديث", phone: r.data[0].phone };
       });
     }
-
     /* ٩) حذف مربٍّ */
     if (action === "bd_deleteData") {
       return sb.from("breeders").delete().eq("phone", txt(payload.phone))
