@@ -5442,6 +5442,10 @@ function bd_showMessage(msg, isError, type) {
   showToast(msg, t);
 }
 function bd_showConfirm(msg, onConfirm) {
+  /* إرجاع التحكم للمتصفح ليرسم استجابة النقرة أولاً (تحسين INP) */
+  requestAnimationFrame(function () { setTimeout(function () { bd_showConfirmNow(msg, onConfirm); }, 0); });
+}
+function bd_showConfirmNow(msg, onConfirm) {
   var existing = document.querySelector(".custom-modal"); if (existing) existing.remove();
   var modal = document.createElement("div"); modal.className = "custom-modal";
   modal.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="confirm-btn">نعم</button><button class="cancel-btn">إلغاء</button></div></div>';
