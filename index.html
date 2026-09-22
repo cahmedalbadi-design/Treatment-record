@@ -5506,6 +5506,11 @@ function bd_validateCommon() {
   if (!bd_getValue("bd_nameInput")) {
     bd_showMessage("اسم المربي مطلوب", true); return false;
   }
+  if (!bd_getValue("bd_regionInput")) {
+    bd_showMessage("المنطقة مطلوبة", true);
+    document.getElementById("bd_regionInput").focus();
+    return false;
+  }
 
   var civil = bd_getValue("bd_civilInput");
   if (civil && !/^[0-9]{1,15}$/.test(civil)) {
@@ -5701,6 +5706,7 @@ async function bd_saveVaccination() {
   if(!phone){bd_showMessage("أختر رقم الهاتف من البحث",true);return;}
   if(!casePhone){bd_showMessage("رقم الهاتف مطلوب",true);return;}
   if(!name){bd_showMessage("الاسم مطلوب",true);return;}
+  if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);document.getElementById("bd_regionInput").focus();return;}
   if(!dataEntry){bd_showMessage("مدخل البيانات مطلوب",true);return;}
   var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
   if(![goat,sheep,cow].some(function(v){return v!==""&&Number(v)>0;})){bd_showMessage("يجب إدخال عدد حيوان واحد على الأقل",true);return;}
@@ -5727,8 +5733,8 @@ async function bd_updateVaccination() {
   var phone=bd_getValue("bd_phoneInput"),name=bd_getValue("bd_nameInput"),dataUpdater=bd_getValue("bd_dataUpdaterInput");
   if(!phone){bd_showMessage("الرجاء اختيار الرقم",true);return;}
   if(!name){bd_showMessage("الاسم مطلوب",true);return;}
-  if(!dataUpdater){bd_showMessage("مدخل البيانات (التحديث) مطلوب",true);return;}
-  var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
+  if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);document.getElementById("bd_regionInput").focus();return;}
+  if(!dataUpdater){bd_showMessage("مدخل البيانات (التحديث) مطلوب",true);return;}  var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
   if(![goat,sheep,cow].some(function(v){return v!==""&&Number(v)>0;})){bd_showMessage("يجب إدخال عدد حيوان",true);return;}
   var newPhone=bd_getValue("bd_newPhoneInput");
   var vacData={phone:phone,newPhone:newPhone||phone,name:name,civil:bd_getValue("bd_civilInput"),region:bd_getValue("bd_regionInput"),
