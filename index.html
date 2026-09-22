@@ -7462,53 +7462,6 @@ function vr_hasUncovered(r, type) {
     return !VR_ANIMAL_WORDS[a].some(function(w) { return seg.indexOf(w) !== -1; });
   });
 }
-/* ملخص اللقاحات مع المتبقي غير المحصن = المملوك في الطلب − المحصن */
-function vr_summaryHtml(r) {
-  var s = (r.summary || '').toString().trim();
-  if (!s) return '—';
-
-  var owned = {};
-  ['goat','sheep','cow','camel'].forEach(function(a) {
-    var v = parseFloat(String(r[a] == null ? '' : r[a]).replace(/,/g, '').trim());
-    owned[a] = isNaN(v) ? 0 : v;
-  });
-  function animalKey(w) {
-    for (var k in VR_ANIMAL_WORDS) if (VR_ANIMAL_WORDS[k].indexOf(w) !== -1) return k;
-    return null;
-  }
-  function vaccineKey(name) {
-    for (var k in VR_VACCINE_WORDS)
-      if (VR_VACCINE_WORDS[k].some(function(w) { return name.indexOf(w) !== -1; })) return k;
-    return null;
-  }
-  var RED = '<span style="color:#c0392b;font-weight:bold;">';
-
-  return s.split('|').map(function(seg) {
-    seg = seg.trim();
-    var i = seg.indexOf(':');
-    if (i === -1) return vr_escapeHtml(seg);
-    var vName = seg.slice(0, i).trim(), vKey = vaccineKey(vName), seen = {};
-
-    var parts = seg.slice(i + 1).split('،').map(function(p) {
-      p = p.trim();
-      var m = p.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
-      if (!m) return vr_escapeHtml(p);
-      var a = animalKey(m[1].trim()), done = +m[2];
-      if (a) seen[a] = 1;
-      var rem = a ? owned[a] - done : 0;
-      return vr_escapeHtml(m[1] + ' ' + done) +
-             (rem > 0 ? ' ' + RED + '(متبقي ' + rem + ')</span>' : '');
-    });
-
-    /* نوع يملكه المربي ويشمله اللقاح لكنه لم يُحصَّن إطلاقاً */
-    (VR_VACCINE_ANIMALS[vKey] || []).forEach(function(a) {
-      if (!seen[a] && owned[a] > 0)
-        parts.push(RED + VR_ANIMAL_WORDS[a][0] + ': لم يُحصَّن (' + owned[a] + ')</span>');
-    });
-
-    return '<b>' + vr_escapeHtml(vName) + ':</b> ' + parts.join('، ');
-  }).join('<br>');
-}
 
 function vr_render() {
   var q      = (document.getElementById("vr_searchInput").value || '').trim();
@@ -7634,7 +7587,7 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(r.area) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(vr_formatDate(r.entryDate)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + badge + '</td>' +
-      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + vr_summaryHtml(r) + '</td>' +
+      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + vr_escapeHtml(r.summary || "—") + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
     tbody.appendChild(tr);
   });
