@@ -11128,8 +11128,8 @@ async function rptCamp_load(force) {
 
   /* ٢) عدد أيام الحملة */
   var days = parseInt(c.days, 10);
-  if (!days || days <= 0)
-    days = (dFrom && dTo) ? Math.floor((dTo - dFrom) / DAY) + 1 : 0;
+ if (!days || days <= 0)
+    days = (dFrom && dTo) ? rptCamp_workDays(dFrom, dTo) : 0;
 
   /* ٣) اليوم التشغيلي والحالة والأيام المتبقية */
   var dayNow = 0, state = 'غير نشطة', stColor = '#95a5a6', left = days;
@@ -11233,15 +11233,8 @@ async function rptCamp_load(force) {
     }
   }
 
-  /* ٧) المخططات البيانية — تستخدم ترقيماً تقويمياً */
-  var dayNowCal = 0;
-  if (dFrom && today >= dFrom) {
-    dayNowCal = Math.floor((today - dFrom) / DAY) + 1;
-    if (days > 0 && dayNowCal > days) dayNowCal = days;
-  }
-  if (dTo && today > dTo) dayNowCal = days || dayNowCal;
-  rptCamp_drawCharts(c, rate, dFrom, days, dayNowCal);
-}
+ /* ٧) المخططات البيانية — نفس ترقيم أيام العمل المستخدم في البطاقات */
+  rptCamp_drawCharts(c, rate, dFrom, days, dayNow)
 
 /* ============================================================
    المخططات البيانية للوحة متابعة المشروع الوطني للتحصين
@@ -11260,66 +11253,108 @@ function rptCamp_ymd(d) {
          String(d.getDate()).padStart(2, '0');
 }
 
-/* ── ١) الأداء التراكمي خلال الحملة ──
-   خط ثابت: المستهدف التراكمي — يمتد من اليوم ١ حتى آخر يوم في الحملة
-   خط متغيّر: المنجز الفعلي   — يتوقف عند اليوم التشغيلي الحالي         */
+/* يجلب سجلات الحملة مرة واحدة ويحسب المنجز التراكمي عند كل تاريخ قطع
+   بنفس منطق vaccGetTotalVaccinated: أقصى عدد لكل نوع لكل مربٍّ.
+   cutoffs: تواريخ ISO مرتبة تصاعدياً */
+async function rptCamp_cumSeries(dateFrom, cutoffs) {
+  var sb = await window.SBAuth.client();
+  var w  = (window._sbProfile || {}).wilayat_id;
+  var rows = [], size = 1000, from = 0, r;
+  do {
+    r = await sb.from('vaccination_records')
+      .select('vaccinated_on, breeders(phone), vaccination_doses(species_id, animal_count)')
+      .eq('wilayat_id', w)
+      .gte('vaccinated_on', dateFrom)
+      .lte('vaccinated_on', cutoffs[cutoffs.length - 1])
+      .order('vaccinated_on').order('id')
+      .range(from, from + size - 1);
+    if (r.error) throw r.error;
+    rows = rows.concat(r.data || []);
+    from += size;
+  } while (r.data && r.data.length === size);
+
+  var best = {}, total = 0, k = 0, out = [];
+  cutoffs.forEach(function (cut) {
+    while (k < rows.length && rows[k].vaccinated_on <= cut) {
+      var rec = rows[k++];
+      var ph  = rec.breeders ? String(rec.breeders.phone || '').trim() : '';
+      var b   = best[ph] || (best[ph] = {});
+      var cur = {};
+      (rec.vaccination_doses || []).forEach(function (d) {
+        if ((d.animal_count || 0) > (cur[d.species_id] || 0)) cur[d.species_id] = d.animal_count;
+      });
+      Object.keys(cur).forEach(function (s) {
+        if (cur[s] > (b[s] || 0)) { total += cur[s] - (b[s] || 0); b[s] = cur[s]; }
+      });
+    }
+    out.push(total);
+  });
+  return out;
+}
+
+/* ── ١) الأداء التراكمي خلال الحملة — بأيام العمل وباستعلام واحد ── */
 async function rptCamp_chart1(c, rate, dFrom, days, dayNow) {
   var note = document.getElementById('rptCamp_ch1Note');
   var ctx  = document.getElementById('rptCamp_ch1');
   if (!ctx || typeof Chart === 'undefined') return;
   rptCamp_kill('ch1');
 
-  var DAY = 86400000;
   var dTo = rptCamp_d(c.dateTo);
   if (!dFrom || !dTo) { if (note) note.textContent = 'لم يُحدَّد المدى الزمني للحملة'; return; }
 
-  if (!days || days <= 0) days = Math.floor((dTo - dFrom) / DAY) + 1;
+  /* أيام العمل الفعلية — نفس ما تحسبه البطاقات */
+  var work = [];
+  for (var d = new Date(dFrom); d <= dTo; d.setDate(d.getDate() + 1))
+    if (RPT_OFF_DAYS.indexOf(d.getDay()) === -1) work.push(new Date(d));
+  if (!work.length) { if (note) note.textContent = 'لا توجد أيام عمل ضمن المدى'; return; }
+
+  if (!days || days <= 0) days = work.length;
   if (!isFinite(dayNow) || dayNow < 0) dayNow = 0;
+  if (dayNow > days) dayNow = days;
 
   var target = Number(c.target) || 0;
+  var today  = new Date(); today.setHours(0, 0, 0, 0);
 
-  /* أخذ عيّنة إن طالت الحملة — للحد من عدد طلبات الخادم */
-  /* عيّنة كل ٥ أيام عمل — لتقليل نداءات الخادم
-     غيّر SAMPLE_STEP إلى 7 لعيّنة أسبوعية كاملة */
+  function dateOf(i) { return work[Math.min(i, work.length) - 1]; }
+  /* تاريخ القطع: آخر يوم = نهاية المدى، واليوم الحالي = اليوم (ليشمل عطلة اليوم إن وُجد تحصين) */
+  function cutOf(i) {
+    if (i === days) return c.dateTo;
+    if (i === dayNow && today <= dTo) return rptCamp_ymd(today);
+    return rptCamp_ymd(dateOf(i));
+  }
+
+  /* نقطة كل 5 أيام عمل + اليوم الأول والأخير واليوم الحالي */
   var SAMPLE_STEP = 5;
-  var MAX_PTS     = 26;   /* سقف أمان للحملات الطويلة جداً */
-
-  var step = SAMPLE_STEP;
-  if (Math.ceil(days / step) > MAX_PTS) step = Math.ceil(days / MAX_PTS);
-
   var idxs = [1];
-  for (var d = step; d <= days; d += step) if (idxs.indexOf(d) === -1) idxs.push(d);
+  for (var i = SAMPLE_STEP; i <= days; i += SAMPLE_STEP) if (idxs.indexOf(i) === -1) idxs.push(i);
   if (idxs.indexOf(days) === -1) idxs.push(days);
   if (dayNow > 0 && idxs.indexOf(dayNow) === -1) idxs.push(dayNow);
   idxs.sort(function (a, b) { return a - b; });
 
-  /* الخط الثابت */
-  var labels = [], planned = [], actual = [];
+  /* الخط الثابت — آخر نقطة = المستهدف الكلي بالضبط كما في البطاقات */
+  var labels = [], planned = [];
   idxs.forEach(function (i) {
-    var dt = new Date(dFrom.getTime() + (i - 1) * DAY);
+    var dt = dateOf(i);
     labels.push('يوم ' + i + ' — ' + String(dt.getDate()).padStart(2, '0') + '/' +
                 String(dt.getMonth() + 1).padStart(2, '0'));
-    var p = rate * i;
-    if (target > 0 && p > target) p = target;
-    planned.push(p);
+    var p = (i === days && target > 0) ? target : rate * i;
+    planned.push(target > 0 ? Math.min(p, target) : p);
   });
 
-  /* الخط المتغيّر */
-  var canFetch = (typeof vaccGetTotalVaccinated === 'function');
-  for (var k = 0; k < idxs.length; k++) {
-    var i2 = idxs[k];
-    if (!canFetch || dayNow === 0 || i2 > dayNow) { actual.push(null); continue; }
-    if (note) note.textContent = '⏳ جاري جلب المنجز… (' + (k + 1) + '/' + idxs.length + ')';
-    var dt2 = new Date(dFrom.getTime() + (i2 - 1) * DAY);
+  /* الخط المتغيّر — استعلام واحد لكل النقاط */
+  var actual = idxs.map(function () { return null; });
+  var doneIdx = idxs.filter(function (i) { return dayNow > 0 && i <= dayNow; });
+  if (doneIdx.length) {
+    if (note) note.textContent = '⏳ جاري جلب المنجز…';
     try {
-      var r = await vaccGetTotalVaccinated(c.dateFrom, rptCamp_ymd(dt2), '');
-      actual.push(r.total || 0);
-    } catch (e) { actual.push(null); }
+      var series = await rptCamp_cumSeries(c.dateFrom, doneIdx.map(cutOf));
+      doneIdx.forEach(function (i, n) { actual[idxs.indexOf(i)] = series[n]; });
+    } catch (e) { console.warn('[rptCamp] ' + (e.message || e)); }
   }
 
   if (note) {
-    note.textContent = 'كامل مدة الحملة: ' + days + ' يوم' +
-' — نقطة كل ' + step + ' أيام' +
+    note.textContent = 'كامل مدة الحملة: ' + days + ' يوم عمل' +
+      ' — نقطة كل ' + SAMPLE_STEP + ' أيام عمل' +
       (dayNow > 0 ? ' — المنجز حتى اليوم ' + dayNow : ' — الحملة لم تبدأ بعد');
   }
 
@@ -11333,7 +11368,8 @@ async function rptCamp_chart1(c, rate, dFrom, days, dayNow) {
           tension: 0, fill: false, pointRadius: 2 },
         { label: 'المنجز التراكمي (الفعلي)', data: actual,
           borderColor: '#2bb673', backgroundColor: 'rgba(43,182,115,.12)',
-          borderWidth: 3, tension: .25, fill: true, pointRadius: 4, spanGaps: true }      ]
+          borderWidth: 3, tension: .25, fill: true, pointRadius: 4, spanGaps: true }
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
