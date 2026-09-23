@@ -959,8 +959,51 @@ window.showToast = function(message, type) {
     toastEl.style.opacity   = '0';
     toastEl.style.transform = 'translateY(-10px)';
     setTimeout(function() {
-      if (toastEl.parentNode) toastEl.parentNode.removeChild(toastEl);
+    if (toastEl.parentNode) toastEl.parentNode.removeChild(toastEl);
     }, 300);
+  };
+
+  /* رسالة موحّدة: ⏳ = معلومات، ⚠️ = تحذير */
+  window.appMsg = function (msg, isError, type) {
+    var t = type || (isError ? 'error' : 'success');
+    if (String(msg).indexOf('⏳') !== -1) t = 'info';
+    if (String(msg).indexOf('⚠️') !== -1) t = 'warning';
+    return window.showToast(msg, t);
+  };
+
+  /* نافذة تأكيد موحّدة — تقبل دالة رد نداء وتعيد Promise أيضاً */
+  window.appConfirm = function (msg, onConfirm, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var old = document.querySelector('.custom-modal.app-confirm');
+      if (old) old.remove();
+      var m = document.createElement('div');
+      m.className = 'custom-modal app-confirm';
+      m.innerHTML =
+        '<div class="modal-box"' + (opts.maxWidth ? ' style="max-width:' + opts.maxWidth + '"' : '') + '>' +
+          '<h3' + (opts.color ? ' style="color:' + opts.color + '"' : '') + '>' + (opts.title || 'تأكيد') + '</h3>' +
+          '<p>' + msg + '</p>' +
+          '<div class="modal-buttons">' +
+            '<button class="confirm-btn">' + (opts.okText || 'نعم') + '</button>' +
+            '<button class="cancel-btn">' + (opts.cancelText || 'إلغاء') + '</button>' +
+          '</div></div>';
+      document.body.appendChild(m);
+      function done(v) {
+        m.remove(); resolve(v);
+        if (v && typeof onConfirm === 'function') onConfirm();
+      }
+      m.querySelector('.confirm-btn').onclick = function () { done(true); };
+      m.querySelector('.cancel-btn').onclick  = function () { done(false); };
+      m.onclick = function (e) { if (e.target === m) done(false); };
+    });
+  };
+
+  /* إخفاء شاشة تحميل بتلاشٍ */
+  window.appHideOverlay = function (id) {
+    var o = document.getElementById(id);
+    if (!o) return;
+    o.classList.add('hide');
+    setTimeout(function () { o.style.display = 'none'; }, 500);
   };
 
 })();
@@ -1038,11 +1081,10 @@ function showPage(pageId) {
     return;
   }
   // التحقق من الصلاحيات
-  if (window._isLoggedIn && window._userAllowedPages && publicPages.indexOf(pageId) === -1) {
-    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home') {
-      showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
-      return;
-    }
+  if (publicPages.indexOf(pageId) === -1 &&
+      typeof PERM !== 'undefined' && !PERM.isPageAllowed(pageId)) {
+    showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
+    return;
   }
   
   // إظهار الصفحة المطلوبة وإخفاء الباقي
@@ -1352,7 +1394,7 @@ async function bootLoadAll() {
         window._breederInitialized = true;
         if (typeof bd_init === 'function') await bd_init();
       },
-      check: function () { return bootListCount('bd_phoneList') > 0; }
+      check: null
     },
     {
       name: 'سجل العلاج', pct: 38, msg: 'جاري تحميل سجل العلاج والقوائم...',
@@ -1364,9 +1406,8 @@ async function bootLoadAll() {
         window._treatmentInitialized = true;
         if (typeof trinit === 'function') await trinit();
       },
-      check: function () {
-        return bootListCount('tr_phoneList') > 0 &&
-               bootListCount('tr_diseaseList') > 0 &&
+     check: function () {
+        return bootListCount('tr_diseaseList') > 0 &&
                bootListCount('tr_drugList') > 0 &&
                bootListCount('tr_dataEntryList') > 0;
       }
@@ -1382,7 +1423,7 @@ async function bootLoadAll() {
         if (typeof vaccInit === 'function') await vaccInit();
       },
       check: function () {
-        return bootListCount('vacc_phoneList') > 0 && bootListCount('vacc_dataEntryList') > 0;
+return bootListCount('vacc_dataEntryList') > 0;
       }
     },
     {
@@ -1396,8 +1437,7 @@ async function bootLoadAll() {
         if (typeof foinit === 'function') await foinit();
       },
       check: function () {
-        return bootListCount('phoneList') > 0 &&
-               bootListCount('testList') > 0 &&
+        return bootListCount('testList') > 0 &&
                bootListCount('sampleTypeList') > 0;
       }
     },
@@ -1432,7 +1472,7 @@ async function bootLoadAll() {
         } catch (e) {}
 
         if (typeof dtr_loadDiseaseList === 'function') {
-          await dtr_loadDiseaseList();          await dtr_loadDiseaseList();
+          await dtr_loadDiseaseList();
           var df = document.getElementById('dtr_dateFrom');
           var dt = document.getElementById('dtr_dateTo');
           if (df) df.value = '';
@@ -1538,7 +1578,6 @@ function unlockNav() {
   });
 
   // 2. تطبيق صلاحيات المستخدم
-  window._userAllowedPages = null;
   var username = window._currentUser || '';
   if (username && typeof PERM !== 'undefined') {
     document.querySelectorAll("nav button").forEach(function(btn) {
@@ -3131,10 +3170,7 @@ var DB__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycb
 <script>
 "use strict";
 var SETTINGS__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
-function hideSettingsLoadingOverlay() {
-  var overlay = document.getElementById('loadingOverlay');
-  if (overlay) { overlay.classList.add('hide'); setTimeout(function() { overlay.style.display = 'none'; }, 500); }
-}
+function hideSettingsLoadingOverlay() { appHideOverlay('loadingOverlay'); }
 async function settingsCall(action, payload) {
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
 var r = await fetch(window._activeApiUrl || SETTINGS__URL, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });  if (!r.ok) throw new Error("HTTP " + r.status);
@@ -3426,10 +3462,8 @@ async function dim_callApi(action, payload) {
   return await r.json();
 }
 
-function dim_showToast(msg, type) {
-  var t = type === 'error' ? 'error' : 'success';
-  showToast(msg, t);
-}
+function dim_showToast(msg, type) { return appMsg(msg, type === 'error'); }
+
 var dim_calcOverlay = document.getElementById('dim_calcOverlay');
 document.getElementById('dim_calcCloseBtn').addEventListener('click', function(){ dim_calcOverlay.classList.remove('show'); });
 dim_calcOverlay.addEventListener('click', function(e){ if(e.target===dim_calcOverlay) dim_calcOverlay.classList.remove('show'); });
@@ -3731,30 +3765,12 @@ async function trloadIncompleteCases() {
  * @param {string}  msg     - نص الرسالة
  * @param {boolean} isError - هل هي رسالة خطأ؟
  */
-function trshowMessage(msg, isError) {
-  let type = isError ? "error" : "success";
-  if (msg.indexOf("⏳") !== -1) type = "info";
-  if (msg.indexOf("⚠️") !== -1) type = "warning";
-  showToast(msg, type);
-}
+function trshowMessage(msg, isError) { return appMsg(msg, isError); }
+
 
 /** عرض نافذة تأكيد مخصصة */
-function trshowConfirm(msg, onConfirm) {
-  const modal = document.createElement("div");
-  modal.className = "custom-modal";
-  modal.innerHTML = `
-    <div class="modal-box">
-      <h3>تأكيد</h3>
-      <p>${msg}</p>
-      <div class="modal-buttons">
-        <button class="confirm-btn">نعم</button>
-        <button class="cancel-btn">إلغاء</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  modal.querySelector(".confirm-btn").onclick = () => { modal.remove(); onConfirm(); };
-  modal.querySelector(".cancel-btn").onclick  = () => { modal.remove(); };
-}
+function trshowConfirm(msg, onConfirm) { return appConfirm(msg, onConfirm); }
+
 
 /** تحديث شارة التنبيهات العلوية */
 function trrefreshTopBadge() {
@@ -4162,26 +4178,24 @@ function trcheckDiagnosisRows() {
   return true;
 }
 
+/** هل رقم الإيصال مكرر في السجل اليومي؟ (يستثني الحالة المفتوحة نفسها) */
+function trIsDupReceipt(val) {
+  val = String(val || "").trim();
+  if (!val) return false;
+  var cn = trgetValue("tr_caseNumber");
+  return Array.prototype.some.call(
+    document.querySelectorAll("#tr_dataTable tbody tr"),
+    function (row) {
+      var c = row.cells;
+      return c.length >= 4 && c[3].textContent.trim() === val && c[0].textContent.trim() !== cn;
+    });
+}
+
 /** حفظ حالة جديدة */
 async function trsaveData() {
-  if (!trcheckDiagnosisRows()) return;  // فحص تكرار الإيصال قبل الحفظ
-  var receiptEl = document.getElementById("tr_receipt");
-  if (receiptEl && receiptEl.value.trim()) {
-    var receiptVal = receiptEl.value.trim();
-    var table = document.getElementById("tr_dataTable");
-    var tbody = table ? table.querySelector("tbody") : null;
-    if (tbody) {
-      var isDup = false;
-      tbody.querySelectorAll("tr").forEach(function(row) {
-        var cells = row.querySelectorAll("td");
-        if (cells.length >= 4 && (cells[3].textContent || "").trim() === receiptVal) isDup = true;
-      });
-if (isDup) {
-  trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
-}
-    }
+    if (trIsDupReceipt(trgetValue("tr_receipt"))) {
+    trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
   }
-  trshowConfirm("هل تريد حفظ البيانات؟", async () => {
     trblockButtons();
     trshowMessage("⏳ جاري حفظ البيانات...", false);
 
@@ -4193,14 +4207,10 @@ if (isDup) {
 
     try {
       const res = await trcallApi("trsaveData", { data });
-      if (res.success) {
+  if (res.success) {
         trshowMessage("✅ تم الحفظ بنجاح", false);
-      trclearForm();
-// تنفيذ عمليات التحميل بشكل متوازٍ لتقليل وقت الانتظار
-await Promise.all([
-  trloadData(),
-  trloadIncompleteCount()
-]);
+        trclearForm();
+        await trloadData();
       } else {
         trshowMessage(res.message, true);
       }
@@ -4237,7 +4247,6 @@ async function trupdateData() {
         trshowMessage("✅ تم التحديث بنجاح", false);
         trclearForm();
         trloadData();
-        trloadIncompleteCount();
       } else {
         trshowMessage(res.message, true);
       }
@@ -4294,7 +4303,6 @@ async function trsearchCase() {
     const res = await trcallApi("trsearchCaseData", { caseNumber: cn });
     if (res.success) {
       trfillFormWithData(res);
-      trloadData();
       trshowMessage("✅ تم التحميل بنجاح", false);
     } else {
       trshowMessage(res.message, true);
@@ -4340,24 +4348,9 @@ function trvalidateTempData(data, requireCaseNumber, requireUpdater) {
 /** حفظ مؤقت */
 async function trtempSave() {
   const data = trcollectFormData();
-  if (!trvalidateTempData(data, false, false)) return;
-  // فحص تكرار الإيصال
-  var receiptEl = document.getElementById("tr_receipt");
-  if (receiptEl && receiptEl.value.trim()) {
-    var receiptVal = receiptEl.value.trim();
-    var table = document.getElementById("tr_dataTable");
-    var tbody = table ? table.querySelector("tbody") : null;
-    if (tbody) {
-      var isDup = false;
-      tbody.querySelectorAll("tr").forEach(function(row) {
-        var cells = row.querySelectorAll("td");
-        if (cells.length >= 4 && (cells[3].textContent || "").trim() === receiptVal) isDup = true;
-      });
-if (isDup) {
-  trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
-  await new Promise(r => setTimeout(r, 1500));
-}
-    }
+   if (trIsDupReceipt(trgetValue("tr_receipt"))) {
+    trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
+    await new Promise(r => setTimeout(r, 1500));
   }
 
   trblockButtons();
@@ -4374,7 +4367,6 @@ if (isDup) {
       trshowMessage(res.message, false);
       trclearForm();
       trloadData();
-        trloadIncompleteCount();
     } else {
       trshowMessage(res.message, true);
     }
@@ -4405,7 +4397,6 @@ async function trtempUpdate() {
       trshowMessage(res.message, false);
       trclearForm();
       trloadData();
-       trloadIncompleteCount();
     } else {
       trshowMessage(res.message, true);
     }
@@ -4677,7 +4668,6 @@ function trbindEvents() {
       const res = await trcallApi("trsearchCaseData", { caseNumber: cn });
       if (res.success) {
         trfillFormWithData(res);
-        trloadData();
         trshowMessage("✅ تم التحميل", false);
       } else {
         trshowMessage(res.message, true);
@@ -4901,7 +4891,6 @@ async function trSelectIncompleteCase(caseNumber) {
     const res = await trcallApi("trsearchCaseData", { caseNumber });
     if (res.success) {
       trfillFormWithData(res);
-      trloadData();
       trshowMessage("✅ تم تحميل الحالة " + caseNumber, false);
     } else {
       trshowMessage(res.message, true);
@@ -4919,18 +4908,6 @@ async function trSelectIncompleteCase(caseNumber) {
 (function (global) {
   "use strict";
 
-  function getReceiptsFromTable() {
-    var receipts = new Set();
-    var rows = document.querySelectorAll("#tr_dataTable tbody tr");
-    rows.forEach(function (row) {
-      var cell = row.cells[3];
-      if (cell) {
-        var v = cell.textContent.trim();
-        if (v && v !== " ") receipts.add(v);
-      }
-    });
-    return receipts;
-  }
 
   function bindReceiptCheck() {
     var el = document.getElementById("tr_receipt");
@@ -4943,7 +4920,7 @@ async function trSelectIncompleteCase(caseNumber) {
         this.style.cssText = "";
         return;
       }
-      var isDup = getReceiptsFromTable().has(val);
+      var isDup = trIsDupReceipt(val);
       this.style.backgroundColor = isDup ? "#ffcccc" : "#ccffcc";
       this.style.border           = isDup ? "2px solid #e65050" : "2px solid #2bb673";
       this.style.color            = isDup ? "#7a0000" : "#1b5e20";
@@ -5464,24 +5441,13 @@ async function bd_callApi(action, payload) {
   throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
-function bd_showMessage(msg, isError, type) {
-  var t = type || (isError ? 'error' : 'success');
-  if (msg.indexOf('⏳') !== -1) t = 'info';
-  showToast(msg, t);
-}
+function bd_showMessage(msg, isError, type) { return appMsg(msg, isError, type); }
+
 function bd_showConfirm(msg, onConfirm) {
   /* إرجاع التحكم للمتصفح ليرسم استجابة النقرة أولاً (تحسين INP) */
   requestAnimationFrame(function () { setTimeout(function () { bd_showConfirmNow(msg, onConfirm); }, 0); });
 }
-function bd_showConfirmNow(msg, onConfirm) {
-  var existing = document.querySelector(".custom-modal"); if (existing) existing.remove();
-  var modal = document.createElement("div"); modal.className = "custom-modal";
-  modal.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="confirm-btn">نعم</button><button class="cancel-btn">إلغاء</button></div></div>';
-  document.body.appendChild(modal);
-  modal.querySelector(".confirm-btn").addEventListener("click",function(){modal.remove();onConfirm();});
-  modal.querySelector(".cancel-btn").addEventListener("click",function(){modal.remove();});
-  modal.addEventListener("click",function(e){if(e.target===modal)modal.remove();});
-}
+function bd_showConfirmNow(msg, onConfirm) { return appConfirm(msg, onConfirm); }
 
 function bd_safeSet(id,v){var el=document.getElementById(id);if(el)el.value=v||"";}
 function bd_getValue(id){var el=document.getElementById(id);return el?el.value.trim():"";}
@@ -5590,11 +5556,10 @@ async function bd_refreshDropdowns() {
   try {
     var results = await Promise.all([bd_callApi("bd_getPhoneNumbers"),bd_callApi("bd_getDataEntryOptions"),bd_callApi("bd_getRegionOptions")]);
     function fill(id,arr){var dl=document.getElementById(id);if(!dl)return;dl.innerHTML="";(arr||[]).sort().forEach(function(v){var o=document.createElement("option");o.value=v;dl.appendChild(o);});}
-    if(results[0].success)fill("bd_phoneList",results[0].data);
-    if(results[1].success){fill("bd_dataEntryList",results[1].data);fill("bd_dataUpdaterList",results[1].data);}
+if(results[0].success)["bd_phoneList","tr_phoneList","vacc_phoneList","phoneList"].forEach(function(id){fill(id,results[0].data);});    if(results[1].success){fill("bd_dataEntryList",results[1].data);fill("bd_dataUpdaterList",results[1].data);}
     if(results[2].success)fill("bd_regionList",results[2].data);
     if(!results[0].success) throw new Error(results[0].message || "تعذّر جلب أرقام الهواتف");
-    if(!results[0].data || !results[0].data.length) throw new Error("قاعدة البيانات أعادت صفر مربي — تحقق من ترحيل بيانات العيادة أو من صلاحيات RLS");
+if(!results[0].data || !results[0].data.length) console.warn("[Boot] لا يوجد مربون مسجَّلون في هذه العيادة بعد"); 
   }catch(err){bd_showMessage("خطأ في تحميل القوائم: "+err.message,true);throw err;}
 }
 function bd_collectAnimals() {
@@ -5636,7 +5601,7 @@ async function bd_saveData() {
   try{
     var res=await bd_callApi("bd_saveData",{data:data});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
+bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();}
   }catch(err){bd_showMessage("خطأ: "+err.message,true);}
   finally{btn.disabled=false;}
 }
@@ -5652,7 +5617,7 @@ async function bd_updateData() {
     try{
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
+bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();}
 else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
@@ -5669,7 +5634,7 @@ async function bd_deleteData() {
     try{
       var res=await bd_callApi("bd_deleteData",{phone:phone});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم الحذف بنجاح",false);;bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
+bd_showMessage("تم الحذف بنجاح",false);bd_clearForm();bd_refreshDropdowns();}
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -6532,13 +6497,8 @@ function bd_printHoldList() {
 var VACC_API_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 var vacc_isSaving = false;
 
-function vaccHideLoadingOverlay() {
-  var overlay = document.getElementById('vacc_loadingOverlay');
-  if (overlay) {
-    overlay.classList.add('hide');
-    setTimeout(function() { overlay.style.display = 'none'; }, 500);
-  }
-}
+function vaccHideLoadingOverlay() { appHideOverlay('vacc_loadingOverlay'); }
+
 
 async function vaccCallApi(action, payload) {
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
@@ -6551,24 +6511,13 @@ async function vaccCallApi(action, payload) {
   return await response.json();
 }
 
-function vaccShowMessage(message, isError, type) {
-  var t = type || (isError ? 'error' : 'success');
-  if (message.indexOf('⏳') !== -1) t = 'info';
-  showToast(message, t);
-}
+function vaccShowMessage(message, isError, type) { return appMsg(message, isError, type); }
+
 
 function vaccShowConfirm(message, onConfirm) {
-  var overlay = document.createElement('div'); overlay.className = 'modal-overlay';
-  overlay.innerHTML = '<div class="modal-box"><h3>تأكيد العملية</h3><p>' + message + '</p>' +
-    '<div class="modal-buttons"><button class="modal-btn confirm">نعم</button>' +
-    '<button class="modal-btn cancel">إلغاء</button></div></div>';
-  document.body.appendChild(overlay);
-  setTimeout(function(){ overlay.classList.add('show'); }, 10);
-  var close = function(){ overlay.classList.remove('show'); setTimeout(function(){ overlay.remove(); }, 300); };
-  overlay.querySelector('.confirm').onclick = function(){ close(); onConfirm(); };
-  overlay.querySelector('.cancel').onclick = close;
-  overlay.onclick = function(e){ if(e.target===overlay) close(); };
+  return appConfirm(message, onConfirm, { title: 'تأكيد العملية' });
 }
+
 
 function vaccSafeSet(id, value) {
   var el = document.getElementById(id);
@@ -7826,23 +7775,7 @@ function vr__date(v) {
 }
 
 function vr__confirm(title, html) {
-  return new Promise(function(resolve) {
-    var m = document.createElement('div');
-    m.className = 'custom-modal';
-    m.innerHTML =
-      '<div class="modal-box" style="max-width:520px;">' +
-        '<h3 style="color:#2bb673;margin-bottom:10px;">' + title + '</h3>' +
-        '<p style="font-size:13px;color:#444;line-height:1.9;text-align:right;direction:rtl;">' + html + '</p>' +
-        '<div class="modal-buttons">' +
-          '<button class="confirm-btn">✅ نعم، ابدأ التحديث</button>' +
-          '<button class="cancel-btn">إلغاء</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(m);
-    m.querySelector('.confirm-btn').onclick = function(){ m.remove(); resolve(true);  };
-    m.querySelector('.cancel-btn').onclick  = function(){ m.remove(); resolve(false); };
-    m.onclick = function(e){ if (e.target === m) { m.remove(); resolve(false); } };
-  });
+  return appConfirm(html, null, { title: title, color: '#2bb673', maxWidth: '520px' });
 }
 
 function vr__progressBox(title) {
@@ -8304,14 +8237,6 @@ var SAMPLES_API_URL = window._activeApiUrl || "https://script.google.com/macros/
 // ===================================================
 // إخفاء شاشة التحميل
 // ===================================================
-function hideInitialLoadingOverlay() {
-  var overlay = document.getElementById('initialLoadingOverlaySamples');  if (overlay) {
-    overlay.classList.add('hide');
-    setTimeout(function() {
-      overlay.style.display = 'none';
-    }, 500);
-  }
-}
 
 async function focallApi(action, payload) {
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
@@ -8322,20 +8247,10 @@ async function focallApi(action, payload) {
 // ===== UI =====
 var lastSampleNumber = '', isSaving = false;
 
-function foshowMessage(msg, isError, type) {
-  var t = type || (isError ? 'error' : 'success');
-  if (msg.indexOf('⏳') !== -1) t = 'info';
-  showToast(msg, t);
-}
-function foshowConfirm(msg, onConfirm) {
-  var o = document.createElement('div'); o.className = 'modal-overlay';
-  o.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="modal-btn confirm">نعم</button><button class="modal-btn cancel">إلغاء</button></div></div>';
-  document.body.appendChild(o); setTimeout(function(){o.classList.add('show');},10);
-  var close = function(){o.classList.remove('show');setTimeout(function(){o.remove();},300);};
-  o.querySelector('.confirm').onclick = function(){close();onConfirm();};
-  o.querySelector('.cancel').onclick = close;
-  o.onclick = function(e){if(e.target===o)close();};
-}
+function foshowMessage(msg, isError, type) { return appMsg(msg, isError, type); }
+  
+function foshowConfirm(msg, onConfirm) { return appConfirm(msg, onConfirm); }
+
 function fosafeSet(id,v){var el=document.getElementById(id);if(el)el.value=(v!=null)?v:'';}
 function fogetValue(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 
@@ -8824,13 +8739,7 @@ document.getElementById('testsResultFilter').addEventListener('keypress', functi
 // ===================================================
 // التهيئة الأولية - مع شاشة التحميل
 // ===================================================
-function hideSamplesLoadingOverlay() {
-  var overlay = document.getElementById('initialLoadingOverlaySamples');
-  if (overlay) {
-    overlay.classList.add('hide');
-    setTimeout(function() { overlay.style.display = 'none'; }, 500);
-  }
-}
+function hideSamplesLoadingOverlay() { appHideOverlay('initialLoadingOverlaySamples'); }
 
 async function foinit(){
   fobindEvents();
@@ -8985,10 +8894,7 @@ function fin_renderFinancialData(data, annualTotal) {
   annualInput.value = Number(displayedTotal).toLocaleString('ar-SA') + ' ريال';
 }
 
-function fin_showToast(message, type) {
-  var t = type === 'error' ? 'error' : 'success';
-  showToast(message, t);
-}
+function fin_showToast(message, type) { return appMsg(message, type === 'error'); }
 
 function fin_localToday() {
   var d   = new Date();
@@ -11575,6 +11481,7 @@ function saveAppearance() {
 
   // ===== تحديث قوائم الهاتف في جميع الصفحات =====
 async function globalRefreshPhoneLists() {
+  if (typeof bd_refreshDropdowns === "function") return bd_refreshDropdowns();
   try {
     var results = await Promise.all([
       bd_callApi("bd_getPhoneNumbers"),
@@ -11917,31 +11824,7 @@ function foDismissOverdueAlert() {
      ٦. تطبيق الصلاحيات على الواجهة
      ───────────────────────────────────────────────────── */
 
-  /**
-   * تطبيق صلاحيات الصفحات على شريط التنقل
-   */
-  function applyNavPermissions() {
-    document.querySelectorAll("nav button").forEach(function (btn) {
-      var onclick = btn.getAttribute("onclick") || "";
-      var match = onclick.match(/showPage\(['"](\w+)['"]\)/);
-      if (!match) return;
-
-      var pageId = match[1];
-      if (pageId === "login") return; // زر تسجيل الدخول دائماً مرئي
-
-      var allowed = isPageAllowed(pageId);
-      btn.style.display = allowed ? "" : "none";
-      btn.disabled = !allowed;
-
-      // إعادة تعيين الأنماط للأزرار المسموحة
-      if (allowed) {
-        btn.style.opacity = "";
-        btn.style.cursor = "";
-        btn.style.pointerEvents = "";
-      }
-    });
-  }
-
+ 
   /**
    * منع النقر على زر غير مصرح
    */
@@ -12221,35 +12104,7 @@ function showUserBadge(name, role) {
     }
   }
 
-  /* ─────────────────────────────────────────────────────
-     ١١. حماية دالة showPage
-     ───────────────────────────────────────────────────── */
-  function patchShowPage() {
-    if (!global.showPage || global.showPage._permPatched) return;
-
-    var original = global.showPage;
-    global.showPage = function (pageId) {
-      // صفحات عامة لا تحتاج صلاحية
-      if (pageId === "login") return original.apply(this, arguments);
-
-      // غير مسجل دخول
-      if (!global._isLoggedIn) {
-        showPermissionToast("يرجى تسجيل الدخول أولاً");
-        return;
-      }
-
-      // التحقق من الصلاحية
-      if (!isPageAllowed(pageId)) {
-        showPermissionToast("⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة");
-        return;
-      }
-
-      return original.apply(this, arguments);
-    };
-
-    global.showPage._permPatched = true;
-  }
-
+  
   /* ─────────────────────────────────────────────────────
      ١٢. الواجهة العامة (Public API)
      ───────────────────────────────────────────────────── */
@@ -12287,10 +12142,6 @@ function showUserBadge(name, role) {
     global._isLoggedIn       = true;
     global._currentUser      = username;
     global._userAllowedPages = pages.length > 0 ? pages : null;
-
-    // تطبيق الصلاحيات على الواجهة
-    patchShowPage();
-    applyNavPermissions();
 
     // تأخير بسيط لضمان اكتمال تحميل DOM قبل تطبيق صلاحيات الأزرار
     setTimeout(applyButtonPermissions, 300);
@@ -12424,12 +12275,11 @@ function remoteSyncApply(topic, action) {
       if (typeof trloadData === "function") trloadData();
       if (typeof trloadIncompleteCount === "function") trloadIncompleteCount();
     },
-    "breeder": function() {
+"breeder": function() {
       if (typeof bd_refreshDropdowns === "function") bd_refreshDropdowns();
-      if (typeof globalRefreshPhoneLists === "function") globalRefreshPhoneLists();
     },
     "vaccination": function() {
-      if (typeof globalRefreshPhoneLists === "function") globalRefreshPhoneLists();
+      if (typeof bd_refreshDropdowns === "function") bd_refreshDropdowns();
     },
     "samples": function() {
       if (typeof foloadUniqueCount === "function") foloadUniqueCount();
@@ -13965,18 +13815,7 @@ global.fetch = function (input, init) {
     function log(msg) { console.log("[SB-Breeders] " + msg); }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف في PostgREST */
-  function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
-
+    var pageAll = SBCore.pageAll;
   /* ── تهيئة العميل وتسجيل الدخول ───────────────────────────────── */
 
   function loadLib() {
@@ -14314,9 +14153,45 @@ global.fetch = function (input, init) {
       if (bare) return init(true);
       return init().then(function () { return sb; });
     },
-    reset: function () { ready = null; me = null; global._sbProfile = null; },
-    setProfile: function (p) { me = p; global._sbProfile = p; ready = Promise.resolve(true); },
+reset: function () { ready = null; me = null; global._sbProfile = null; },
     get me() { return me; }
+  };
+
+  /* أدوات مشتركة لكل الجسور */
+  global.SBCore = {
+    txt:   txt,
+    strip: strip,
+    today: function () { return new Date().toLocaleDateString("en-CA"); },
+    toISO: function (v) {
+      var s = strip(v), m;
+      if (!s) return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+      m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
+      var d = new Date(s);
+      return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-CA");
+    },
+    pageAll: pageAll,
+    init: function () {
+      return init().then(function () {
+        if (!me) throw new Error("لم يتم تسجيل الدخول بعد");
+        return { sb: sb, me: me };
+      });
+    },
+    /* المربي يتبع عيادة ولايته فقط */
+    breederByPhone: function (phone, cols) {
+      return global.SBCore.init().then(function (x) {
+        return x.sb.from("breeders")
+          .select(cols || "id, name, possession_no, civil_id, holding_expiry, regions(name)")
+          .eq("wilayat_id", x.me.wilayat_id)
+          .eq("phone", txt(phone)).maybeSingle();
+      }).then(function (r) {
+        if (r.error) throw r.error;
+        return r.data;
+      });
+    }
   };
 
   /* للفحص من Console */
@@ -14706,13 +14581,9 @@ function norm(s) {
   function breederInfo(p) {
     var phone = txt(p.phone);
     if (!phone) return Promise.resolve({ success: false, message: "رقم الهاتف مطلوب" });
-    return sb.from("breeders")
-      .select("name, possession_no, civil_id, holding_expiry, regions(name)")
-      .eq("phone", phone).maybeSingle()
-      .then(function (r) {
-        if (r.error) throw r.error;
-        if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
-        var b = r.data;
+return SBCore.breederByPhone(phone)
+      .then(function (b) {
+        if (!b) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };;
         return { success: true, data: [
           txt(b.name),
           txt(b.possession_no),
@@ -14809,17 +14680,7 @@ function norm(s) {
      إجراءات مضافة: الحالات غير المكتملة / البحث / تقرير الحيوانات
      ════════════════════════════════════════════════════════════════ */
 
-  function trPageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
+ var trPageAll = SBCore.pageAll;
 
   function byId(x, y) {
     var a = x.id, b = y.id;
@@ -15062,17 +14923,7 @@ function norm(s) {
   }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف */
-  function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
+   var pageAll = SBCore.pageAll;
 
   function load() {
     return Promise.all([
@@ -15206,17 +15057,7 @@ function norm(s) {
     return ready;
   }
 
-  function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
+    var pageAll = SBCore.pageAll;
 
   /* ── ربط المربي: يُنشأ تلقائياً إن لم يكن مسجَّلاً ───────────── */
   function breederId(d) {
@@ -15382,18 +15223,11 @@ function norm(s) {
   }
 
   function breederData(p) {
-    return sb.from("breeders")
-      .select("name, possession_no, civil_id, regions(name)")
-      .eq("phone", txt(p.phone)).maybeSingle()
-      .then(function (r) {
-        if (r.error) throw r.error;
-        if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
-        return { success: true,
-                 name:       txt(r.data.name),
-                 possession: txt(r.data.possession_no),
-                 region:     r.data.regions ? txt(r.data.regions.name) : "",
-                 civil:      txt(r.data.civil_id) };
-      });
+    return SBCore.breederByPhone(p.phone).then(function (b) {
+      if (!b) return { success: false, message: "لم يتم العثور على المربي" };
+      return { success: true, name: txt(b.name), possession: txt(b.possession_no),
+               region: b.regions ? txt(b.regions.name) : "", civil: txt(b.civil_id) };
+    });
   }
 
   /* ── جدول تحصينات المربي المعروض أسفل النموذج ───────────────── */
@@ -15622,37 +15456,7 @@ function norm(s) {
 
 })(window);
 </script>
-  <script>
-(function (g) {
-  "use strict";
-  function patch() {
-    if (!g.trcallApi || !g.trcallApi._sbPatch) { setTimeout(patch, 400); return; }
-    if (g.trcallApi._refreshPatch) return;
-
-    /* تعطيل الكاش: بُني على أعمدة الورقة القديمة ولم يعد يُستدعى أصلاً */
-    if (g.TreatmentCache && g.TreatmentCache.clear) g.TreatmentCache.clear();
-
-    var WRITES = ["trsaveData","trupdateData","trdeleteData",
-                  "trsaveTempData","trupdateTempData"];
-    var orig = g.trcallApi;
-
-    g.trcallApi = async function (action, payload) {
-      var res = await orig.apply(this, arguments);
-      if (res && res.success && WRITES.indexOf(action) !== -1) {
-        setTimeout(function () {
-          if (typeof g.trloadData === "function") g.trloadData();
-          if (typeof g.trloadIncompleteCount === "function") g.trloadIncompleteCount();
-        }, 150);
-      }
-      return res;
-    };
-    g.trcallApi._refreshPatch = true;
-    g.trcallApi._sbPatch = true;
-    console.log("[Refresh] ✅ تحديث السجل اليومي بعد كل عملية كتابة");
-  }
-  patch();
-})(window);
-</script>
+ 
   <script>
 /* ════════════════════════════════════════════════════════════════════
    جسر التقارير — Supabase
@@ -15669,30 +15473,12 @@ function norm(s) {
   function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
-  function init() {
-    if (ready && me && me === window.SBAuth.me) return ready;
-    ready = g.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = g.SBAuth.me;
-      return true;
-    }).catch(function (e) { ready = null; throw e; });
-    return ready;
+   function init() {
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف */
-  function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
-
+  var pageAll = SBCore.pageAll;
   /* حالات العلاج للعيادة الحالية ضمن المدى — التاريخ الفارغ = بلا حد */
   function casesQuery(cols, p) {
     var from = iso(p.dateFrom), to = iso(p.dateTo);
@@ -15939,18 +15725,8 @@ function norm(s) {
     return ready;
   }
 
-  function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
-
+   var pageAll = SBCore.pageAll;
+  
   function rangeQuery(table, dateCol, cols, p) {
     var from = iso(p.dateFrom), to = iso(p.dateTo);
     return pageAll(function () {
@@ -16319,18 +16095,8 @@ function norm(s) {
     return ready;
   }
 
-  function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
-
+  var pageAll = SBCore.pageAll;
+  
   function list(table, col, byWilayat, activeOnly) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col);
@@ -16675,16 +16441,12 @@ function idsFor(key, table, names, allowCreate) {
   }
 
   function breederData(p) {
-    return sb.from("breeders").select("name, possession_no, civil_id, regions(name)")
-      .eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
-        if (r.error) throw r.error;
-        if (!r.data) return { success: false, message: "لم يتم العثور على بيانات" };
-        var b = r.data;
-        return { success: true, data: [txt(b.name), txt(b.possession_no),
-                 b.regions ? txt(b.regions.name) : "", txt(b.civil_id)] };
-      });
+    return SBCore.breederByPhone(p.phone).then(function (b) {
+      if (!b) return { success: false, message: "لم يتم العثور على بيانات" };
+      return { success: true, data: [txt(b.name), txt(b.possession_no),
+               b.regions ? txt(b.regions.name) : "", txt(b.civil_id)] };
+    });
   }
-
   var FO = {
     fogetPhoneNumbers:      function ()  { return list("breeders", "phone", true); },
     fogetDataEntryOptions:  function ()  { return list("profiles", "full_name", true, true); },
