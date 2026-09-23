@@ -2603,8 +2603,7 @@ if (!u || !p) {
       window._currentUser = null;
       throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مسؤول النظام');
     }
-        window.SBAuth.setProfile(me);
-    if (window.SBTreatment) window.SBTreatment.clearCache();
+  
     /* رابط Apps Script اختياري — يُستخدم فقط لأدوات الترحيل SBMigrate */
     window._activeApiUrl = (me.wilayat && me.wilayat.api_url) || '';
     if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function')
