@@ -2616,7 +2616,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
     localStorage.removeItem('selected_wilayat_name');
   } catch (e) {}
 
-  showPage('login');
+  location.reload();
 });
   document.getElementById('l_goCP').addEventListener('click', ()=>{
     ['l_oldPass','l_newPass','l_confPass'].forEach(id=>document.getElementById(id).value='');
@@ -2641,6 +2641,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
     if(p.length>=10)s++;
     if(/[A-Z]/.test(p)&&/[a-z]/.test(p))s++;
     if(/[0-9]/.test(p)&&/[^a-zA-Z0-9]/.test(p))s++;
+    s=Math.min(s,3);
     for(let i=0;i<=s;i++)bars[i].style.background=cl[s];
     lbl.textContent=lb[s]; lbl.style.color=cl[s];
   }
@@ -5625,6 +5626,7 @@ async function bd_updateData() {
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
 bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}
+else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -8542,8 +8544,8 @@ function fodisplaySearchResults(data) {
   colsES.forEach(function(c){html+='<th class="col-e-s">'+c.split(':')[1]+'</th>';});
   colsTest.forEach(function(c){html+='<th>'+c.split(':')[1]+'</th>';});
   html+='</tr></thead><tbody>';
-  data.forEach(function(row){
-    html+='</tr>';
+ data.forEach(function(row){
+       html+='<tr>';
     cols.forEach(function(c){html+='<td>'+(row[c.split(':')[0]]||'')+'</td>';});
     colsES.forEach(function(c){html+='<td class="col-e-s">'+(row[c.split(':')[0]]||'')+'</td>';});
     colsTest.forEach(function(c){html+='<td>'+(row[c.split(':')[0]]||'')+'</td>';});
@@ -12345,7 +12347,7 @@ function syncSendNow(topic, action) {
   var msg = { topic: topic, action: action || "", tabId: window._syncTabId, ts: Date.now() };
 
   /* التبويبات الأخرى في نفس المتصفح */
-  try { if (window._localSyncChannel) window._localSyncChannel.postMessage(msg); } catch (e) {}
+ if (!REMOTE_SYNC_CHANNEL) try { if (window._localSyncChannel) window._localSyncChannel.postMessage(msg); } catch (e) {}
 
   /* الأجهزة الأخرى في نفس العيادة */
   if (!REMOTE_SYNC_CHANNEL) return;
@@ -12733,11 +12735,12 @@ setInterval(syncWrapApiCalls, 2000);
       });
     };
     window.trcallApi._speedPatched = true;
+    window.trcallApi._sbPatch = true;
     console.log("[SpeedCheck] ✅ تم ربط الفحص بعد نجاح الحفظ");
   }
 
   function tryPatch() {
-    if (window.trcallApi) {
+    if (window.trcallApi && window.trcallApi._sbPatch) {
       patchTrcallApi();
     } else {
       setTimeout(tryPatch, 500);
@@ -12956,12 +12959,13 @@ function sendTelegram(text) {
     };
  
     global.trcallApi._daPatch = true;
+    global.trcallApi._sbPatch = true;
     console.log("[DiseaseAlert] ✅ تم ربط الفحص بـ trcallApi — أعمدة G,J,M,P,S");
   }
  
   /* ── محاولة الربط حتى تتوفر trcallApi ── */
   function tryPatch() {
-    if (global.trcallApi) {
+   if (global.trcallApi && global.trcallApi._sbPatch) {
       patchTrcallApi();
     } else {
       setTimeout(tryPatch, 500);
@@ -14289,8 +14293,7 @@ global.fetch = function (input, init) {
     return null;
   }
 
-  function today() { return new Date().toISOString().slice(0, 10); }
-
+function today() { return new Date().toLocaleDateString("en-CA"); }
   /* ── التهيئة: تعتمد على جلسة وحدة الدخول ── */
   function init() {
     if (ready) return ready;
@@ -14477,8 +14480,8 @@ global.fetch = function (input, init) {
 
         return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
           .then(function (r) {
-            row.case_no = (r.error || !r.data) ? null : r.data;
-            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
+        if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
+            row.case_no = r.data;            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
           })
           .then(function (r) {
             if (r.error) throw r.error;
@@ -14489,7 +14492,8 @@ global.fetch = function (input, init) {
             if (meds.length) jobs.push(sb.from("treatment_drugs")
               .insert(meds.map(function (x) { x.case_id = id; return x; })));
 
-            return Promise.all(jobs).then(function () {
+            return Promise.all(jobs).then(function (res) {
+              res.forEach(function (x) { if (x.error) throw x.error; });
               return { success: true, message: "تم الحفظ",
                        caseNumber: r.data.case_no, rowId: id };
             });
@@ -14517,13 +14521,15 @@ global.fetch = function (input, init) {
             row.is_complete = v[3].length > 0;
 
             return sb.from("treatment_cases").update(row).eq("id", id)
-              .then(function () {
+              .then(function (u) {
+                if (u.error) throw u.error;
                 return Promise.all([
                   sb.from("treatment_diagnoses").delete().eq("case_id", id),
                   sb.from("treatment_drugs").delete().eq("case_id", id)
                 ]);
               })
-              .then(function () {
+             .then(function (del) {
+                del.forEach(function (x) { if (x.error) throw x.error; });
                 var jobs = [];
                 if (v[2].length) jobs.push(sb.from("treatment_diagnoses")
                   .insert(v[2].map(function (x) { x.case_id = id; return x; })));
@@ -14531,7 +14537,10 @@ global.fetch = function (input, init) {
                   .insert(v[3].map(function (x) { x.case_id = id; return x; })));
                 return Promise.all(jobs);
               })
-              .then(function () { return { success: true, message: "تم التحديث" }; });
+              .then(function (ins) {
+                (ins || []).forEach(function (x) { if (x.error) throw x.error; });
+                return { success: true, message: "تم التحديث" };
+              });
           });
       });
   }
@@ -15083,8 +15092,7 @@ global.fetch = function (input, init) {
   function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
   function strip(v) { return txt(v).replace(/^'/, ""); }
   function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? 0 : n; }
-  function today()  { return new Date().toISOString().slice(0, 10); }
-
+  function today()  { return new Date().toLocaleDateString("en-CA"); }
   function toISO(v) {
     var s = strip(v);
     if (!s) return null;
@@ -15092,7 +15100,7 @@ global.fetch = function (input, init) {
     var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
     var d = new Date(s);
-    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+   return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-CA");
   }
 
   /* ── التهيئة ─────────────────────────────────────────────────── */
@@ -15164,6 +15172,7 @@ global.fetch = function (input, init) {
     return breederId(d).then(function (bid) {
       return sb.rpc("next_case_no", { p_table: "vaccination_records", p_wilayat: me.wilayat_id })
         .then(function (r) {
+      if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
           var now = new Date().toISOString();
           return sb.from("vaccination_records").insert({
             wilayat_id: me.wilayat_id,
