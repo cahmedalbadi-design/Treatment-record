@@ -2564,7 +2564,8 @@ if (!u || !p) {
       window._currentUser = null;
       throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مسؤول النظام');
     }
-
+        window.SBAuth.setProfile(me);
+    if (window.SBTreatment) window.SBTreatment.clearCache();
     /* رابط Apps Script اختياري — يُستخدم فقط لأدوات الترحيل SBMigrate */
     window._activeApiUrl = (me.wilayat && me.wilayat.api_url) || '';
     if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function')
@@ -2595,9 +2596,9 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
     await sb.auth.signOut();
   } catch(e) {}
   window._sbProfile = null;
+  if (window.SBAuth) window.SBAuth.reset();
 
-  PERM.revoke();
-
+  PERM.revoke()
   window._currentUser = null;
   window._userAllowedPages = null;
   window._activeApiUrl = null;
@@ -14267,6 +14268,7 @@ global.fetch = function (input, init) {
       return init().then(function () { return sb; });
     },
     reset: function () { ready = null; me = null; global._sbProfile = null; },
+    setProfile: function (p) { me = p; global._sbProfile = p; ready = Promise.resolve(true); },
     get me() { return me; }
   };
 
@@ -14317,7 +14319,7 @@ global.fetch = function (input, init) {
 function today() { return new Date().toLocaleDateString("en-CA"); }
   /* ── التهيئة: تعتمد على جلسة وحدة الدخول ── */
   function init() {
-    if (ready) return ready;
+   if (ready && me && me === window.SBAuth.me) return ready;
     ready = global.SBAuth.client().then(function (c) {
       sb = c;
       if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
@@ -14992,7 +14994,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function n2s(v) { return (v === null || v === undefined || v === 0) ? "" : String(v); }
 
   function init() {
-    if (ready) return ready;
+   if (ready && me && me === window.SBAuth.me) return ready;
     ready = global.SBAuth.client().then(function (c) {
       sb = c;
       if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
@@ -15137,7 +15139,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
 
   /* ── التهيئة ─────────────────────────────────────────────────── */
   function init() {
-    if (ready) return ready;
+    if (ready && me && me === window.SBAuth.me) return ready;
     ready = global.SBAuth.client().then(function (c) {
       sb = c;
       if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
@@ -15610,7 +15612,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
   function init() {
-    if (ready) return ready;
+    if (ready && me && me === window.SBAuth.me) return ready;
     ready = g.SBAuth.client().then(function (c) {
       sb = c;
       if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
@@ -15767,7 +15769,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
   function init() {
-    if (ready) return ready;
+    if (ready && me && me === window.SBAuth.me) return ready;
     ready = g.SBAuth.client().then(function (c) {
       sb = c;
       if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
@@ -15869,7 +15871,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function sum(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
 
   function init() {
-    if (ready) return ready;
+    if (ready && me && me === window.SBAuth.me) return ready;
     ready = g.SBAuth.client().then(function (c) {
       sb = c;
       if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
@@ -16249,7 +16251,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   }
 
   function init() {
-    if (ready) return ready;
+    if (ready && me && me === window.SBAuth.me) return ready;
     ready = g.SBAuth.client().then(function (c) {
       sb = c;
       if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
