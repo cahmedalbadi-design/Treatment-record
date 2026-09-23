@@ -13815,7 +13815,18 @@ global.fetch = function (input, init) {
     function log(msg) { console.log("[SB-Breeders] " + msg); }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف في PostgREST */
-    var pageAll = SBCore.pageAll;
+    function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
   /* ── تهيئة العميل وتسجيل الدخول ───────────────────────────────── */
 
   function loadLib() {
