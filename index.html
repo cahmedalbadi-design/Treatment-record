@@ -14144,7 +14144,7 @@ global.fetch = function (input, init) {
     /* ٤) جلب مربٍّ واحد برقم هاتفه */
     if (action === "bd_searchCaseData") {
       return sb.from("breeders").select(SELECT_COLS)
-        .eq("phone", txt(payload.phone)).maybeSingle()
+       .eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
@@ -14197,8 +14197,8 @@ global.fetch = function (input, init) {
         return sb.from("breeders").insert(row);
       }).then(function (r) {
         if (r.error) {
-          if (r.error.code === "23505")
-            return { success: false, message: "رقم الهاتف مسجَّل مسبقاً" };
+   if (r.error.code === "23505")
+            return global.SBOtherClinic(d.phone);
           throw r.error;
         }
         return { success: true, message: "تم الحفظ" };
@@ -14212,7 +14212,8 @@ global.fetch = function (input, init) {
         row.updated_by = me.id;
         row.updated_at = new Date().toISOString();
         return sb.from("breeders").update(row).eq("phone", txt(d.phone));
-      }).then(function (r) {
+  }).then(function (r) {
+        if (r.error && r.error.code === "23505") return global.SBOtherClinic(d.newPhone || d.phone);
         if (r.error) throw r.error;
         return { success: true, message: "تم التحديث" };
       });
@@ -14297,8 +14298,18 @@ global.fetch = function (input, init) {
   if (document.readyState === "complete") setTimeout(patch, 900);
   else global.addEventListener("load", function () { setTimeout(patch, 900); });
 
-  /* وحدة الدخول المشتركة — يعتمد عليها جسر سجل العلاج */
-  global.SBAuth = {
+/* المربي مسجَّل في عيادة أخرى — رسالة واضحة بدل خطأ التفرد */
+  global.SBOtherClinic = function (phone) {
+    return init(true).then(function (c) {
+      return c.rpc("breeder_clinic", { p_phone: txt(phone) });
+    }).then(function (r) {
+      throw new Error(r.data
+        ? "هذا المربي مسجَّل في " + r.data + " — يُخدم في عيادة ولايته فقط"
+        : "رقم الهاتف مسجَّل مسبقاً");
+    });
+  };
+
+  /* وحدة الدخول المشتركة — يعتمد عليها جسر سجل العلاج */  global.SBAuth = {
     client: function (bare) {
       if (bare) return init(true);
       return init().then(function () { return sb; });
@@ -14408,13 +14419,21 @@ function today() { return new Date().toLocaleDateString("en-CA"); }
   }
 
   /* البحث عن اسم في جدول مرجعي، وإنشاؤه إن لم يوجد */
-  function findOrCreate(name, table, cacheKey, extra) {
-    var n = txt(name);
+function norm(s) {
+    return txt(s).replace(/\s+/g, " ")
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
+  }
+
+  function findOrCreate(name, table, cacheKey, extra, allowCreate) {
+    var n = txt(name).replace(/\s+/g, " ");
     if (!n) return Promise.resolve(null);
 
     return loadRef(cacheKey, table, "id, name").then(function (list) {
-      var hit = list.filter(function (x) { return x.name === n; })[0];
+      var k = norm(n);
+      var hit = list.filter(function (x) { return norm(x.name) === k; })[0];
       if (hit) return hit.id;
+      if (!allowCreate)
+        throw new Error("«" + n + "» غير موجود في القائمة المعتمدة — اختره من القائمة أو اطلب إضافته من المشرف");
 
       var row = { name: n };
       if (extra) Object.keys(extra).forEach(function (k) { row[k] = extra[k]; });
@@ -14424,7 +14443,7 @@ function today() { return new Date().toLocaleDateString("en-CA"); }
           /* سباق: أنشأه مستخدم آخر في نفس اللحظة */
           cache[cacheKey] = null;
           return loadRef(cacheKey, table, "id, name").then(function (l2) {
-            var h2 = l2.filter(function (x) { return x.name === n; })[0];
+      var h2 = l2.filter(function (x) { return norm(x.name) === norm(n); })[0];
             return h2 ? h2.id : null;
           });
         }
@@ -14434,9 +14453,9 @@ function today() { return new Date().toLocaleDateString("en-CA"); }
     });
   }
 
-  function diseaseId(n) { return findOrCreate(n, "diseases", "diseases"); }
-  function drugId(n)    { return findOrCreate(n, "drugs",    "drugs");    }
-  function regionId(n)  { return findOrCreate(n, "regions",  "regions", { wilayat_id: me.wilayat_id }); }
+ function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, false); }
+  function drugId(n)    { return findOrCreate(n, "drugs",    "drugs",    null, false); }
+  function regionId(n)  { return findOrCreate(n, "regions",  "regions", { wilayat_id: me.wilayat_id }, true); }
 
   /* ════════════════════════════════════════════════════════════════
      ربط المربي — ينشئ صفاً من بيانات الحالة إن لم يكن مسجَّلاً
@@ -14460,9 +14479,10 @@ function today() { return new Date().toLocaleDateString("en-CA"); }
             civil_id:      txt(d.civil),
             created_by:    me.id
           }).select("id").single();
-        }).then(function (r2) {
+      }).then(function (r2) {
+          if (r2.error && r2.error.code === "23505") return global.SBOtherClinic(phone);
           if (r2.error) throw r2.error;
-          log("أُنشئ مربٍّ جديد تلقائياً: " + phone);
+          log("أُنشئ مربٍّ جديد تلقائياً: " + phone)
           return r2.data.id;
         });
       });
@@ -14480,8 +14500,9 @@ function today() { return new Date().toLocaleDateString("en-CA"); }
     for (var i = 0; i < 5; i++) {
       if (!txt(dz[i])) continue;
       jobs.push(Promise.all([diseaseId(dz[i]), speciesId(ty[i])]).then(
-        (function (n) { return function (v) {
-return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row: n + 1, _type: txt(ty[n]) };
+(function (n) { return function (v) {
+          if (!v[1]) throw new Error("نوع الحيوان مطلوب للمرض «" + txt(dz[n]) + "»");
+          return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1 };
         }; })(i)
       ));
     }
@@ -15211,7 +15232,8 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
           name:       txt(d.name) || "غير مسجَّل",
           civil_id:   txt(d.civil),
           created_by: me.id
-        }).select("id").single().then(function (r2) {
+      }).select("id").single().then(function (r2) {
+          if (r2.error && r2.error.code === "23505") return global.SBOtherClinic(phone);
           if (r2.error) throw r2.error;
           log("أُنشئ مربٍّ جديد: " + phone);
           return r2.data.id;
@@ -16361,8 +16383,8 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   }
 
   /* أسماء ← معرّفات، مع إنشاء الناقص */
-  function idsFor(key, table, names) {
-    var want = [];
+function idsFor(key, table, names, allowCreate) {
+  var want = [];
     names.forEach(function (n) { n = txt(n); if (n && want.indexOf(n) === -1) want.push(n); });
     if (!want.length) return Promise.resolve({});
     return loadNames(key, table).then(function (rows) {
@@ -16370,7 +16392,9 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
       rows.forEach(function (x) { map[txt(x.name)] = x.id; });
       var missing = want.filter(function (n) { return !map[n]; });
       if (!missing.length) return map;
-      return sb.from(table).insert(missing.map(function (n) { return { name: n }; }))
+      if (!allowCreate)
+        throw new Error("غير موجود في القائمة المعتمدة: " + missing.join("، "));
+      return sb.from(table).insert((missing.map(function (n) { return { name: n }; }))
         .select("id, name").then(function (r) {
           if (r.error) {
             log("⚠️ تعذّر إضافة (" + missing.join("، ") + ") إلى " + table + ": " + r.error.message);
@@ -16412,7 +16436,8 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
           possession_no: strip(d.possession), region_id: rid,
           civil_id: txt(d.civil), created_by: me.id
         }).select("id").single();
-      }).then(function (r) {
+     }).then(function (r) {
+        if (r.error && r.error.code === "23505") return g.SBOtherClinic(phone);
         if (r.error) throw r.error;
         log("أُنشئ مربٍّ جديد: " + phone);
         return r.data.id;
@@ -16871,8 +16896,8 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
       allTests = allTests.concat((lt && lt.data) || []);
       allTypes = allTypes.concat((ls && ls.data) || []);
     } catch (e) {}
-    var tm = await idsFor("tests",  "lab_tests",    allTests);
-    var sm = await idsFor("stypes", "sample_types", allTypes);
+    var tm = await idsFor("tests",  "lab_tests",    allTests, true);
+    var sm = await idsFor("stypes", "sample_types", allTypes, true);
     await loadSpecies();
 
     var stats = { total: res.data.length, inserted: 0, skipped: 0,
