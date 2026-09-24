@@ -1726,16 +1726,7 @@ lockNav();
 
   <script>
   async function camp_api(action, payload) {
-    var url = window._activeApiUrl;
-    if (!url) throw new Error('رابط الخدمة غير معرّف');
-    var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-    var r = await fetch(url, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: body, redirect: 'follow'
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return await r.json();
+    throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
   }
 
   function camp_setStatus(msg, color) {
@@ -1918,33 +1909,6 @@ function clinicInfoRefresh() {
   if (!el) return;
   var p = window._sbProfile;
   el.textContent = (p && p.wilayat && p.wilayat.name) ? p.wilayat.name : '—';
-}
-
-function wilayatSetAllUrls(url) {
-  window._activeApiUrl      = url;
-  window.TR_API_URL         = url;
-  window.VACC_API_URL       = url;
-  window.SAMPLES_API_URL    = url;
-  window.SETTINGS__URL      = url;
-  window.DB__URL            = url;
-  window.VR_API_URL         = url;
-  window.dim_SERVICE_URL    = url;
-  window.fin_SERVICE_URL    = url;
-  window.dtr_SERVICE_URL    = url;
-  window.ani_SERVICE_URL    = url;
-  window.rpt_SERVICE_URL    = url;
-  // تحديث المتغيرات المحلية داخل السكريبتات مباشرة
-  try { fin_SERVICE_URL  = url; } catch(e) {}
-  try { dtr_SERVICE_URL  = url; } catch(e) {}
-  try { ani_SERVICE_URL  = url; } catch(e) {}
-  try { rpt_SERVICE_URL  = url; } catch(e) {}
-  try { SETTINGS__URL    = url; } catch(e) {}
-  try { DB__URL          = url; } catch(e) {}
-  try { dim_SERVICE_URL  = url; } catch(e) {}
-  try { TR_API_URL       = url; } catch(e) {}
-  try { VACC_API_URL     = url; } catch(e) {}
-  try { SAMPLES_API_URL  = url; } catch(e) {}
-  try { VR_API_URL       = url; } catch(e) {}
 }
 
 </script>
@@ -2549,7 +2513,7 @@ if (!u || !p) {
     var pr = await sb.from('profiles')
       .select('id, username, full_name, job_title, wilayat_id, role, ' +
               'is_supervisor, allowed_pages, allowed_actions, ' +
-              'wilayat:wilayat_id ( name, api_url, is_central )')
+              'wilayat:wilayat_id ( name, is_central )')
       .eq('id', au.data.user.id).single();
     if (pr.error || !pr.data) throw new Error('لا يوجد ملف شخصي لهذا الحساب');
 
@@ -2567,10 +2531,6 @@ if (!u || !p) {
 
     window.SBAuth.setProfile(me);
     if (window.SBTreatment) window.SBTreatment.clearCache();
-    /* رابط Apps Script اختياري — يُستخدم فقط لأدوات الترحيل SBMigrate */    window._activeApiUrl = (me.wilayat && me.wilayat.api_url) || '';
-    if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function')
-      wilayatSetAllUrls(window._activeApiUrl);
-
     PERM.init(me.username, {
       username: me.username,
       name:     me.full_name,
@@ -2929,17 +2889,8 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
   // =====================================================
   // طباعة نماذج العينات — جميع الأسماء مسبوقة بـ db_
   // =====================================================
-var DB__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
-
   async function db_call(action, payload) {
-    var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-    var r = await fetch(DB__URL, {
-      method:"POST", mode:"cors",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:body, redirect:"follow"
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
+    throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
   }
 
   function db_showModal(msg) {
@@ -3131,15 +3082,12 @@ var DB__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycb
 
 <script>
 "use strict";
-var SETTINGS__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 function hideSettingsLoadingOverlay() {
   var overlay = document.getElementById('loadingOverlay');
   if (overlay) { overlay.classList.add('hide'); setTimeout(function() { overlay.style.display = 'none'; }, 500); }
 }
 async function settingsCall(action, payload) {
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-var r = await fetch(window._activeApiUrl || SETTINGS__URL, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 function initSettingsPage() {
   var t = new Date();
@@ -3418,13 +3366,8 @@ function printCertificateLandscape() {
   </div>
 </div>
 <script>
-var dim_SERVICE_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 async function dim_callApi(action, payload) {
-  var url = window._activeApiUrl || dim_SERVICE_URL;
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 function dim_showToast(msg, type) {
@@ -3522,7 +3465,6 @@ function dim_printTable() {
 -->
 
 <div id="treatment" class="page">
-<div class="setup-overlay" id="tr_setupOverlay" style="display:none"><div class="setup-box"><h3>🔧 إعداد رابط الخدمة</h3><p>الصق رابط الـ Web App الخاص بـ Google Apps Script:</p><input type="text" id="tr_apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec"></div></div>
 <div class="loading-overlay" id="tr_loadingOverlay">
   <div class="loading-spinner"></div>
   <div class="loading-text">جاري تحميل الصفحة</div>
@@ -6519,7 +6461,6 @@ function bd_printHoldList() {
 // =====================================================
 // سجل التحصين - جميع الأسماء مسبوقة بـ vacc_ لتجنب التعارض
 // =====================================================
-var VACC_API_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 var vacc_isSaving = false;
 
 function vaccHideLoadingOverlay() {
@@ -6531,14 +6472,7 @@ function vaccHideLoadingOverlay() {
 }
 
 async function vaccCallApi(action, payload) {
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var response = await fetch(VACC_API_URL, {
-    method:"POST", mode:"cors",
-    headers:{"Content-Type":"text/plain;charset=utf-8"},
-    body:body, redirect:"follow"
-  });
-  if (!response.ok) throw new Error("HTTP " + response.status);
-  return await response.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 function vaccShowMessage(message, isError, type) {
@@ -7275,7 +7209,6 @@ async function vaccInit() {
 // =====================================================
 // متابعة طلبات التحصين - جميع الأسماء مسبوقة بـ vr_
 // =====================================================
-var VR_API_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 var vr_allData = [];
 var vr_dataLoaded = false;
 var vr_registeredPhones = new Set();
@@ -7289,14 +7222,7 @@ function vr_hideLoadingOverlay() {
 }
 
 async function vr_callApi(action, payload) {
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(VR_API_URL, {
-    method: "POST", mode: "cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: body, redirect: "follow"
-  });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 function vr_showMsg(text, isError) {
@@ -7781,15 +7707,6 @@ async function vr_saveToBreeder(r) {
   /* ══════════════════════════════════════════════════════════
    تحديث بيانات المربين المسجَّلين من أحدث بيانات التحصين
    ══════════════════════════════════════════════════════════ */
-
-/* اتصال مباشر بالـ API — يتجاوز طبقة الكاش لتفادي تحديثها بعد كل عملية */
-async function vr__api(action, payload) {
-  var url  = window._activeApiUrl || VR_API_URL;
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:body, redirect:'follow' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return await r.json();
-}
 
 function vr__txt(v) {
   if (v === null || v === undefined) return '';
@@ -8288,10 +8205,6 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
 "use strict";
 
 // ===================================================
-// API Setup - رابط ثابت
-// ===================================================
-var SAMPLES_API_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
-// ===================================================
 // إخفاء شاشة التحميل
 // ===================================================
 function hideInitialLoadingOverlay() {
@@ -8304,10 +8217,7 @@ function hideInitialLoadingOverlay() {
 }
 
 async function focallApi(action, payload) {
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(SAMPLES_API_URL, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 // ===== UI =====
 var lastSampleNumber = '', isSaving = false;
@@ -8884,24 +8794,9 @@ async function foinit(){
 </div>
 
 <script>
-/* ============================================================
-   fin_SERVICE_URL — رابط خدمة الجرد المالي (ثابت مخصص)
-   لا يُعدَّل هذا الثابت إلا عند تغيير نشر الـ Web App
-   ============================================================ */
-var fin_SERVICE_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 
 async function fin_callApi(action, payload) {
-  var url = window._activeApiUrl || fin_SERVICE_URL;
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, {
-    method: "POST",
-    mode: "cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: body,
-    redirect: "follow"
-  });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 function fin_printTable() {
@@ -9041,22 +8936,9 @@ function fin_localToday() {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-/* ============================================================
-   dtr_SERVICE_URL — رابط خدمة تتبع المرض (ثابت مخصص)
-   لا يُعدَّل هذا الثابت إلا عند تغيير نشر الـ Web App
-   ============================================================ */
-var dtr_SERVICE_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 var dtr_userClick = false;
 async function dtr_callApi(action, payload) {
-  var url = window._activeApiUrl || dtr_SERVICE_URL;
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, {
-    method: "POST", mode: "cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: body, redirect: "follow"
-  });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 var dtr_ARABIC_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
@@ -9599,26 +9481,10 @@ function dtr_printAll() {
 </div>
 
 <script>
-/* ============================================================
-   ani_SERVICE_URL — رابط خدمة الحيوانات المحصنة (ثابت مخصص)
-   لا يُعدَّل هذا الثابت إلا عند تغيير نشر الـ Web App
-   ============================================================ */
-var ani_SERVICE_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 
 async function ani_callApi(action, payload) {
-  var url = window._activeApiUrl || ani_SERVICE_URL;
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, {
-    method: "POST",
-    mode: "cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: body,
-    redirect: "follow"
-  });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
-
 async function ani_loadData() {
   var loadingMsg       = document.getElementById('ani_loadingMsg');
   var resultsContainer = document.getElementById('ani_searchResultsContainer');
@@ -10888,24 +10754,8 @@ async function dp_loadAll() {
   </div>
 </div>
 <script>
-/* ============================================================
-   rpt_SERVICE_URL — رابط خدمة التقرير الشامل (ثابت مخصص)
-   لا يُعدَّل هذا الثابت إلا عند تغيير نشر الـ Web App
-   ============================================================ */
-var rpt_SERVICE_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
-
 async function rpt_callApi(action, payload) {
-  var url = window._activeApiUrl || rpt_SERVICE_URL;
-  var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-  var r = await fetch(url, {
-    method: "POST",
-    mode: "cors",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: body,
-    redirect: "follow"
-  });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return await r.json();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
 var rpt_D = null;
