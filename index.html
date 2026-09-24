@@ -2571,7 +2571,10 @@ if (!u || !p) {
     }
   }
    /* ── دخول Supabase: اسم عربي → بريد داخلي → مصادقة ── */
-  async function sbDoLogin(uname, pass) {
+    async function sbDoLogin(uname, pass) {
+    for (var w = 0; w < 50 && !window.SBAuth; w++)
+      await new Promise(function (r) { setTimeout(r, 200); });
+    if (!window.SBAuth) throw new Error('النظام لم يكتمل تحميله — أعد تحميل الصفحة');
     var sb = await window.SBAuth.client(true);
 
     var em = await sb.rpc('login_email', { p_username: uname.trim() });
@@ -8954,8 +8957,8 @@ function fin_localToday() {
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <script>
 /* ============================================================
    dtr_SERVICE_URL — رابط خدمة تتبع المرض (ثابت مخصص)
    لا يُعدَّل هذا الثابت إلا عند تغيير نشر الـ Web App
