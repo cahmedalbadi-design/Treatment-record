@@ -959,51 +959,8 @@ window.showToast = function(message, type) {
     toastEl.style.opacity   = '0';
     toastEl.style.transform = 'translateY(-10px)';
     setTimeout(function() {
-    if (toastEl.parentNode) toastEl.parentNode.removeChild(toastEl);
+      if (toastEl.parentNode) toastEl.parentNode.removeChild(toastEl);
     }, 300);
-  };
-
-  /* رسالة موحّدة: ⏳ = معلومات، ⚠️ = تحذير */
-  window.appMsg = function (msg, isError, type) {
-    var t = type || (isError ? 'error' : 'success');
-    if (String(msg).indexOf('⏳') !== -1) t = 'info';
-    if (String(msg).indexOf('⚠️') !== -1) t = 'warning';
-    return window.showToast(msg, t);
-  };
-
-  /* نافذة تأكيد موحّدة — تقبل دالة رد نداء وتعيد Promise أيضاً */
-  window.appConfirm = function (msg, onConfirm, opts) {
-    opts = opts || {};
-    return new Promise(function (resolve) {
-      var old = document.querySelector('.custom-modal.app-confirm');
-      if (old) old.remove();
-      var m = document.createElement('div');
-      m.className = 'custom-modal app-confirm';
-      m.innerHTML =
-        '<div class="modal-box"' + (opts.maxWidth ? ' style="max-width:' + opts.maxWidth + '"' : '') + '>' +
-          '<h3' + (opts.color ? ' style="color:' + opts.color + '"' : '') + '>' + (opts.title || 'تأكيد') + '</h3>' +
-          '<p>' + msg + '</p>' +
-          '<div class="modal-buttons">' +
-            '<button class="confirm-btn">' + (opts.okText || 'نعم') + '</button>' +
-            '<button class="cancel-btn">' + (opts.cancelText || 'إلغاء') + '</button>' +
-          '</div></div>';
-      document.body.appendChild(m);
-      function done(v) {
-        m.remove(); resolve(v);
-        if (v && typeof onConfirm === 'function') onConfirm();
-      }
-      m.querySelector('.confirm-btn').onclick = function () { done(true); };
-      m.querySelector('.cancel-btn').onclick  = function () { done(false); };
-      m.onclick = function (e) { if (e.target === m) done(false); };
-    });
-  };
-
-  /* إخفاء شاشة تحميل بتلاشٍ */
-  window.appHideOverlay = function (id) {
-    var o = document.getElementById(id);
-    if (!o) return;
-    o.classList.add('hide');
-    setTimeout(function () { o.style.display = 'none'; }, 500);
   };
 
 })();
@@ -1081,10 +1038,11 @@ function showPage(pageId) {
     return;
   }
   // التحقق من الصلاحيات
-  if (publicPages.indexOf(pageId) === -1 &&
-      typeof PERM !== 'undefined' && !PERM.isPageAllowed(pageId)) {
-    showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
-    return;
+  if (window._isLoggedIn && window._userAllowedPages && publicPages.indexOf(pageId) === -1) {
+    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home') {
+      showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
+      return;
+    }
   }
   
   // إظهار الصفحة المطلوبة وإخفاء الباقي
@@ -1394,7 +1352,7 @@ async function bootLoadAll() {
         window._breederInitialized = true;
         if (typeof bd_init === 'function') await bd_init();
       },
-      check: null
+      check: function () { return bootListCount('bd_phoneList') > 0; }
     },
     {
       name: 'سجل العلاج', pct: 38, msg: 'جاري تحميل سجل العلاج والقوائم...',
@@ -1406,8 +1364,9 @@ async function bootLoadAll() {
         window._treatmentInitialized = true;
         if (typeof trinit === 'function') await trinit();
       },
-     check: function () {
-        return bootListCount('tr_diseaseList') > 0 &&
+      check: function () {
+        return bootListCount('tr_phoneList') > 0 &&
+               bootListCount('tr_diseaseList') > 0 &&
                bootListCount('tr_drugList') > 0 &&
                bootListCount('tr_dataEntryList') > 0;
       }
@@ -1423,7 +1382,7 @@ async function bootLoadAll() {
         if (typeof vaccInit === 'function') await vaccInit();
       },
       check: function () {
-return bootListCount('vacc_dataEntryList') > 0;
+        return bootListCount('vacc_phoneList') > 0 && bootListCount('vacc_dataEntryList') > 0;
       }
     },
     {
@@ -1437,7 +1396,8 @@ return bootListCount('vacc_dataEntryList') > 0;
         if (typeof foinit === 'function') await foinit();
       },
       check: function () {
-        return bootListCount('testList') > 0 &&
+        return bootListCount('phoneList') > 0 &&
+               bootListCount('testList') > 0 &&
                bootListCount('sampleTypeList') > 0;
       }
     },
@@ -1472,7 +1432,7 @@ return bootListCount('vacc_dataEntryList') > 0;
         } catch (e) {}
 
         if (typeof dtr_loadDiseaseList === 'function') {
-          await dtr_loadDiseaseList();
+          await dtr_loadDiseaseList();          await dtr_loadDiseaseList();
           var df = document.getElementById('dtr_dateFrom');
           var dt = document.getElementById('dtr_dateTo');
           if (df) df.value = '';
@@ -1578,6 +1538,7 @@ function unlockNav() {
   });
 
   // 2. تطبيق صلاحيات المستخدم
+  window._userAllowedPages = null;
   var username = window._currentUser || '';
   if (username && typeof PERM !== 'undefined') {
     document.querySelectorAll("nav button").forEach(function(btn) {
@@ -2571,10 +2532,7 @@ if (!u || !p) {
     }
   }
    /* ── دخول Supabase: اسم عربي → بريد داخلي → مصادقة ── */
-    async function sbDoLogin(uname, pass) {
-    for (var w = 0; w < 50 && !window.SBAuth; w++)
-      await new Promise(function (r) { setTimeout(r, 200); });
-    if (!window.SBAuth) throw new Error('النظام لم يكتمل تحميله — أعد تحميل الصفحة');
+  async function sbDoLogin(uname, pass) {
     var sb = await window.SBAuth.client(true);
 
     var em = await sb.rpc('login_email', { p_username: uname.trim() });
@@ -2606,7 +2564,7 @@ if (!u || !p) {
       window._currentUser = null;
       throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مسؤول النظام');
     }
-  
+
     /* رابط Apps Script اختياري — يُستخدم فقط لأدوات الترحيل SBMigrate */
     window._activeApiUrl = (me.wilayat && me.wilayat.api_url) || '';
     if (window._activeApiUrl && typeof wilayatSetAllUrls === 'function')
@@ -2637,9 +2595,9 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
     await sb.auth.signOut();
   } catch(e) {}
   window._sbProfile = null;
-  if (window.SBAuth) window.SBAuth.reset();
 
-  PERM.revoke()
+  PERM.revoke();
+
   window._currentUser = null;
   window._userAllowedPages = null;
   window._activeApiUrl = null;
@@ -3172,7 +3130,10 @@ var DB__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycb
 <script>
 "use strict";
 var SETTINGS__URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
-function hideSettingsLoadingOverlay() { appHideOverlay('loadingOverlay'); }
+function hideSettingsLoadingOverlay() {
+  var overlay = document.getElementById('loadingOverlay');
+  if (overlay) { overlay.classList.add('hide'); setTimeout(function() { overlay.style.display = 'none'; }, 500); }
+}
 async function settingsCall(action, payload) {
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
 var r = await fetch(window._activeApiUrl || SETTINGS__URL, { method:"POST", mode:"cors", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:body, redirect:"follow" });  if (!r.ok) throw new Error("HTTP " + r.status);
@@ -3464,8 +3425,10 @@ async function dim_callApi(action, payload) {
   return await r.json();
 }
 
-function dim_showToast(msg, type) { return appMsg(msg, type === 'error'); }
-
+function dim_showToast(msg, type) {
+  var t = type === 'error' ? 'error' : 'success';
+  showToast(msg, t);
+}
 var dim_calcOverlay = document.getElementById('dim_calcOverlay');
 document.getElementById('dim_calcCloseBtn').addEventListener('click', function(){ dim_calcOverlay.classList.remove('show'); });
 dim_calcOverlay.addEventListener('click', function(e){ if(e.target===dim_calcOverlay) dim_calcOverlay.classList.remove('show'); });
@@ -3767,12 +3730,30 @@ async function trloadIncompleteCases() {
  * @param {string}  msg     - نص الرسالة
  * @param {boolean} isError - هل هي رسالة خطأ؟
  */
-function trshowMessage(msg, isError) { return appMsg(msg, isError); }
-
+function trshowMessage(msg, isError) {
+  let type = isError ? "error" : "success";
+  if (msg.indexOf("⏳") !== -1) type = "info";
+  if (msg.indexOf("⚠️") !== -1) type = "warning";
+  showToast(msg, type);
+}
 
 /** عرض نافذة تأكيد مخصصة */
-function trshowConfirm(msg, onConfirm) { return appConfirm(msg, onConfirm); }
-
+function trshowConfirm(msg, onConfirm) {
+  const modal = document.createElement("div");
+  modal.className = "custom-modal";
+  modal.innerHTML = `
+    <div class="modal-box">
+      <h3>تأكيد</h3>
+      <p>${msg}</p>
+      <div class="modal-buttons">
+        <button class="confirm-btn">نعم</button>
+        <button class="cancel-btn">إلغاء</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector(".confirm-btn").onclick = () => { modal.remove(); onConfirm(); };
+  modal.querySelector(".cancel-btn").onclick  = () => { modal.remove(); };
+}
 
 /** تحديث شارة التنبيهات العلوية */
 function trrefreshTopBadge() {
@@ -4160,45 +4141,25 @@ async function trfetchBreederData(phone) {
 // ============================================================
 
 /** حفظ حالة جديدة */
-/** التحقق من صفوف التشخيص قبل الإرسال */
-function trcheckDiagnosisRows() {
-  var allowed = Array.from(document.querySelectorAll("#tr_typeListFixed option"))
-                     .map(function (o) { return o.value.trim(); });
-  var errors = [];
-  document.querySelectorAll("#treatment .diagnosis-row").forEach(function (row, i) {
-    var inp = row.querySelectorAll("input");
-    var dz = (inp[0] && inp[0].value.trim()) || "";
-    var ty = (inp[1] && inp[1].value.trim()) || "";
-    var ct = (inp[2] && inp[2].value.trim()) || "";
-    if (!dz && !ty && !ct) return;
-    if (!dz)      errors.push("التشخيص " + (i + 1) + ": اكتب اسم المرض");
-    else if (!ty) errors.push("التشخيص " + (i + 1) + ": اختر نوع الحيوان");
-    else if (allowed.indexOf(ty) === -1)
-                  errors.push("التشخيص " + (i + 1) + ": نوع الحيوان «" + ty + "» غير موجود في القائمة");
-  });
-  if (errors.length) { trshowMessage("❌ " + errors.join("\n"), true); return false; }
-  return true;
-}
-
-/** هل رقم الإيصال مكرر في السجل اليومي؟ (يستثني الحالة المفتوحة نفسها) */
-function trIsDupReceipt(val) {
-  val = String(val || "").trim();
-  if (!val) return false;
-  var cn = trgetValue("tr_caseNumber");
-  return Array.prototype.some.call(
-    document.querySelectorAll("#tr_dataTable tbody tr"),
-    function (row) {
-      var c = row.cells;
-      return c.length >= 4 && c[3].textContent.trim() === val && c[0].textContent.trim() !== cn;
-    });
-}
-
-/** حفظ حالة جديدة */
 async function trsaveData() {
-    if (!trcheckDiagnosisRows()) return;
-    if (trIsDupReceipt(trgetValue("tr_receipt"))) {
-    trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
+  // فحص تكرار الإيصال قبل الحفظ
+  var receiptEl = document.getElementById("tr_receipt");
+  if (receiptEl && receiptEl.value.trim()) {
+    var receiptVal = receiptEl.value.trim();
+    var table = document.getElementById("tr_dataTable");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (tbody) {
+      var isDup = false;
+      tbody.querySelectorAll("tr").forEach(function(row) {
+        var cells = row.querySelectorAll("td");
+        if (cells.length >= 4 && (cells[3].textContent || "").trim() === receiptVal) isDup = true;
+      });
+if (isDup) {
+  trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
+}
+    }
   }
+  trshowConfirm("هل تريد حفظ البيانات؟", async () => {
     trblockButtons();
     trshowMessage("⏳ جاري حفظ البيانات...", false);
 
@@ -4210,10 +4171,14 @@ async function trsaveData() {
 
     try {
       const res = await trcallApi("trsaveData", { data });
-  if (res.success) {
+      if (res.success) {
         trshowMessage("✅ تم الحفظ بنجاح", false);
-        trclearForm();
-        await trloadData();
+      trclearForm();
+// تنفيذ عمليات التحميل بشكل متوازٍ لتقليل وقت الانتظار
+await Promise.all([
+  trloadData(),
+  trloadIncompleteCount()
+]);
       } else {
         trshowMessage(res.message, true);
       }
@@ -4223,6 +4188,7 @@ async function trsaveData() {
       btn.textContent = orig;
       trunblockButtons();
     }
+  });
 }
 
 /** تحديث حالة موجودة */
@@ -4232,7 +4198,6 @@ async function trupdateData() {
     return;
   }
 
-  if (!trcheckDiagnosisRows()) return;
   trshowConfirm("هل تريد تحديث البيانات؟", async () => {
     trblockButtons();
     trshowMessage("⏳ جاري تحديث البيانات...", false);
@@ -4249,6 +4214,7 @@ async function trupdateData() {
         trshowMessage("✅ تم التحديث بنجاح", false);
         trclearForm();
         trloadData();
+        trloadIncompleteCount();
       } else {
         trshowMessage(res.message, true);
       }
@@ -4305,6 +4271,7 @@ async function trsearchCase() {
     const res = await trcallApi("trsearchCaseData", { caseNumber: cn });
     if (res.success) {
       trfillFormWithData(res);
+      trloadData();
       trshowMessage("✅ تم التحميل بنجاح", false);
     } else {
       trshowMessage(res.message, true);
@@ -4350,9 +4317,24 @@ function trvalidateTempData(data, requireCaseNumber, requireUpdater) {
 /** حفظ مؤقت */
 async function trtempSave() {
   const data = trcollectFormData();
-   if (trIsDupReceipt(trgetValue("tr_receipt"))) {
-    trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
-    await new Promise(r => setTimeout(r, 1500));
+  if (!trvalidateTempData(data, false, false)) return;
+  // فحص تكرار الإيصال
+  var receiptEl = document.getElementById("tr_receipt");
+  if (receiptEl && receiptEl.value.trim()) {
+    var receiptVal = receiptEl.value.trim();
+    var table = document.getElementById("tr_dataTable");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (tbody) {
+      var isDup = false;
+      tbody.querySelectorAll("tr").forEach(function(row) {
+        var cells = row.querySelectorAll("td");
+        if (cells.length >= 4 && (cells[3].textContent || "").trim() === receiptVal) isDup = true;
+      });
+if (isDup) {
+  trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
+  await new Promise(r => setTimeout(r, 1500));
+}
+    }
   }
 
   trblockButtons();
@@ -4369,6 +4351,7 @@ async function trtempSave() {
       trshowMessage(res.message, false);
       trclearForm();
       trloadData();
+        trloadIncompleteCount();
     } else {
       trshowMessage(res.message, true);
     }
@@ -4399,6 +4382,7 @@ async function trtempUpdate() {
       trshowMessage(res.message, false);
       trclearForm();
       trloadData();
+       trloadIncompleteCount();
     } else {
       trshowMessage(res.message, true);
     }
@@ -4619,7 +4603,7 @@ function trshowAllCards() {
 // ============================================================
 
 function trbindEvents() {
-  if (trbindEvents._done) return; trbindEvents._done = true;  // --- أزرار CRUD ---
+  // --- أزرار CRUD ---
   document.getElementById("tr_saveBtn").onclick   = trsaveData;
   document.getElementById("tr_updateBtn").onclick = trupdateData;
   document.getElementById("tr_clearBtn").onclick  = trclearForm;
@@ -4670,6 +4654,7 @@ function trbindEvents() {
       const res = await trcallApi("trsearchCaseData", { caseNumber: cn });
       if (res.success) {
         trfillFormWithData(res);
+        trloadData();
         trshowMessage("✅ تم التحميل", false);
       } else {
         trshowMessage(res.message, true);
@@ -4893,6 +4878,7 @@ async function trSelectIncompleteCase(caseNumber) {
     const res = await trcallApi("trsearchCaseData", { caseNumber });
     if (res.success) {
       trfillFormWithData(res);
+      trloadData();
       trshowMessage("✅ تم تحميل الحالة " + caseNumber, false);
     } else {
       trshowMessage(res.message, true);
@@ -4910,6 +4896,18 @@ async function trSelectIncompleteCase(caseNumber) {
 (function (global) {
   "use strict";
 
+  function getReceiptsFromTable() {
+    var receipts = new Set();
+    var rows = document.querySelectorAll("#tr_dataTable tbody tr");
+    rows.forEach(function (row) {
+      var cell = row.cells[3];
+      if (cell) {
+        var v = cell.textContent.trim();
+        if (v && v !== " ") receipts.add(v);
+      }
+    });
+    return receipts;
+  }
 
   function bindReceiptCheck() {
     var el = document.getElementById("tr_receipt");
@@ -4922,7 +4920,7 @@ async function trSelectIncompleteCase(caseNumber) {
         this.style.cssText = "";
         return;
       }
-      var isDup = trIsDupReceipt(val);
+      var isDup = getReceiptsFromTable().has(val);
       this.style.backgroundColor = isDup ? "#ffcccc" : "#ccffcc";
       this.style.border           = isDup ? "2px solid #e65050" : "2px solid #2bb673";
       this.style.color            = isDup ? "#7a0000" : "#1b5e20";
@@ -4957,19 +4955,15 @@ async function trSelectIncompleteCase(caseNumber) {
       if (!table) return;
       var tbody = table.querySelector("tbody");
       if (!tbody) return;
-var rows = tbody.querySelectorAll("tr");
+      var rows = tbody.querySelectorAll("tr");
       if (!rows.length) return;
 
-      var maxReceipt = 0;
-      rows.forEach(function (row) {
-        var cells = row.cells;
-        if (!cells || cells.length < 4) return;
-        var n = parseInt(cells[3].textContent.trim(), 10);
-        if (!isNaN(n) && n > maxReceipt) maxReceipt = n;
-      });
-      if (maxReceipt === 0) return;   // لا يوجد إيصال صالح — لا نغيّر القيمة الحالية
+      var lastRow = rows[rows.length - 1];
+      var cells = lastRow.cells;
+      if (!cells || cells.length < 4) return;
 
-      _tableReceipt = maxReceipt + 1;
+      var receiptNum = parseInt(cells[3].textContent.trim(), 10);
+      _tableReceipt = (!isNaN(receiptNum) && receiptNum > 0) ? receiptNum + 1 : 1;
 
       // حدّث الحقل فقط إذا لم يكن هناك حالة محملة حالياً
       // (أي الحقل لا يحتوي على رقم إيصال حالة مُحمَّلة)
@@ -5443,13 +5437,24 @@ async function bd_callApi(action, payload) {
   throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 
-function bd_showMessage(msg, isError, type) { return appMsg(msg, isError, type); }
-
+function bd_showMessage(msg, isError, type) {
+  var t = type || (isError ? 'error' : 'success');
+  if (msg.indexOf('⏳') !== -1) t = 'info';
+  showToast(msg, t);
+}
 function bd_showConfirm(msg, onConfirm) {
   /* إرجاع التحكم للمتصفح ليرسم استجابة النقرة أولاً (تحسين INP) */
   requestAnimationFrame(function () { setTimeout(function () { bd_showConfirmNow(msg, onConfirm); }, 0); });
 }
-function bd_showConfirmNow(msg, onConfirm) { return appConfirm(msg, onConfirm); }
+function bd_showConfirmNow(msg, onConfirm) {
+  var existing = document.querySelector(".custom-modal"); if (existing) existing.remove();
+  var modal = document.createElement("div"); modal.className = "custom-modal";
+  modal.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="confirm-btn">نعم</button><button class="cancel-btn">إلغاء</button></div></div>';
+  document.body.appendChild(modal);
+  modal.querySelector(".confirm-btn").addEventListener("click",function(){modal.remove();onConfirm();});
+  modal.querySelector(".cancel-btn").addEventListener("click",function(){modal.remove();});
+  modal.addEventListener("click",function(e){if(e.target===modal)modal.remove();});
+}
 
 function bd_safeSet(id,v){var el=document.getElementById(id);if(el)el.value=v||"";}
 function bd_getValue(id){var el=document.getElementById(id);return el?el.value.trim():"";}
@@ -5558,10 +5563,11 @@ async function bd_refreshDropdowns() {
   try {
     var results = await Promise.all([bd_callApi("bd_getPhoneNumbers"),bd_callApi("bd_getDataEntryOptions"),bd_callApi("bd_getRegionOptions")]);
     function fill(id,arr){var dl=document.getElementById(id);if(!dl)return;dl.innerHTML="";(arr||[]).sort().forEach(function(v){var o=document.createElement("option");o.value=v;dl.appendChild(o);});}
-if(results[0].success)["bd_phoneList","tr_phoneList","vacc_phoneList","phoneList"].forEach(function(id){fill(id,results[0].data);});    if(results[1].success){fill("bd_dataEntryList",results[1].data);fill("bd_dataUpdaterList",results[1].data);}
+    if(results[0].success)fill("bd_phoneList",results[0].data);
+    if(results[1].success){fill("bd_dataEntryList",results[1].data);fill("bd_dataUpdaterList",results[1].data);}
     if(results[2].success)fill("bd_regionList",results[2].data);
     if(!results[0].success) throw new Error(results[0].message || "تعذّر جلب أرقام الهواتف");
-if(!results[0].data || !results[0].data.length) console.warn("[Boot] لا يوجد مربون مسجَّلون في هذه العيادة بعد"); 
+    if(!results[0].data || !results[0].data.length) throw new Error("قاعدة البيانات أعادت صفر مربي — تحقق من ترحيل بيانات العيادة أو من صلاحيات RLS");
   }catch(err){bd_showMessage("خطأ في تحميل القوائم: "+err.message,true);throw err;}
 }
 function bd_collectAnimals() {
@@ -5603,7 +5609,7 @@ async function bd_saveData() {
   try{
     var res=await bd_callApi("bd_saveData",{data:data});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();}
+bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
   }catch(err){bd_showMessage("خطأ: "+err.message,true);}
   finally{btn.disabled=false;}
 }
@@ -5619,8 +5625,7 @@ async function bd_updateData() {
     try{
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();}
-else bd_showMessage(res.message,true);
+bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -5636,7 +5641,7 @@ async function bd_deleteData() {
     try{
       var res=await bd_callApi("bd_deleteData",{phone:phone});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم الحذف بنجاح",false);bd_clearForm();bd_refreshDropdowns();}
+bd_showMessage("تم الحذف بنجاح",false);;bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -5820,6 +5825,9 @@ function bd_init(){
     ov.classList.remove("hidden");
     ov.style.pointerEvents = "";
   }
+
+  var saveBtn = document.getElementById('bd_saveBtn');
+  if (saveBtn) delete saveBtn._bound;
 
   bd_bindEvents();
 
@@ -6499,8 +6507,13 @@ function bd_printHoldList() {
 var VACC_API_URL = window._activeApiUrl || "https://script.google.com/macros/s/AKfycby...exec";
 var vacc_isSaving = false;
 
-function vaccHideLoadingOverlay() { appHideOverlay('vacc_loadingOverlay'); }
-
+function vaccHideLoadingOverlay() {
+  var overlay = document.getElementById('vacc_loadingOverlay');
+  if (overlay) {
+    overlay.classList.add('hide');
+    setTimeout(function() { overlay.style.display = 'none'; }, 500);
+  }
+}
 
 async function vaccCallApi(action, payload) {
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
@@ -6513,13 +6526,24 @@ async function vaccCallApi(action, payload) {
   return await response.json();
 }
 
-function vaccShowMessage(message, isError, type) { return appMsg(message, isError, type); }
-
-
-function vaccShowConfirm(message, onConfirm) {
-  return appConfirm(message, onConfirm, { title: 'تأكيد العملية' });
+function vaccShowMessage(message, isError, type) {
+  var t = type || (isError ? 'error' : 'success');
+  if (message.indexOf('⏳') !== -1) t = 'info';
+  showToast(message, t);
 }
 
+function vaccShowConfirm(message, onConfirm) {
+  var overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal-box"><h3>تأكيد العملية</h3><p>' + message + '</p>' +
+    '<div class="modal-buttons"><button class="modal-btn confirm">نعم</button>' +
+    '<button class="modal-btn cancel">إلغاء</button></div></div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){ overlay.classList.add('show'); }, 10);
+  var close = function(){ overlay.classList.remove('show'); setTimeout(function(){ overlay.remove(); }, 300); };
+  overlay.querySelector('.confirm').onclick = function(){ close(); onConfirm(); };
+  overlay.querySelector('.cancel').onclick = close;
+  overlay.onclick = function(e){ if(e.target===overlay) close(); };
+}
 
 function vaccSafeSet(id, value) {
   var el = document.getElementById(id);
@@ -6683,8 +6707,7 @@ function vaccClearForm() {
    'vacc_intox_sheep','vacc_intox_goat','vacc_pock_sheep','vacc_pock_goat',
    'vacc_fmd_sheep','vacc_fmd_goat','vacc_fmd_cow','vacc_lumpy_cow',
    'vacc_rabies_sheep','vacc_rabies_goat','vacc_rabies_cow','vacc_rabies_camel','vacc_rabies_horse'
-].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-  document.querySelectorAll('#vaccination .inner-table input').forEach(function(el){ el.value=''; });
+  ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('vacc_vaccinationDataDisplay').innerHTML = '';
   vaccClearTopBarMessage();
 }
@@ -6895,7 +6918,7 @@ async function vaccDoSearchVaccinationRecords() {
       }
     }
 
-    document.getElementById('vacc_srResultCount').textContent = 'عدد النتائج: ' + rows.length + ' سجل';
+    document.getElementById('vacc_srResultCount').textContent = 'عدد النتائج: ' + res.rows.length + ' سجل';
     var html = '<table><thead><tr>';
    html += '<th rowspan="2" style="background:#7b2d8b;color:#fff;border:1px solid #5a1f68;padding:3px 5px;vertical-align:middle;position:sticky;top:0;z-index:10;">م</th>';
 html += '<th rowspan="2" style="background:#7b2d8b;color:#fff;border:1px solid #5a1f68;padding:3px 5px;vertical-align:middle;position:sticky;top:0;z-index:10;">رقم الحالة</th>';
@@ -7055,7 +7078,6 @@ function vacc_toggleTotalRow(show) {
   if (tbody) tbody.style.display = show ? 'none' : '';
 }
 function vaccBindEvents() {
-  if (vaccBindEvents._done) return; vaccBindEvents._done = true;
   document.getElementById('vacc_saveBtn').onclick = vaccSaveData;
   document.getElementById('vacc_clearBtn').onclick = vaccClearForm;
   document.getElementById('vacc_updateBtn').onclick = vaccUpdateData;
@@ -7777,7 +7799,23 @@ function vr__date(v) {
 }
 
 function vr__confirm(title, html) {
-  return appConfirm(html, null, { title: title, color: '#2bb673', maxWidth: '520px' });
+  return new Promise(function(resolve) {
+    var m = document.createElement('div');
+    m.className = 'custom-modal';
+    m.innerHTML =
+      '<div class="modal-box" style="max-width:520px;">' +
+        '<h3 style="color:#2bb673;margin-bottom:10px;">' + title + '</h3>' +
+        '<p style="font-size:13px;color:#444;line-height:1.9;text-align:right;direction:rtl;">' + html + '</p>' +
+        '<div class="modal-buttons">' +
+          '<button class="confirm-btn">✅ نعم، ابدأ التحديث</button>' +
+          '<button class="cancel-btn">إلغاء</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+    m.querySelector('.confirm-btn').onclick = function(){ m.remove(); resolve(true);  };
+    m.querySelector('.cancel-btn').onclick  = function(){ m.remove(); resolve(false); };
+    m.onclick = function(e){ if (e.target === m) { m.remove(); resolve(false); } };
+  });
 }
 
 function vr__progressBox(title) {
@@ -8239,6 +8277,14 @@ var SAMPLES_API_URL = window._activeApiUrl || "https://script.google.com/macros/
 // ===================================================
 // إخفاء شاشة التحميل
 // ===================================================
+function hideInitialLoadingOverlay() {
+  var overlay = document.getElementById('initialLoadingOverlaySamples');  if (overlay) {
+    overlay.classList.add('hide');
+    setTimeout(function() {
+      overlay.style.display = 'none';
+    }, 500);
+  }
+}
 
 async function focallApi(action, payload) {
   var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
@@ -8249,10 +8295,20 @@ async function focallApi(action, payload) {
 // ===== UI =====
 var lastSampleNumber = '', isSaving = false;
 
-function foshowMessage(msg, isError, type) { return appMsg(msg, isError, type); }
-  
-function foshowConfirm(msg, onConfirm) { return appConfirm(msg, onConfirm); }
-
+function foshowMessage(msg, isError, type) {
+  var t = type || (isError ? 'error' : 'success');
+  if (msg.indexOf('⏳') !== -1) t = 'info';
+  showToast(msg, t);
+}
+function foshowConfirm(msg, onConfirm) {
+  var o = document.createElement('div'); o.className = 'modal-overlay';
+  o.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="modal-btn confirm">نعم</button><button class="modal-btn cancel">إلغاء</button></div></div>';
+  document.body.appendChild(o); setTimeout(function(){o.classList.add('show');},10);
+  var close = function(){o.classList.remove('show');setTimeout(function(){o.remove();},300);};
+  o.querySelector('.confirm').onclick = function(){close();onConfirm();};
+  o.querySelector('.cancel').onclick = close;
+  o.onclick = function(e){if(e.target===o)close();};
+}
 function fosafeSet(id,v){var el=document.getElementById(id);if(el)el.value=(v!=null)?v:'';}
 function fogetValue(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 
@@ -8487,7 +8543,7 @@ function fodisplaySearchResults(data) {
   colsES.forEach(function(c){html+='<th class="col-e-s">'+c.split(':')[1]+'</th>';});
   colsTest.forEach(function(c){html+='<th>'+c.split(':')[1]+'</th>';});
   html+='</tr></thead><tbody>';
- data.forEach(function(row){
+  data.forEach(function(row){
        html+='<tr>';
     cols.forEach(function(c){html+='<td>'+(row[c.split(':')[0]]||'')+'</td>';});
     colsES.forEach(function(c){html+='<td class="col-e-s">'+(row[c.split(':')[0]]||'')+'</td>';});
@@ -8703,7 +8759,6 @@ function foPrintTests() {
 }
 // ===== Events =====
 function fobindEvents() {
-  if (fobindEvents._done) return; fobindEvents._done = true;
   document.querySelector('#samples #saveBtn').onclick = fosaveData;
   document.querySelector('#samples #updateBtn').onclick = foupdateData;
   document.querySelector('#samples #clearBtn').onclick = fochearForm;
@@ -8741,7 +8796,13 @@ document.getElementById('testsResultFilter').addEventListener('keypress', functi
 // ===================================================
 // التهيئة الأولية - مع شاشة التحميل
 // ===================================================
-function hideSamplesLoadingOverlay() { appHideOverlay('initialLoadingOverlaySamples'); }
+function hideSamplesLoadingOverlay() {
+  var overlay = document.getElementById('initialLoadingOverlaySamples');
+  if (overlay) {
+    overlay.classList.add('hide');
+    setTimeout(function() { overlay.style.display = 'none'; }, 500);
+  }
+}
 
 async function foinit(){
   fobindEvents();
@@ -8896,7 +8957,10 @@ function fin_renderFinancialData(data, annualTotal) {
   annualInput.value = Number(displayedTotal).toLocaleString('ar-SA') + ' ريال';
 }
 
-function fin_showToast(message, type) { return appMsg(message, type === 'error'); }
+function fin_showToast(message, type) {
+  var t = type === 'error' ? 'error' : 'success';
+  showToast(message, t);
+}
 
 function fin_localToday() {
   var d   = new Date();
@@ -8957,8 +9021,8 @@ function fin_localToday() {
   </div>
 </div>
 
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-    <script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
 /* ============================================================
    dtr_SERVICE_URL — رابط خدمة تتبع المرض (ثابت مخصص)
    لا يُعدَّل هذا الثابت إلا عند تغيير نشر الـ Web App
@@ -9257,9 +9321,7 @@ function dtr_renderChart(monthly, byAnimal, disease) {
   // المخطط الشريطي الشهري (الافتراضي — يعمل لجميع الأمراض أو مرض محدد)
   // ============================================================
 
-  var sortedKeys = Object.keys(monthly).filter(function(k){
-    return k && k.indexOf('-') !== -1;
-  }).sort();
+  var sortedKeys = Object.keys(monthly).sort();
 var labels = sortedKeys.filter(function(k){
     return k && k.indexOf('-') !== -1;
 }).map(function(k) {
@@ -9274,7 +9336,14 @@ var values = sortedKeys.filter(function(k){
     var n = Number(v);
     return isNaN(n) ? 0 : n;
 });
-
+  // ← إصلاح 1: تنظيف القيم — تحويل النصوص إلى أرقام ومعالجة undefined/NaN
+  var values = sortedKeys.map(function(k) {
+    var v = monthly[k];
+    if (v === undefined || v === null || v === '') return 0;
+    var n = Number(v);
+    return isNaN(n) ? 0 : n;
+  });
+  
   var maxVal = values.length > 0 ? Math.max.apply(null, values) : 0;
 
   var monthCount = sortedKeys.length;
@@ -11036,8 +11105,8 @@ async function rptCamp_load(force) {
 
   /* ٢) عدد أيام الحملة */
   var days = parseInt(c.days, 10);
- if (!days || days <= 0)
-    days = (dFrom && dTo) ? rptCamp_workDays(dFrom, dTo) : 0;
+  if (!days || days <= 0)
+    days = (dFrom && dTo) ? Math.floor((dTo - dFrom) / DAY) + 1 : 0;
 
   /* ٣) اليوم التشغيلي والحالة والأيام المتبقية */
   var dayNow = 0, state = 'غير نشطة', stColor = '#95a5a6', left = days;
@@ -11141,8 +11210,15 @@ async function rptCamp_load(force) {
     }
   }
 
- /* ٧) المخططات البيانية — نفس ترقيم أيام العمل المستخدم في البطاقات */
-  rptCamp_drawCharts(c, rate, dFrom, days, dayNow)
+  /* ٧) المخططات البيانية — تستخدم ترقيماً تقويمياً */
+  var dayNowCal = 0;
+  if (dFrom && today >= dFrom) {
+    dayNowCal = Math.floor((today - dFrom) / DAY) + 1;
+    if (days > 0 && dayNowCal > days) dayNowCal = days;
+  }
+  if (dTo && today > dTo) dayNowCal = days || dayNowCal;
+  rptCamp_drawCharts(c, rate, dFrom, days, dayNowCal);
+}
 
 /* ============================================================
    المخططات البيانية للوحة متابعة المشروع الوطني للتحصين
@@ -11161,108 +11237,66 @@ function rptCamp_ymd(d) {
          String(d.getDate()).padStart(2, '0');
 }
 
-/* يجلب سجلات الحملة مرة واحدة ويحسب المنجز التراكمي عند كل تاريخ قطع
-   بنفس منطق vaccGetTotalVaccinated: أقصى عدد لكل نوع لكل مربٍّ.
-   cutoffs: تواريخ ISO مرتبة تصاعدياً */
-async function rptCamp_cumSeries(dateFrom, cutoffs) {
-  var sb = await window.SBAuth.client();
-  var w  = (window._sbProfile || {}).wilayat_id;
-  var rows = [], size = 1000, from = 0, r;
-  do {
-    r = await sb.from('vaccination_records')
-      .select('vaccinated_on, breeders(phone), vaccination_doses(species_id, animal_count)')
-      .eq('wilayat_id', w)
-      .gte('vaccinated_on', dateFrom)
-      .lte('vaccinated_on', cutoffs[cutoffs.length - 1])
-      .order('vaccinated_on').order('id')
-      .range(from, from + size - 1);
-    if (r.error) throw r.error;
-    rows = rows.concat(r.data || []);
-    from += size;
-  } while (r.data && r.data.length === size);
-
-  var best = {}, total = 0, k = 0, out = [];
-  cutoffs.forEach(function (cut) {
-    while (k < rows.length && rows[k].vaccinated_on <= cut) {
-      var rec = rows[k++];
-      var ph  = rec.breeders ? String(rec.breeders.phone || '').trim() : '';
-      var b   = best[ph] || (best[ph] = {});
-      var cur = {};
-      (rec.vaccination_doses || []).forEach(function (d) {
-        if ((d.animal_count || 0) > (cur[d.species_id] || 0)) cur[d.species_id] = d.animal_count;
-      });
-      Object.keys(cur).forEach(function (s) {
-        if (cur[s] > (b[s] || 0)) { total += cur[s] - (b[s] || 0); b[s] = cur[s]; }
-      });
-    }
-    out.push(total);
-  });
-  return out;
-}
-
-/* ── ١) الأداء التراكمي خلال الحملة — بأيام العمل وباستعلام واحد ── */
+/* ── ١) الأداء التراكمي خلال الحملة ──
+   خط ثابت: المستهدف التراكمي — يمتد من اليوم ١ حتى آخر يوم في الحملة
+   خط متغيّر: المنجز الفعلي   — يتوقف عند اليوم التشغيلي الحالي         */
 async function rptCamp_chart1(c, rate, dFrom, days, dayNow) {
   var note = document.getElementById('rptCamp_ch1Note');
   var ctx  = document.getElementById('rptCamp_ch1');
   if (!ctx || typeof Chart === 'undefined') return;
   rptCamp_kill('ch1');
 
+  var DAY = 86400000;
   var dTo = rptCamp_d(c.dateTo);
   if (!dFrom || !dTo) { if (note) note.textContent = 'لم يُحدَّد المدى الزمني للحملة'; return; }
 
-  /* أيام العمل الفعلية — نفس ما تحسبه البطاقات */
-  var work = [];
-  for (var d = new Date(dFrom); d <= dTo; d.setDate(d.getDate() + 1))
-    if (RPT_OFF_DAYS.indexOf(d.getDay()) === -1) work.push(new Date(d));
-  if (!work.length) { if (note) note.textContent = 'لا توجد أيام عمل ضمن المدى'; return; }
-
-  if (!days || days <= 0) days = work.length;
+  if (!days || days <= 0) days = Math.floor((dTo - dFrom) / DAY) + 1;
   if (!isFinite(dayNow) || dayNow < 0) dayNow = 0;
-  if (dayNow > days) dayNow = days;
 
   var target = Number(c.target) || 0;
-  var today  = new Date(); today.setHours(0, 0, 0, 0);
 
-  function dateOf(i) { return work[Math.min(i, work.length) - 1]; }
-  /* تاريخ القطع: آخر يوم = نهاية المدى، واليوم الحالي = اليوم (ليشمل عطلة اليوم إن وُجد تحصين) */
-  function cutOf(i) {
-    if (i === days) return c.dateTo;
-    if (i === dayNow && today <= dTo) return rptCamp_ymd(today);
-    return rptCamp_ymd(dateOf(i));
-  }
-
-  /* نقطة كل 5 أيام عمل + اليوم الأول والأخير واليوم الحالي */
+  /* أخذ عيّنة إن طالت الحملة — للحد من عدد طلبات الخادم */
+  /* عيّنة كل ٥ أيام عمل — لتقليل نداءات الخادم
+     غيّر SAMPLE_STEP إلى 7 لعيّنة أسبوعية كاملة */
   var SAMPLE_STEP = 5;
+  var MAX_PTS     = 26;   /* سقف أمان للحملات الطويلة جداً */
+
+  var step = SAMPLE_STEP;
+  if (Math.ceil(days / step) > MAX_PTS) step = Math.ceil(days / MAX_PTS);
+
   var idxs = [1];
-  for (var i = SAMPLE_STEP; i <= days; i += SAMPLE_STEP) if (idxs.indexOf(i) === -1) idxs.push(i);
+  for (var d = step; d <= days; d += step) if (idxs.indexOf(d) === -1) idxs.push(d);
   if (idxs.indexOf(days) === -1) idxs.push(days);
   if (dayNow > 0 && idxs.indexOf(dayNow) === -1) idxs.push(dayNow);
   idxs.sort(function (a, b) { return a - b; });
 
-  /* الخط الثابت — آخر نقطة = المستهدف الكلي بالضبط كما في البطاقات */
-  var labels = [], planned = [];
+  /* الخط الثابت */
+  var labels = [], planned = [], actual = [];
   idxs.forEach(function (i) {
-    var dt = dateOf(i);
+    var dt = new Date(dFrom.getTime() + (i - 1) * DAY);
     labels.push('يوم ' + i + ' — ' + String(dt.getDate()).padStart(2, '0') + '/' +
                 String(dt.getMonth() + 1).padStart(2, '0'));
-    var p = (i === days && target > 0) ? target : rate * i;
-    planned.push(target > 0 ? Math.min(p, target) : p);
+    var p = rate * i;
+    if (target > 0 && p > target) p = target;
+    planned.push(p);
   });
 
-  /* الخط المتغيّر — استعلام واحد لكل النقاط */
-  var actual = idxs.map(function () { return null; });
-  var doneIdx = idxs.filter(function (i) { return dayNow > 0 && i <= dayNow; });
-  if (doneIdx.length) {
-    if (note) note.textContent = '⏳ جاري جلب المنجز…';
+  /* الخط المتغيّر */
+  var canFetch = (typeof vaccGetTotalVaccinated === 'function');
+  for (var k = 0; k < idxs.length; k++) {
+    var i2 = idxs[k];
+    if (!canFetch || dayNow === 0 || i2 > dayNow) { actual.push(null); continue; }
+    if (note) note.textContent = '⏳ جاري جلب المنجز… (' + (k + 1) + '/' + idxs.length + ')';
+    var dt2 = new Date(dFrom.getTime() + (i2 - 1) * DAY);
     try {
-      var series = await rptCamp_cumSeries(c.dateFrom, doneIdx.map(cutOf));
-      doneIdx.forEach(function (i, n) { actual[idxs.indexOf(i)] = series[n]; });
-    } catch (e) { console.warn('[rptCamp] ' + (e.message || e)); }
+      var r = await vaccGetTotalVaccinated(c.dateFrom, rptCamp_ymd(dt2), '');
+      actual.push(r.total || 0);
+    } catch (e) { actual.push(null); }
   }
 
   if (note) {
-    note.textContent = 'كامل مدة الحملة: ' + days + ' يوم عمل' +
-      ' — نقطة كل ' + SAMPLE_STEP + ' أيام عمل' +
+    note.textContent = 'كامل مدة الحملة: ' + days + ' يوم' +
+' — نقطة كل ' + step + ' أيام' +
       (dayNow > 0 ? ' — المنجز حتى اليوم ' + dayNow : ' — الحملة لم تبدأ بعد');
   }
 
@@ -11276,8 +11310,7 @@ async function rptCamp_chart1(c, rate, dFrom, days, dayNow) {
           tension: 0, fill: false, pointRadius: 2 },
         { label: 'المنجز التراكمي (الفعلي)', data: actual,
           borderColor: '#2bb673', backgroundColor: 'rgba(43,182,115,.12)',
-          borderWidth: 3, tension: .25, fill: true, pointRadius: 4, spanGaps: true }
-      ]
+          borderWidth: 3, tension: .25, fill: true, pointRadius: 4, spanGaps: true }      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -11483,7 +11516,6 @@ function saveAppearance() {
 
   // ===== تحديث قوائم الهاتف في جميع الصفحات =====
 async function globalRefreshPhoneLists() {
-  if (typeof bd_refreshDropdowns === "function") return bd_refreshDropdowns();
   try {
     var results = await Promise.all([
       bd_callApi("bd_getPhoneNumbers"),
@@ -11826,7 +11858,31 @@ function foDismissOverdueAlert() {
      ٦. تطبيق الصلاحيات على الواجهة
      ───────────────────────────────────────────────────── */
 
- 
+  /**
+   * تطبيق صلاحيات الصفحات على شريط التنقل
+   */
+  function applyNavPermissions() {
+    document.querySelectorAll("nav button").forEach(function (btn) {
+      var onclick = btn.getAttribute("onclick") || "";
+      var match = onclick.match(/showPage\(['"](\w+)['"]\)/);
+      if (!match) return;
+
+      var pageId = match[1];
+      if (pageId === "login") return; // زر تسجيل الدخول دائماً مرئي
+
+      var allowed = isPageAllowed(pageId);
+      btn.style.display = allowed ? "" : "none";
+      btn.disabled = !allowed;
+
+      // إعادة تعيين الأنماط للأزرار المسموحة
+      if (allowed) {
+        btn.style.opacity = "";
+        btn.style.cursor = "";
+        btn.style.pointerEvents = "";
+      }
+    });
+  }
+
   /**
    * منع النقر على زر غير مصرح
    */
@@ -12106,7 +12162,35 @@ function showUserBadge(name, role) {
     }
   }
 
-  
+  /* ─────────────────────────────────────────────────────
+     ١١. حماية دالة showPage
+     ───────────────────────────────────────────────────── */
+  function patchShowPage() {
+    if (!global.showPage || global.showPage._permPatched) return;
+
+    var original = global.showPage;
+    global.showPage = function (pageId) {
+      // صفحات عامة لا تحتاج صلاحية
+      if (pageId === "login") return original.apply(this, arguments);
+
+      // غير مسجل دخول
+      if (!global._isLoggedIn) {
+        showPermissionToast("يرجى تسجيل الدخول أولاً");
+        return;
+      }
+
+      // التحقق من الصلاحية
+      if (!isPageAllowed(pageId)) {
+        showPermissionToast("⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة");
+        return;
+      }
+
+      return original.apply(this, arguments);
+    };
+
+    global.showPage._permPatched = true;
+  }
+
   /* ─────────────────────────────────────────────────────
      ١٢. الواجهة العامة (Public API)
      ───────────────────────────────────────────────────── */
@@ -12144,6 +12228,10 @@ function showUserBadge(name, role) {
     global._isLoggedIn       = true;
     global._currentUser      = username;
     global._userAllowedPages = pages.length > 0 ? pages : null;
+
+    // تطبيق الصلاحيات على الواجهة
+    patchShowPage();
+    applyNavPermissions();
 
     // تأخير بسيط لضمان اكتمال تحميل DOM قبل تطبيق صلاحيات الأزرار
     setTimeout(applyButtonPermissions, 300);
@@ -12258,7 +12346,7 @@ function syncSendNow(topic, action) {
   var msg = { topic: topic, action: action || "", tabId: window._syncTabId, ts: Date.now() };
 
   /* التبويبات الأخرى في نفس المتصفح */
- if (!REMOTE_SYNC_CHANNEL) try { if (window._localSyncChannel) window._localSyncChannel.postMessage(msg); } catch (e) {}
+  try { if (window._localSyncChannel) window._localSyncChannel.postMessage(msg); } catch (e) {}
 
   /* الأجهزة الأخرى في نفس العيادة */
   if (!REMOTE_SYNC_CHANNEL) return;
@@ -12277,11 +12365,12 @@ function remoteSyncApply(topic, action) {
       if (typeof trloadData === "function") trloadData();
       if (typeof trloadIncompleteCount === "function") trloadIncompleteCount();
     },
-"breeder": function() {
+    "breeder": function() {
       if (typeof bd_refreshDropdowns === "function") bd_refreshDropdowns();
+      if (typeof globalRefreshPhoneLists === "function") globalRefreshPhoneLists();
     },
     "vaccination": function() {
-      if (typeof bd_refreshDropdowns === "function") bd_refreshDropdowns();
+      if (typeof globalRefreshPhoneLists === "function") globalRefreshPhoneLists();
     },
     "samples": function() {
       if (typeof foloadUniqueCount === "function") foloadUniqueCount();
@@ -12644,13 +12733,13 @@ setInterval(syncWrapApiCalls, 2000);
         return res;
       });
     };
-    window.trcallApi._speedPatched = true;
+window.trcallApi._speedPatched = true;
     window.trcallApi._sbPatch = true;
     console.log("[SpeedCheck] ✅ تم ربط الفحص بعد نجاح الحفظ");
   }
 
   function tryPatch() {
-    if (window.trcallApi && window.trcallApi._sbPatch) {
+  if (window.trcallApi && window.trcallApi._sbPatch) {
       patchTrcallApi();
     } else {
       setTimeout(tryPatch, 500);
@@ -12868,14 +12957,14 @@ function sendTelegram(text) {
       return res;
     };
  
-    global.trcallApi._daPatch = true;
+global.trcallApi._daPatch = true;
     global.trcallApi._sbPatch = true;
     console.log("[DiseaseAlert] ✅ تم ربط الفحص بـ trcallApi — أعمدة G,J,M,P,S");
   }
  
   /* ── محاولة الربط حتى تتوفر trcallApi ── */
   function tryPatch() {
-   if (global.trcallApi && global.trcallApi._sbPatch) {
+    if (global.trcallApi && global.trcallApi._sbPatch) {
       patchTrcallApi();
     } else {
       setTimeout(tryPatch, 500);
@@ -13817,7 +13906,17 @@ global.fetch = function (input, init) {
     function log(msg) { console.log("[SB-Breeders] " + msg); }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف في PostgREST */
-    var pageAll = SBCore.pageAll;
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
 
   /* ── تهيئة العميل وتسجيل الدخول ───────────────────────────────── */
 
@@ -13986,7 +14085,7 @@ global.fetch = function (input, init) {
     /* ٤) جلب مربٍّ واحد برقم هاتفه */
     if (action === "bd_searchCaseData") {
       return sb.from("breeders").select(SELECT_COLS)
-       .eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone)).maybeSingle()
+        .eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
@@ -14039,8 +14138,8 @@ global.fetch = function (input, init) {
         return sb.from("breeders").insert(row);
       }).then(function (r) {
         if (r.error) {
-   if (r.error.code === "23505")
-            return global.SBOtherClinic(d.phone);
+          if (r.error.code === "23505")
+            return { success: false, message: "رقم الهاتف مسجَّل مسبقاً" };
           throw r.error;
         }
         return { success: true, message: "تم الحفظ" };
@@ -14054,8 +14153,7 @@ global.fetch = function (input, init) {
         row.updated_by = me.id;
         row.updated_at = new Date().toISOString();
         return sb.from("breeders").update(row).eq("phone", txt(d.phone));
-  }).then(function (r) {
-        if (r.error && r.error.code === "23505") return global.SBOtherClinic(d.newPhone || d.phone);
+      }).then(function (r) {
         if (r.error) throw r.error;
         return { success: true, message: "تم التحديث" };
       });
@@ -14140,61 +14238,14 @@ global.fetch = function (input, init) {
   if (document.readyState === "complete") setTimeout(patch, 900);
   else global.addEventListener("load", function () { setTimeout(patch, 900); });
 
-/* المربي مسجَّل في عيادة أخرى — رسالة واضحة بدل خطأ التفرد */
-  global.SBOtherClinic = function (phone) {
-    return init(true).then(function (c) {
-      return c.rpc("breeder_clinic", { p_phone: txt(phone) });
-    }).then(function (r) {
-      throw new Error(r.data
-        ? "هذا المربي مسجَّل في " + r.data + " — يُخدم في عيادة ولايته فقط"
-        : "رقم الهاتف مسجَّل مسبقاً");
-    });
-  };
-
-  /* وحدة الدخول المشتركة — يعتمد عليها جسر سجل العلاج */  global.SBAuth = {
+  /* وحدة الدخول المشتركة — يعتمد عليها جسر سجل العلاج */
+  global.SBAuth = {
     client: function (bare) {
       if (bare) return init(true);
       return init().then(function () { return sb; });
     },
-reset: function () { ready = null; me = null; global._sbProfile = null; },
+    reset: function () { ready = null; me = null; global._sbProfile = null; },
     get me() { return me; }
-  };
-
-  /* أدوات مشتركة لكل الجسور */
-  global.SBCore = {
-    txt:   txt,
-    strip: strip,
-    today: function () { return new Date().toLocaleDateString("en-CA"); },
-    toISO: function (v) {
-      var s = strip(v), m;
-      if (!s) return null;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-      if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
-      m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-      if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
-      var d = new Date(s);
-      return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-CA");
-    },
-    pageAll: pageAll,
-    init: function () {
-      return init().then(function () {
-        if (!me) throw new Error("لم يتم تسجيل الدخول بعد");
-        return { sb: sb, me: me };
-      });
-    },
-    /* المربي يتبع عيادة ولايته فقط */
-    breederByPhone: function (phone, cols) {
-      return global.SBCore.init().then(function (x) {
-        return x.sb.from("breeders")
-          .select(cols || "id, name, possession_no, civil_id, holding_expiry, regions(name)")
-          .eq("wilayat_id", x.me.wilayat_id)
-          .eq("phone", txt(phone)).maybeSingle();
-      }).then(function (r) {
-        if (r.error) throw r.error;
-        return r.data;
-      });
-    }
   };
 
   /* للفحص من Console */
@@ -14223,17 +14274,38 @@ reset: function () { ready = null; me = null; global._sbProfile = null; },
   var unknown = {};   /* إجراءات لم يغطها الجسر بعد */
 
   function log(m)  { console.log("[SB-Treatment] " + m); }
-var txt = SBCore.txt, strip = SBCore.strip, toISO = SBCore.toISO, today = SBCore.today;
+  function txt(v)  { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v){ return txt(v).replace(/^'/, ""); }
 
   function int(v) { var n = parseInt(strip(v), 10);   return isNaN(n) ? 0 : n; }
   function dec(v) { var n = parseFloat(strip(v));     return isNaN(n) ? null : n; }
 
-
-function today() { return new Date().toLocaleDateString("en-CA"); }
-  /* ── التهيئة: تعتمد على جلسة وحدة الدخول ── */
-function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+  /* التواريخ في الورقة بصيغتين: 2026-06-03 و 03/06/2026 */
+  function toISO(v) {
+    var s = strip(v);
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[1]).slice(-2);
+    m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) return m[1] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[3]).slice(-2);
+    return null;
   }
+
+  function today() { return new Date().toLocaleDateString("en-CA"); }
+
+  /* ── التهيئة: تعتمد على جلسة وحدة الدخول ── */
+  function init() {
+    if (ready) return ready;
+    ready = global.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = global.SBAuth.me;
+      return true;
+    }).catch(function (err) { ready = null; throw err; });
+    return ready;
+  }
+
   /* ════════════════════════════════════════════════════════════════
      ذاكرة المرجعيات — تُجلب مرة واحدة لكل جلسة
      ════════════════════════════════════════════════════════════════ */
@@ -14277,21 +14349,13 @@ function init() {
   }
 
   /* البحث عن اسم في جدول مرجعي، وإنشاؤه إن لم يوجد */
-function norm(s) {
-    return txt(s).replace(/\s+/g, " ")
-      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
-  }
-
-  function findOrCreate(name, table, cacheKey, extra, allowCreate) {
-    var n = txt(name).replace(/\s+/g, " ");
+  function findOrCreate(name, table, cacheKey, extra) {
+    var n = txt(name);
     if (!n) return Promise.resolve(null);
 
     return loadRef(cacheKey, table, "id, name").then(function (list) {
-      var k = norm(n);
-      var hit = list.filter(function (x) { return norm(x.name) === k; })[0];
+      var hit = list.filter(function (x) { return x.name === n; })[0];
       if (hit) return hit.id;
-      if (!allowCreate)
-        throw new Error("«" + n + "» غير موجود في القائمة المعتمدة — اختره من القائمة أو اطلب إضافته من المشرف");
 
       var row = { name: n };
       if (extra) Object.keys(extra).forEach(function (k) { row[k] = extra[k]; });
@@ -14301,7 +14365,7 @@ function norm(s) {
           /* سباق: أنشأه مستخدم آخر في نفس اللحظة */
           cache[cacheKey] = null;
           return loadRef(cacheKey, table, "id, name").then(function (l2) {
-      var h2 = l2.filter(function (x) { return norm(x.name) === norm(n); })[0];
+            var h2 = l2.filter(function (x) { return x.name === n; })[0];
             return h2 ? h2.id : null;
           });
         }
@@ -14311,9 +14375,9 @@ function norm(s) {
     });
   }
 
- function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, false); }
-  function drugId(n)    { return findOrCreate(n, "drugs",    "drugs",    null, false); }
-  function regionId(n)  { return findOrCreate(n, "regions",  "regions", { wilayat_id: me.wilayat_id }, true); }
+  function diseaseId(n) { return findOrCreate(n, "diseases", "diseases"); }
+  function drugId(n)    { return findOrCreate(n, "drugs",    "drugs");    }
+  function regionId(n)  { return findOrCreate(n, "regions",  "regions", { wilayat_id: me.wilayat_id }); }
 
   /* ════════════════════════════════════════════════════════════════
      ربط المربي — ينشئ صفاً من بيانات الحالة إن لم يكن مسجَّلاً
@@ -14337,10 +14401,9 @@ function norm(s) {
             civil_id:      txt(d.civil),
             created_by:    me.id
           }).select("id").single();
-      }).then(function (r2) {
-          if (r2.error && r2.error.code === "23505") return global.SBOtherClinic(phone);
+        }).then(function (r2) {
           if (r2.error) throw r2.error;
-          log("أُنشئ مربٍّ جديد تلقائياً: " + phone)
+          log("أُنشئ مربٍّ جديد تلقائياً: " + phone);
           return r2.data.id;
         });
       });
@@ -14358,24 +14421,13 @@ function norm(s) {
     for (var i = 0; i < 5; i++) {
       if (!txt(dz[i])) continue;
       jobs.push(Promise.all([diseaseId(dz[i]), speciesId(ty[i])]).then(
-(function (n) { return function (v) {
-          if (!v[1]) throw new Error("نوع الحيوان مطلوب للمرض «" + txt(dz[n]) + "»");
+        (function (n) { return function (v) {
           return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1 };
         }; })(i)
       ));
     }
-      return Promise.all(jobs).then(function (rows) {
-      var bad = rows.filter(function (r) { return !r.disease_id || !r.species_id; });
-      if (bad.length) {
-        throw new Error(bad.map(function (r) {
-          if (!r.disease_id) return "التشخيص " + r._row + ": تعذّر تسجيل المرض";
-          return "التشخيص " + r._row + ": " +
-                 (r._type ? "نوع الحيوان «" + r._type + "» غير معروف" : "اختر نوع الحيوان");
-        }).join("\n"));
-      }
-      return rows.map(function (r) {
-        return { disease_id: r.disease_id, species_id: r.species_id, animal_count: r.animal_count };
-      });
+    return Promise.all(jobs).then(function (rows) {
+      return rows.filter(function (r) { return r.disease_id && r.species_id; });
     });
   }
 
@@ -14428,8 +14480,9 @@ function norm(s) {
 
         return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
           .then(function (r) {
-        if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
-            row.case_no = r.data;            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
+ if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
+            row.case_no = r.data;
+            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
           })
           .then(function (r) {
             if (r.error) throw r.error;
@@ -14440,9 +14493,9 @@ function norm(s) {
             if (meds.length) jobs.push(sb.from("treatment_drugs")
               .insert(meds.map(function (x) { x.case_id = id; return x; })));
 
-            return Promise.all(jobs).then(function (res) {
+              return Promise.all(jobs).then(function (res) {
               res.forEach(function (x) { if (x.error) throw x.error; });
-              return { success: true, message: "تم الحفظ",
+              return { success: true, message: "تم الحفظ"
                        caseNumber: r.data.case_no, rowId: id };
             });
           });
@@ -14468,7 +14521,7 @@ function norm(s) {
             row.updated_at  = new Date().toISOString();
             row.is_complete = v[3].length > 0;
 
-            return sb.from("treatment_cases").update(row).eq("id", id)
+          return sb.from("treatment_cases").update(row).eq("id", id)
               .then(function (u) {
                 if (u.error) throw u.error;
                 return Promise.all([
@@ -14485,7 +14538,7 @@ function norm(s) {
                   .insert(v[3].map(function (x) { x.case_id = id; return x; })));
                 return Promise.all(jobs);
               })
-              .then(function (ins) {
+.then(function (ins) {
                 (ins || []).forEach(function (x) { if (x.error) throw x.error; });
                 return { success: true, message: "تم التحديث" };
               });
@@ -14564,9 +14617,13 @@ function norm(s) {
   function breederInfo(p) {
     var phone = txt(p.phone);
     if (!phone) return Promise.resolve({ success: false, message: "رقم الهاتف مطلوب" });
-return SBCore.breederByPhone(phone)
-      .then(function (b) {
-        if (!b) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };;
+    return sb.from("breeders")
+      .select("name, possession_no, civil_id, holding_expiry, regions(name)")
+      .eq("phone", phone).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
+        var b = r.data;
         return { success: true, data: [
           txt(b.name),
           txt(b.possession_no),
@@ -14650,12 +14707,11 @@ return SBCore.breederByPhone(phone)
 
   /* ٨) القوائم المنسدلة */
   function names(table, col, filterWilayat) {
-    return trPageAll(function () {
-      var q = sb.from(table).select(col).order(col).order("id");
-      if (filterWilayat) q = q.eq("wilayat_id", me.wilayat_id);
-      return q;
-    }).then(function (rows) {
-      return { success: true, data: rows.map(function (x) { return x[col]; }) };
+    var q = sb.from(table).select(col).order(col);
+    if (filterWilayat) q = q.eq("wilayat_id", me.wilayat_id);
+    return q.then(function (r) {
+      if (r.error) throw r.error;
+      return { success: true, data: (r.data || []).map(function (x) { return x[col]; }) };
     });
   }
 
@@ -14663,7 +14719,17 @@ return SBCore.breederByPhone(phone)
      إجراءات مضافة: الحالات غير المكتملة / البحث / تقرير الحيوانات
      ════════════════════════════════════════════════════════════════ */
 
- var trPageAll = SBCore.pageAll;
+  function trPageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
 
   function byId(x, y) {
     var a = x.id, b = y.id;
@@ -14891,15 +14957,32 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-VaccReq] " + m); }
-  var txt = SBCore.txt;
+  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
   function n2s(v) { return (v === null || v === undefined || v === 0) ? "" : String(v); }
 
- function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+  function init() {
+    if (ready) return ready;
+    ready = global.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = global.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
   }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف */
-   var pageAll = SBCore.pageAll;
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
 
   function load() {
     return Promise.all([
@@ -15007,8 +15090,11 @@ return SBCore.breederByPhone(phone)
   };
 
   function log(m)   { console.log("[SB-Vacc] " + m); }
-  var txt = SBCore.txt, strip = SBCore.strip, toISO = SBCore.toISO, today = SBCore.today;
+  function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v) { return txt(v).replace(/^'/, ""); }
   function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? 0 : n; }
+  function today()  { return new Date().toLocaleDateString("en-CA"); }
+
   function toISO(v) {
     var s = strip(v);
     if (!s) return null;
@@ -15016,15 +15102,31 @@ return SBCore.breederByPhone(phone)
     var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
     var d = new Date(s);
-   return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-CA");
-  }
+    return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-CA");  }
 
   /* ── التهيئة ─────────────────────────────────────────────────── */
- function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+  function init() {
+    if (ready) return ready;
+    ready = global.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = global.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
   }
 
-    var pageAll = SBCore.pageAll;
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
 
   /* ── ربط المربي: يُنشأ تلقائياً إن لم يكن مسجَّلاً ───────────── */
   function breederId(d) {
@@ -15040,8 +15142,7 @@ return SBCore.breederByPhone(phone)
           name:       txt(d.name) || "غير مسجَّل",
           civil_id:   txt(d.civil),
           created_by: me.id
-      }).select("id").single().then(function (r2) {
-          if (r2.error && r2.error.code === "23505") return global.SBOtherClinic(phone);
+        }).select("id").single().then(function (r2) {
           if (r2.error) throw r2.error;
           log("أُنشئ مربٍّ جديد: " + phone);
           return r2.data.id;
@@ -15072,7 +15173,7 @@ return SBCore.breederByPhone(phone)
     return breederId(d).then(function (bid) {
       return sb.rpc("next_case_no", { p_table: "vaccination_records", p_wilayat: me.wilayat_id })
         .then(function (r) {
-      if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
+         if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
           var now = new Date().toISOString();
           return sb.from("vaccination_records").insert({
             wilayat_id: me.wilayat_id,
@@ -15190,11 +15291,18 @@ return SBCore.breederByPhone(phone)
   }
 
   function breederData(p) {
-    return SBCore.breederByPhone(p.phone).then(function (b) {
-      if (!b) return { success: false, message: "لم يتم العثور على المربي" };
-      return { success: true, name: txt(b.name), possession: txt(b.possession_no),
-               region: b.regions ? txt(b.regions.name) : "", civil: txt(b.civil_id) };
-    });
+    return sb.from("breeders")
+      .select("name, possession_no, civil_id, regions(name)")
+      .eq("phone", txt(p.phone)).maybeSingle()
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
+        return { success: true,
+                 name:       txt(r.data.name),
+                 possession: txt(r.data.possession_no),
+                 region:     r.data.regions ? txt(r.data.regions.name) : "",
+                 civil:      txt(r.data.civil_id) };
+      });
   }
 
   /* ── جدول تحصينات المربي المعروض أسفل النموذج ───────────────── */
@@ -15362,11 +15470,9 @@ return SBCore.breederByPhone(phone)
   }
 
   function names(table, col, filterW) {
-    return pageAll(function () {
-      var q = sb.from(table).select(col).order(col).order("id");
-      if (filterW) q = q.eq("wilayat_id", me.wilayat_id);
-      return q;
-    }).then(function (rows) {
+    var q = sb.from(table).select(col).order(col);
+    if (filterW) q = q.eq("wilayat_id", me.wilayat_id);
+    return pageAll(function () { return q; }).then(function (rows) {
       return { success: true, data: rows.map(function (x) { return x[col]; }) };
     });
   }
@@ -15423,7 +15529,37 @@ return SBCore.breederByPhone(phone)
 
 })(window);
 </script>
- 
+  <script>
+(function (g) {
+  "use strict";
+  function patch() {
+    if (!g.trcallApi || !g.trcallApi._sbPatch) { setTimeout(patch, 400); return; }
+    if (g.trcallApi._refreshPatch) return;
+
+    /* تعطيل الكاش: بُني على أعمدة الورقة القديمة ولم يعد يُستدعى أصلاً */
+    if (g.TreatmentCache && g.TreatmentCache.clear) g.TreatmentCache.clear();
+
+    var WRITES = ["trsaveData","trupdateData","trdeleteData",
+                  "trsaveTempData","trupdateTempData"];
+    var orig = g.trcallApi;
+
+    g.trcallApi = async function (action, payload) {
+      var res = await orig.apply(this, arguments);
+      if (res && res.success && WRITES.indexOf(action) !== -1) {
+        setTimeout(function () {
+          if (typeof g.trloadData === "function") g.trloadData();
+          if (typeof g.trloadIncompleteCount === "function") g.trloadIncompleteCount();
+        }, 150);
+      }
+      return res;
+    };
+    g.trcallApi._refreshPatch = true;
+    g.trcallApi._sbPatch = true;
+    console.log("[Refresh] ✅ تحديث السجل اليومي بعد كل عملية كتابة");
+  }
+  patch();
+})(window);
+</script>
   <script>
 /* ════════════════════════════════════════════════════════════════════
    جسر التقارير — Supabase
@@ -15436,16 +15572,34 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-Reports] " + m); }
-  var txt = SBCore.txt;
+  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
   function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
-   function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+  function init() {
+    if (ready) return ready;
+    ready = g.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = g.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
   }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف */
-  var pageAll = SBCore.pageAll;
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
   /* حالات العلاج للعيادة الحالية ضمن المدى — التاريخ الفارغ = بلا حد */
   function casesQuery(cols, p) {
     var from = iso(p.dateFrom), to = iso(p.dateTo);
@@ -15576,12 +15730,20 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-Certificate] " + m); }
-  var txt = SBCore.txt;
+  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
-function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+  function init() {
+    if (ready) return ready;
+    ready = g.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = g.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
   }
+
   /* (نوع اللقاح _ نوع الحيوان) → اسم الحقل الذي تقرؤه الشهادة
      اللقاح: 1 معوي، 2 طاعون/جدري، 3 قلاعية، 4 جلد عقدي، 5 سعار
      الحيوان: 1 ماعز، 2 أغنام، 3 أبقار، 4 جمال، 5 خيول */
@@ -15668,17 +15830,34 @@ function init() {
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-Reports2] " + m); }
-  var txt = SBCore.txt;
+  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
   function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
   function sum(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
 
   function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+    if (ready) return ready;
+    ready = g.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = g.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
   }
 
-   var pageAll = SBCore.pageAll;
-  
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
   function rangeQuery(table, dateCol, cols, p) {
     var from = iso(p.dateFrom), to = iso(p.dateTo);
     return pageAll(function () {
@@ -16014,22 +16193,51 @@ function init() {
   var viaSheets = { fo: null, camp: null };   /* الأصل — للترحيل فقط */
 
   function log(m)   { console.log("[SB-Samples] " + m); }
-   var txt = SBCore.txt, strip = SBCore.strip, toISO = SBCore.toISO, today = SBCore.today;
+  function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  function strip(v) { return txt(v).replace(/^'/, ""); }
   function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? null : n; }
   function nz(v)    { return (v === null || v === undefined) ? "" : v; }
+  function pad(n)   { return ("0" + n).slice(-2); }
+  function ymd(d)   { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function today()  { return ymd(new Date()); }
 
-
+  function toISO(v) {
+    var s = strip(v);
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
+    var d = new Date(s);                          /* تاريخ محلي — بلا انزياح UTC */
+    return isNaN(d.getTime()) ? null : ymd(d);
+  }
   function dmy(iso) {
     var m = txt(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? m[3] + "/" + m[2] + "/" + m[1] : txt(iso);
   }
 
-function init() {
-    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
+  function init() {
+    if (ready) return ready;
+    ready = g.SBAuth.client().then(function (c) {
+      sb = c;
+      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
+      me = g.SBAuth.me;
+      return true;
+    }).catch(function (e) { ready = null; throw e; });
+    return ready;
   }
 
-  var pageAll = SBCore.pageAll;
-  
+  function pageAll(build) {
+    var out = [], size = 1000;
+    function step(from) {
+      return build().range(from, from + size - 1).then(function (r) {
+        if (r.error) throw r.error;
+        out = out.concat(r.data || []);
+        return (r.data && r.data.length === size) ? step(from + size) : out;
+      });
+    }
+    return step(0);
+  }
+
   function list(table, col, byWilayat, activeOnly) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col);
@@ -16082,8 +16290,8 @@ function init() {
   }
 
   /* أسماء ← معرّفات، مع إنشاء الناقص */
-function idsFor(key, table, names, allowCreate) {
-  var want = [];
+  function idsFor(key, table, names) {
+    var want = [];
     names.forEach(function (n) { n = txt(n); if (n && want.indexOf(n) === -1) want.push(n); });
     if (!want.length) return Promise.resolve({});
     return loadNames(key, table).then(function (rows) {
@@ -16091,9 +16299,7 @@ function idsFor(key, table, names, allowCreate) {
       rows.forEach(function (x) { map[txt(x.name)] = x.id; });
       var missing = want.filter(function (n) { return !map[n]; });
       if (!missing.length) return map;
-      if (!allowCreate)
-        throw new Error("غير موجود في القائمة المعتمدة: " + missing.join("، "));
-      return sb.from(table).insert((missing.map(function (n) { return { name: n }; }))
+      return sb.from(table).insert(missing.map(function (n) { return { name: n }; }))
         .select("id, name").then(function (r) {
           if (r.error) {
             log("⚠️ تعذّر إضافة (" + missing.join("، ") + ") إلى " + table + ": " + r.error.message);
@@ -16135,8 +16341,7 @@ function idsFor(key, table, names, allowCreate) {
           possession_no: strip(d.possession), region_id: rid,
           civil_id: txt(d.civil), created_by: me.id
         }).select("id").single();
-     }).then(function (r) {
-        if (r.error && r.error.code === "23505") return g.SBOtherClinic(phone);
+      }).then(function (r) {
         if (r.error) throw r.error;
         log("أُنشئ مربٍّ جديد: " + phone);
         return r.data.id;
@@ -16374,12 +16579,16 @@ function idsFor(key, table, names, allowCreate) {
   }
 
   function breederData(p) {
-    return SBCore.breederByPhone(p.phone).then(function (b) {
-      if (!b) return { success: false, message: "لم يتم العثور على بيانات" };
-      return { success: true, data: [txt(b.name), txt(b.possession_no),
-               b.regions ? txt(b.regions.name) : "", txt(b.civil_id)] };
-    });
+    return sb.from("breeders").select("name, possession_no, civil_id, regions(name)")
+      .eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
+        if (r.error) throw r.error;
+        if (!r.data) return { success: false, message: "لم يتم العثور على بيانات" };
+        var b = r.data;
+        return { success: true, data: [txt(b.name), txt(b.possession_no),
+                 b.regions ? txt(b.regions.name) : "", txt(b.civil_id)] };
+      });
   }
+
   var FO = {
     fogetPhoneNumbers:      function ()  { return list("breeders", "phone", true); },
     fogetDataEntryOptions:  function ()  { return list("profiles", "full_name", true, true); },
@@ -16591,8 +16800,8 @@ function idsFor(key, table, names, allowCreate) {
       allTests = allTests.concat((lt && lt.data) || []);
       allTypes = allTypes.concat((ls && ls.data) || []);
     } catch (e) {}
-    var tm = await idsFor("tests",  "lab_tests",    allTests, true);
-    var sm = await idsFor("stypes", "sample_types", allTypes, true);
+    var tm = await idsFor("tests",  "lab_tests",    allTests);
+    var sm = await idsFor("stypes", "sample_types", allTypes);
     await loadSpecies();
 
     var stats = { total: res.data.length, inserted: 0, skipped: 0,
