@@ -4603,6 +4603,7 @@ function trshowAllCards() {
 // ============================================================
 
 function trbindEvents() {
+  if (trbindEvents._done) return; trbindEvents._done = true;
   // --- أزرار CRUD ---
   document.getElementById("tr_saveBtn").onclick   = trsaveData;
   document.getElementById("tr_updateBtn").onclick = trupdateData;
@@ -4955,15 +4956,19 @@ async function trSelectIncompleteCase(caseNumber) {
       if (!table) return;
       var tbody = table.querySelector("tbody");
       if (!tbody) return;
-      var rows = tbody.querySelectorAll("tr");
+       var rows = tbody.querySelectorAll("tr");
       if (!rows.length) return;
 
-      var lastRow = rows[rows.length - 1];
-      var cells = lastRow.cells;
-      if (!cells || cells.length < 4) return;
+      var maxReceipt = 0;
+      rows.forEach(function (row) {
+        var cells = row.cells;
+        if (!cells || cells.length < 4) return;
+        var n = parseInt(cells[3].textContent.trim(), 10);
+        if (!isNaN(n) && n > maxReceipt) maxReceipt = n;
+      });
+      if (maxReceipt === 0) return;   // لا يوجد إيصال صالح — لا نغيّر القيمة الحالية
 
-      var receiptNum = parseInt(cells[3].textContent.trim(), 10);
-      _tableReceipt = (!isNaN(receiptNum) && receiptNum > 0) ? receiptNum + 1 : 1;
+      _tableReceipt = maxReceipt + 1;
 
       // حدّث الحقل فقط إذا لم يكن هناك حالة محملة حالياً
       // (أي الحقل لا يحتوي على رقم إيصال حالة مُحمَّلة)
@@ -5826,10 +5831,7 @@ function bd_init(){
     ov.style.pointerEvents = "";
   }
 
-  var saveBtn = document.getElementById('bd_saveBtn');
-  if (saveBtn) delete saveBtn._bound;
-
-  bd_bindEvents();
+bd_bindEvents();;
 
 var safeHide = setTimeout(function(){ bd_hideLoading(); }, 5000);
   return bd_refreshDropdowns()
@@ -7078,6 +7080,7 @@ function vacc_toggleTotalRow(show) {
   if (tbody) tbody.style.display = show ? 'none' : '';
 }
 function vaccBindEvents() {
+  if (vaccBindEvents._done) return; vaccBindEvents._done = true;
   document.getElementById('vacc_saveBtn').onclick = vaccSaveData;
   document.getElementById('vacc_clearBtn').onclick = vaccClearForm;
   document.getElementById('vacc_updateBtn').onclick = vaccUpdateData;
@@ -8759,6 +8762,7 @@ function foPrintTests() {
 }
 // ===== Events =====
 function fobindEvents() {
+  if (fobindEvents._done) return; fobindEvents._done = true;
   document.querySelector('#samples #saveBtn').onclick = fosaveData;
   document.querySelector('#samples #updateBtn').onclick = foupdateData;
   document.querySelector('#samples #clearBtn').onclick = fochearForm;
