@@ -10386,228 +10386,8 @@ function dp_clearDates() {
   dp_apply();
 }
 
-/* ══════════════════════════════════════════════
-   البحث عن عمود في رؤوس الأعمدة
-   ══════════════════════════════════════════════ */
-function dp_findCol(headers, keywords) {
-  try {
-    if (!Array.isArray(headers)) return -1;
-    for (var i = 0; i < headers.length; i++) {
-      var h = dp_s(headers[i]);
-      for (var k = 0; k < keywords.length; k++) {
-        if (h.indexOf(keywords[k]) >= 0) return i;
-      }
-    }
-  } catch(e) {}
-  return -1;
-}
-
-/* ══════════════════════════════════════════════
-   تحميل البيانات
-   ══════════════════════════════════════════════ */
 async function dp_loadAll() {
-  var url = window._activeApiUrl || window.TR_API_URL || window.VACC_API_URL;
-  if (!url) {
-    if (typeof showToast === 'function') showToast('يرجى تسجيل الدخول أولاً', 'warning');
-    return;
-  }
-
-  document.getElementById('dp_loader').style.display = 'block';
-  document.getElementById('dp_status').textContent   = 'جاري التحميل...';
-  dp_RAW = { treat: [], vacc: [], sample: [] };
-
-  async function apiCall(action, payload) {
-    var body = JSON.stringify(Object.assign({ action: action }, payload || {}));
-    var r = await fetch(url, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: body, redirect: 'follow'
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return await r.json();
-  }
-
-  /* ── ١. قائمة الأطباء ── */
-  var docsList = [];
-  try {
-    var clRes = await apiCall('getClinicDoctors');
-    if (clRes && clRes.success && Array.isArray(clRes.doctors)) {
-      docsList = clRes.doctors.filter(function(d){ return d && dp_s(d); });
-    }
-  } catch(e) {}
-
-  /* ── ٢. سجل العلاج ── */
-  try {
-    var tr = null;
-    try { tr = await apiCall('trsearchInTreatmentSheet', { keyword: '', startDate: '2020-01-01', endDate: '2099-12-31' }); } catch(e) {}
-    if (!tr || !tr.success || !Array.isArray(tr.data) || tr.data.length <= 1) {
-      try { tr = await apiCall('trgetAllTreatmentData', {}); } catch(e) {}
-    }
-    if (!tr || !tr.success || !Array.isArray(tr.data) || tr.data.length <= 1) {
-      try { tr = await apiCall('getAllTreatmentRecords', {}); } catch(e) {}
-    }
-
-    if (tr && tr.success && Array.isArray(tr.data) && tr.data.length > 1) {
-      var trHeaders = Array.isArray(tr.data[0]) ? tr.data[0] : [];
-      var docIdx = 45;
-      for (var ci = 0; ci < trHeaders.length; ci++) {
-        var h = dp_s(trHeaders[ci]);
-        if (h.indexOf('مدخل البيانات') >= 0 && h.indexOf('اسم') >= 0) { docIdx = ci; break; }
-      }
-      var trCOL = {
-        name:   dp_findCol(trHeaders, ['اسم المربي', 'الاسم']),
-        phone:  dp_findCol(trHeaders, ['رقم هاتف', 'الهاتف']),
-        region: dp_findCol(trHeaders, ['المنطقة']),
-        amount: dp_findCol(trHeaders, ['المبلغ']),
-        place:  dp_findCol(trHeaders, ['مكان العلاج'])
-      };
-      tr.data.slice(1).forEach(function(row) {
-        try {
-          if (!Array.isArray(row) || !row.length) return;
-           var doc = dp_v(row, docIdx);
-            if (!doc) return;
-          /* بناء التشخيص من الأعمدة */
-          var diseases = [dp_v(row,6),dp_v(row,9),dp_v(row,12),dp_v(row,15),dp_v(row,18)]
-            .filter(function(d){ return d && d !== 'undefined'; });
-          /* حالة الاكتمال */
-          var status = 'غير مكتملة';
-          for (var ci2 = 21; ci2 <= 30; ci2++) { if (dp_v(row, ci2)) { status = 'مكتملة'; break; } }
-          
-            var doc2 = dp_v(row, 43);
-            dp_RAW.treat.push({
-            doc:     doc,
-            doc2:    doc2,
-            name:    dp_v(row, trCOL.name   >= 0 ? trCOL.name   : 2),
-            phone:   dp_v(row, trCOL.phone  >= 0 ? trCOL.phone  : 1),
-            region:  dp_v(row, trCOL.region >= 0 ? trCOL.region : 4),
-            date:    dp_v(row, 46),
-            disease: diseases.length ? diseases.join('، ') : '—',
-            amount:  dp_v(row, trCOL.amount >= 0 ? trCOL.amount : 42),
-            place:   dp_v(row, trCOL.place  >= 0 ? trCOL.place  : 31),
-            status:  status
-          });
-        } catch(e) {}
-      });
-    }
-  } catch(e) { console.warn('[DP] علاج خطأ:', e.message); }
-
-  /* ── ٣. سجل التحصين ── */
-/* ── ٣. سجل التحصين ── */
-  try {
-    var vr = null;
-    try { vr = await apiCall('searchVaccinationRecords', { filters: {} }); } catch(e) {}
-    if (vr && vr.success) {
-      var vaccRows = Array.isArray(vr.rows) ? vr.rows : (Array.isArray(vr.data) ? vr.data : []);
-
-      /* تحديد نقطة بداية البيانات */
-      var vaccStart = 0;
-      if (vaccRows.length >= 2) {
-        var r0 = vaccRows[0], r1 = vaccRows[1];
-        if (r1 && (dp_s(r1[0]) === '0' || dp_s(r1[1]) === 'رقم هاتف المربي')) vaccStart = 2;
-        else if (r0 && (dp_s(r0[0]) === '0' || dp_s(r0[1]) === 'رقم هاتف المربي')) vaccStart = 1;
-      }
-
-      vaccRows.slice(vaccStart).forEach(function(row) {
-        try {
-          if (!Array.isArray(row) || !row.length) return;
-          var rowNum = parseInt(dp_v(row, 0));
-          if (isNaN(rowNum) || rowNum === 0) return;
-
-          var doc  = dp_v(row, 25); /* العمود Z — مدخل البيانات */
-          var doc2 = dp_v(row, 23); /* العمود X — معدّل البيانات */
-
-          var vaccines = [], dosesTotal = 0;
-          var vaccDef = [
-            {name:'التسمم المعوي',        cols:[6,7]},
-            {name:'طاعون / جدري',         cols:[8,9]},
-            {name:'الحمى القلاعية',        cols:[10,11,12]},
-            {name:'السعار',               cols:[13,14,15,16,17]},
-            {name:'التهاب الجلد العقدي',   cols:[18,19,20,21]}
-          ];
-          vaccDef.forEach(function(vd) {
-            var tot = 0;
-            vd.cols.forEach(function(ci3){ tot += parseInt(dp_v(row, ci3)) || 0; });
-            if (tot > 0) { vaccines.push(vd.name); dosesTotal += tot; }
-          });
-
-          dp_RAW.vacc.push({
-            doc:      doc,
-            doc2:     doc2,
-            name:     dp_v(row, 2),
-            phone:    dp_v(row, 1),
-            region:   dp_v(row, 4),
-            date:     dp_v(row, 26),
-            vaccines: vaccines,
-            doses:    dosesTotal,
-            notes:    dp_v(row, 22)
-          });
-        } catch(e) {}
-      });
-    }
-  } catch(e) { console.warn('[DP] تحصين خطأ:', e.message); }
-  /* ── ٤. سجل العينات ── */
-  try {
-    var sr = null;
-    try { sr = await apiCall('fosearchSamplesData', { showAll: true }); } catch(e) {}
-    if (sr && sr.success && Array.isArray(sr.data)) {
-      sr.data.forEach(function(r) {
-        try {
-          var tests = [], results = [];
-          for (var k = 1; k <= 5; k++) {
-            var t  = dp_s(r['test'   + k]);
-            var rv = dp_s(r['result' + k]);
-            if (t) { tests.push(t); results.push(rv || 'قيد الانتظار'); }
-          }
-          dp_RAW.sample.push({
-            doc:        dp_s(r.dataEntry),
-            name:       dp_s(r.name),
-            phone:      dp_s(r.phone),
-            region:     dp_s(r.region),
-            date:       dp_s(r.sampleSentDate || r.samplesentdate),
-            sampleType: dp_s(r.sampleType),
-            disease:    dp_s(r.suspectedDisease),
-            tests:      tests,
-            results:    results
-          });
-        } catch(e) {}
-      });
-    }
-  } catch(e) { console.warn('[DP] عينات خطأ:', e.message); }
-
-  /* ── ٥. بناء قائمة الأطباء ── */
-  try {
-    var finalDocs = [], seen = {};
-    if (docsList.length > 0) {
-      docsList.forEach(function(d) { var n=dp_s(d); if(n&&!seen[n]){seen[n]=true;finalDocs.push(n);} });
-    } else {
-  ['treat','vacc','sample'].forEach(function(key) {
-   dp_RAW[key].forEach(function(r) { 
-    var d=dp_s(r.doc); 
-    if(d&&!seen[d]){seen[d]=true;finalDocs.push(d);} 
-    var d2=dp_s(r.doc2); 
-    if(d2&&!seen[d2]){seen[d2]=true;finalDocs.push(d2);} 
-  });
-});
-    }
-    finalDocs.sort();
-    var sel = document.getElementById('dp_docSel');
-    if (sel) {
-      sel.innerHTML = '<option value="">الكل</option>';
-      finalDocs.forEach(function(d) {
-        var o = document.createElement('option');
-        o.value = d; o.textContent = d;
-        sel.appendChild(o);
-      });
-    }
-  } catch(e) {}
-
-  var tot = dp_RAW.treat.length + dp_RAW.vacc.length + dp_RAW.sample.length;
-  document.getElementById('dp_status').textContent =
-    'علاج: ' + dp_RAW.treat.length + ' | تحصين: ' + dp_RAW.vacc.length + ' | عينات: ' + dp_RAW.sample.length;
-  document.getElementById('dp_loader').style.display = 'none';
-
-  if (typeof showToast === 'function') showToast('✅ تم تحميل ' + tot.toLocaleString('ar-SA') + ' سجل', 'success');
-  dp_apply();
+  throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
 }
 </script>
 </div>
@@ -13274,139 +13054,6 @@ Promise.all([
   tryPatch();
 })();
 </script>
-  <script>
-(function (global) {
-  "use strict";
-
-  var PREFIX = 'static_lists_v1_';
-
-  var MAP = {
-    /* قوائم المربي (هواتف/مناطق/مدخلو البيانات) مصدرها Supabase — لا تُكتب هنا */
-    phones:      ['tr_phoneList','vacc_phoneList','phoneList'],
-    diseases:    ['tr_diseaseList'],
-    drugs:       ['tr_drugList'],
-    regions:     [],
-    dataEntry:   ['tr_dataEntryList','tr_dataUpdaterList',
-                  'vacc_dataEntryList','vacc_dataUpdaterList',
-                  'dataEntryList','dataUpdaterList'],
-    tests:       ['testList'],
-    sampleTypes: ['sampleTypeList']
-  };
-
-  var state = { ready: false, lists: null, version: null };
-
-  function key() { return PREFIX + (global._activeApiUrl || 'default'); }
-
-  function api(action) {
-    var url = global._activeApiUrl;
-    if (!url) return Promise.reject(new Error('رابط الخدمة غير معرّف'));
-    return fetch(url, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: action }), redirect: 'follow'
-    }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    });
-  }
-
-  function read()  { try { var s = localStorage.getItem(key()); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
-  function write(o){ try { localStorage.setItem(key(), JSON.stringify(o)); } catch (e) {} }
-
-  function fill(lists) {
-    if (!lists) return;
-    Object.keys(MAP).forEach(function (k) {
-      var items = lists[k] || [];
-      var html  = '';
-      for (var i = 0; i < items.length; i++)
-        html += '<option value="' + String(items[i]).replace(/"/g, '&quot;') + '">';
-      MAP[k].forEach(function (id) {
-        var dl = document.getElementById(id);
-        if (dl) dl.innerHTML = html;
-      });
-    });
-  }
-
-  function fetchAll() {
-    return api('getAllLists').then(function (r) {
-      if (!r || !r.success) throw new Error('فشل جلب القوائم');
-      state = { ready: true, lists: r.lists, version: r.version };
-      write({ version: r.version, lists: r.lists, savedAt: new Date().toISOString() });
-      fill(r.lists);
-      return { fromCache: false };
-    });
-  }
-
-  function load() {
-    var cached = read();
-    return api('getListsStamp').then(function (res) {
-      var ver = res && res.version;
-      if (cached && ver && cached.version === ver && cached.lists) {
-        state = { ready: true, lists: cached.lists, version: ver };
-        fill(cached.lists);
-        console.log('[Lists] ⚡ من الذاكرة المحلية');
-        return { fromCache: true };
-      }
-      return fetchAll();
-    }).catch(function (err) {
-      if (cached && cached.lists) {
-        state = { ready: true, lists: cached.lists, version: cached.version };
-        fill(cached.lists);
-        console.warn('[Lists] تعذّر التحقق، استُخدمت النسخة المحفوظة:', err.message);
-      } else {
-        state.ready = false;   // ← الرجوع للسلوك القديم
-        console.warn('[Lists]', err.message);
-      }
-    });
-  }
-
-  /* تخطّي دوال تحميل القوائم القديمة عندما تكون الذاكرة جاهزة */
-  function patchSkip(name) {
-    var orig = global[name];
-    if (typeof orig !== 'function' || orig._slPatch) return;
-    global[name] = function () {
-      if (state.ready) { fill(state.lists); return Promise.resolve(true); }
-      return orig.apply(this, arguments);
-    };
-    global[name]._slPatch = true;
-  }
-
-  function patchAll() {
- ['trloadDropdowns','vaccLoadDropdowns','foloadDropdowns'].forEach(patchSkip);
-
-    /* بعد أي تعديل على المربين — تحديث فوري بدل التخطّي */
-    if (typeof global.globalRefreshPhoneLists === 'function' &&
-        !global.globalRefreshPhoneLists._slPatch) {
-      var orig = global.globalRefreshPhoneLists;
-      global.globalRefreshPhoneLists = function () {
-        if (state.ready) return fetchAll().catch(function () {});
-        return orig.apply(this, arguments);
-      };
-      global.globalRefreshPhoneLists._slPatch = true;
-    }
-  }
-
-  global.StaticLists = {
-    load:    load,
-    refresh: fetchAll,
-    clear:   function () {
-      try { localStorage.removeItem(key()); } catch (e) {}
-      state = { ready: false, lists: null, version: null };
-    },
-    info: function () {
-      var c = read();
-      if (!c) return null;
-      var n = 0;
-      Object.keys(c.lists || {}).forEach(function (k) { n += (c.lists[k] || []).length; });
-      return { savedAt: c.savedAt, version: c.version, itemCount: n };
-    }
-  };
-
-  if (document.readyState === 'complete') setTimeout(patchAll, 300);
-  else global.addEventListener('load', function () { setTimeout(patchAll, 300); });
-
-})(window);
-</script>
   <!-- ============================================================
      NetGuard v2.0 — حارس الاتصال بقاعدة البيانات
      قياس سلبي للطلبات الفعلية — بلا أي طلب إضافي على الشبكة
@@ -14964,8 +14611,6 @@ function names(table, col, filterWilayat) {
     if (typeof global.vr_callApi !== "function") { setTimeout(patch, 400); return; }
     if (global.vr_callApi._sbPatch) return;
 
-    var viaSheets = global.vr_callApi;
-
     global.vr_callApi = async function (action, payload) {
            if (action !== "getFortificationsData") {
         return { error: "إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action };
@@ -16094,8 +15739,6 @@ function names(table, col, filterWilayat) {
   "use strict";
 
   var sb = null, me = null, ready = null;
-  var viaSheets = { fo: null, camp: null };   /* الأصل — للترحيل فقط */
-
   function log(m)   { console.log("[SB-Samples] " + m); }
   function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
   function strip(v) { return txt(v).replace(/^'/, ""); }
@@ -16648,10 +16291,9 @@ function names(table, col, filterWilayat) {
   }
 
   function replaceStaticLists() {
-    var old = g.StaticLists;
-    if (!old) return false;
-    if (old._sb) return true;
-    try { old.clear(); } catch (e) {}
+     var old = g.StaticLists;
+    if (old && old._sb) return true;
+    if (old) { try { old.clear(); } catch (e) {} }
     try {
       Object.keys(localStorage).forEach(function (k) {
         if (k.indexOf("static_lists_v1_") === 0) localStorage.removeItem(k);
@@ -16674,125 +16316,6 @@ function names(table, col, filterWilayat) {
   }
 
   /* ════════════════════════════════════════════════════════════
-     الترحيل من Google Sheets — يُشغَّل يدوياً مرة لكل عيادة
-     ════════════════════════════════════════════════════════════ */
-  async function migrateSamples() {
-    await init();
-    if (!viaSheets.fo) throw new Error("دالة Apps Script الأصلية غير متاحة");
-
-    log("⏳ جلب العينات من Google Sheets...");
-    var res = await viaSheets.fo("fosearchSamplesData", { showAll: true });
-    if (!res || !res.success || !Array.isArray(res.data))
-      throw new Error("تعذّر جلب العينات من Google Sheets");
-
-    var pr = await sb.from("profiles").select("id, full_name").eq("wilayat_id", me.wilayat_id);
-    var byName = {};
-    (pr.data || []).forEach(function (p) { byName[txt(p.full_name)] = p.id; });
-
-    var br = await pageAll(function () {
-      return sb.from("breeders").select("id, phone").eq("wilayat_id", me.wilayat_id).order("id");
-    });
-    var byPhone = {};
-    br.forEach(function (b) { byPhone[txt(b.phone)] = b.id; });
-
-    /* كل أسماء الفحوصات والأنواع: من العينات + من قوائم الشيت */
-    var allTests = [], allTypes = [];
-    res.data.forEach(function (d) {
-      allTests = allTests.concat(testPairs(d).map(function (p) { return p.name; }));
-      allTypes = allTypes.concat(typeNames(d));
-    });
-    try {
-      var lt = await viaSheets.fo("fogetTestOptions");
-      var ls = await viaSheets.fo("fogetSampleTypeOptions");
-      allTests = allTests.concat((lt && lt.data) || []);
-      allTypes = allTypes.concat((ls && ls.data) || []);
-    } catch (e) {}
-    var tm = await idsFor("tests",  "lab_tests",    allTests, true);
-    var sm = await idsFor("stypes", "sample_types", allTypes, true);
-    await loadSpecies();
-
-    var stats = { total: res.data.length, inserted: 0, skipped: 0,
-                  breedersCreated: 0, invalid: [] };
-    var prepared = [], seenNo = {};
-
-    for (var i = 0; i < res.data.length; i++) {
-      var d = res.data[i], no = int(d.caseNumberrt);
-      if (!no)       { stats.invalid.push("صف بلا رقم عينة"); continue; }
-      if (seenNo[no]) { stats.invalid.push(no + " — رقم مكرر في الشيت"); continue; }
-
-      var taken = toISO(d.sampleTakenDate), sent = toISO(d.sampleSentDate);
-      taken = taken || sent; sent = sent || taken;
-      if (!taken)            { stats.invalid.push(no + " — بلا تاريخ أخذ أو إرسال"); continue; }
-      var phone = txt(d.phone);
-      if (!phone)            { stats.invalid.push(no + " — بلا رقم هاتف"); continue; }
-
-      var bid = byPhone[phone];
-      if (!bid) {
-        try { bid = await breederId(d); byPhone[phone] = bid; stats.breedersCreated++; }
-        catch (e) { stats.invalid.push(no + " — تعذّر إنشاء المربي: " + e.message); continue; }
-      }
-
-      var en = txt(d.dataEntry), up = txt(d.dataUpdater);
-      var row = toRow(d, bid, speciesIdSync(d.animalType));
-      row.taken_on       = taken;
-      row.sent_on        = sent;
-      row.wilayat_id     = me.wilayat_id;
-      row.sample_no      = no;
-      row.created_by     = byName[en] || null;
-      row.legacy_entry   = byName[en] ? null : (en || null);
-      row.updated_by     = byName[up] || null;
-      row.legacy_updater = byName[up] ? null : (up || null);
-
-      seenNo[no] = 1;
-      prepared.push({ d: d, row: row });
-    }
-
-    for (var j = 0; j < prepared.length; j += 200) {
-      var chunk = prepared.slice(j, j + 200);
-      var u = await sb.from("samples")
-        .upsert(chunk.map(function (x) { return x.row; }),
-                { onConflict: "wilayat_id,sample_no", ignoreDuplicates: true })
-        .select("id, sample_no");
-      if (u.error) throw u.error;
-
-      var idByNo = {};
-      (u.data || []).forEach(function (x) { idByNo[x.sample_no] = x.id; });
-      stats.inserted += (u.data || []).length;
-      stats.skipped  += chunk.length - (u.data || []).length;
-
-      var tests = [], types = [];
-      chunk.forEach(function (x) {
-        var id = idByNo[x.row.sample_no];
-        if (!id) return;
-        var c = childRows(id, x.d, tm, sm, null, true);
-        tests = tests.concat(c.tests);
-        types = types.concat(c.types);
-      });
-      if (tests.length) { var t1 = await sb.from("sample_tests").insert(tests);          if (t1.error) throw t1.error; }
-      if (types.length) { var t2 = await sb.from("sample_specimen_types").insert(types); if (t2.error) throw t2.error; }
-      log("… " + Math.min(j + 200, prepared.length) + " / " + prepared.length);
-    }
-
-    log("✅ ترحيل العينات: أُدخل " + stats.inserted + " | موجود مسبقاً " + stats.skipped +
-        " | مربون جدد " + stats.breedersCreated + " | مرفوض " + stats.invalid.length);
-    if (stats.invalid.length) console.table(stats.invalid);
-    return stats;
-  }
-
-  async function migrateCampaign() {
-    await init();
-    if (!viaSheets.camp) throw new Error("دالة Apps Script الأصلية غير متاحة");
-    var c = await viaSheets.camp("getVaccCampaign");
-    if (!c || !c.success || !c.dateFrom || !c.dateTo) {
-      log("ℹ️ لا توجد بيانات حملة في Google Sheets");
-      return null;
-    }
-    var r = await campSave(c);
-    log(r.success ? "✅ ترحيل الحملة: " + c.dateFrom + " → " + c.dateTo : "❌ " + r.message);
-    return r;
-  }
-
-  /* ════════════════════════════════════════════════════════════
      الاعتراض
      soft = true → الخطأ يُعاد كـ {success:false} بدل رميه
      ════════════════════════════════════════════════════════════ */
@@ -16800,7 +16323,6 @@ function names(table, col, filterWilayat) {
     var fn = g[name];
     if (typeof fn !== "function") return false;
     if (fn._sbPatch) return true;
-    if (keepKey && !viaSheets[keepKey]) viaSheets[keepKey] = fn;
     g[name] = async function (action, payload) {
       var r = routes[action];
       if (!r) throw new Error("إجراء غير مدعوم في قاعدة البيانات الجديدة: " + action);
@@ -16865,8 +16387,6 @@ function names(table, col, filterWilayat) {
     if (ok.indexOf(false) !== -1) setTimeout(patch, 400);
   }
   patch();
-
-  g.SBMigrate = { samples: migrateSamples, campaign: migrateCampaign };
 
 })(window);
 </script>
