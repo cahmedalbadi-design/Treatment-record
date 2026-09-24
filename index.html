@@ -4194,14 +4194,10 @@ if (isDup) {
 
     try {
       const res = await trcallApi("trsaveData", { data });
-      if (res.success) {
+ if (res.success) {
         trshowMessage("✅ تم الحفظ بنجاح", false);
-      trclearForm();
-// تنفيذ عمليات التحميل بشكل متوازٍ لتقليل وقت الانتظار
-await Promise.all([
-  trloadData(),
-  trloadIncompleteCount()
-]);
+        trclearForm();
+        await trloadData();
       } else {
         trshowMessage(res.message, true);
       }
@@ -4237,7 +4233,6 @@ if (!trcheckDiagnosisRows()) return;
         trshowMessage("✅ تم التحديث بنجاح", false);
         trclearForm();
         trloadData();
-        trloadIncompleteCount();
       } else {
         trshowMessage(res.message, true);
       }
@@ -4294,7 +4289,6 @@ async function trsearchCase() {
     const res = await trcallApi("trsearchCaseData", { caseNumber: cn });
     if (res.success) {
       trfillFormWithData(res);
-      trloadData();
       trshowMessage("✅ تم التحميل بنجاح", false);
     } else {
       trshowMessage(res.message, true);
@@ -4374,7 +4368,6 @@ if (isDup) {
       trshowMessage(res.message, false);
       trclearForm();
       trloadData();
-        trloadIncompleteCount();
     } else {
       trshowMessage(res.message, true);
     }
@@ -4405,7 +4398,6 @@ async function trtempUpdate() {
       trshowMessage(res.message, false);
       trclearForm();
       trloadData();
-       trloadIncompleteCount();
     } else {
       trshowMessage(res.message, true);
     }
@@ -4678,7 +4670,6 @@ function trbindEvents() {
       const res = await trcallApi("trsearchCaseData", { caseNumber: cn });
       if (res.success) {
         trfillFormWithData(res);
-        trloadData();
         trshowMessage("✅ تم التحميل", false);
       } else {
         trshowMessage(res.message, true);
@@ -4902,7 +4893,6 @@ async function trSelectIncompleteCase(caseNumber) {
     const res = await trcallApi("trsearchCaseData", { caseNumber });
     if (res.success) {
       trfillFormWithData(res);
-      trloadData();
       trshowMessage("✅ تم تحميل الحالة " + caseNumber, false);
     } else {
       trshowMessage(res.message, true);
@@ -5591,7 +5581,7 @@ async function bd_refreshDropdowns() {
   try {
     var results = await Promise.all([bd_callApi("bd_getPhoneNumbers"),bd_callApi("bd_getDataEntryOptions"),bd_callApi("bd_getRegionOptions")]);
     function fill(id,arr){var dl=document.getElementById(id);if(!dl)return;dl.innerHTML="";(arr||[]).sort().forEach(function(v){var o=document.createElement("option");o.value=v;dl.appendChild(o);});}
-    if(results[0].success)fill("bd_phoneList",results[0].data);
+    if(results[0].success)["bd_phoneList","tr_phoneList","vacc_phoneList","phoneList"].forEach(function(id){fill(id,results[0].data);});
     if(results[1].success){fill("bd_dataEntryList",results[1].data);fill("bd_dataUpdaterList",results[1].data);}
     if(results[2].success)fill("bd_regionList",results[2].data);
     if(!results[0].success) throw new Error(results[0].message || "تعذّر جلب أرقام الهواتف");
@@ -5637,7 +5627,7 @@ async function bd_saveData() {
   try{
     var res=await bd_callApi("bd_saveData",{data:data});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
+bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDropdowns();}else bd_showMessage(res.message,true);
   }catch(err){bd_showMessage("خطأ: "+err.message,true);}
   finally{btn.disabled=false;}
 }
@@ -5653,7 +5643,7 @@ async function bd_updateData() {
     try{
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم التحديث بنجاح",false);bd_clearForm();bd_refreshDropdowns();setTimeout(function(){ if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists(); }, 800);}else bd_showMessage(res.message,true);
+bd_clearForm();bd_refreshDropdowns();}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -5669,7 +5659,7 @@ async function bd_deleteData() {
     try{
       var res=await bd_callApi("bd_deleteData",{phone:phone});
 if(res.success){bd_setLastEdited();
-bd_showMessage("تم الحذف بنجاح",false);;bd_clearForm();bd_refreshDropdowns();if(typeof globalRefreshPhoneLists==='function') globalRefreshPhoneLists();}else bd_showMessage(res.message,true);
+bd_showMessage("تم الحذف بنجاح",false);bd_clearForm();bd_refreshDropdowns();}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
   });
@@ -11578,6 +11568,7 @@ function saveAppearance() {
 
   // ===== تحديث قوائم الهاتف في جميع الصفحات =====
 async function globalRefreshPhoneLists() {
+  if (typeof bd_refreshDropdowns === "function") return bd_refreshDropdowns();
   try {
     var results = await Promise.all([
       bd_callApi("bd_getPhoneNumbers"),
@@ -12429,10 +12420,9 @@ function remoteSyncApply(topic, action) {
     },
     "breeder": function() {
       if (typeof bd_refreshDropdowns === "function") bd_refreshDropdowns();
-      if (typeof globalRefreshPhoneLists === "function") globalRefreshPhoneLists();
     },
     "vaccination": function() {
-      if (typeof globalRefreshPhoneLists === "function") globalRefreshPhoneLists();
+      if (typeof bd_refreshDropdowns === "function") bd_refreshDropdowns();
     },
     "samples": function() {
       if (typeof foloadUniqueCount === "function") foloadUniqueCount();
@@ -15622,37 +15612,6 @@ function names(table, col, filterWilayat) {
     unknownActions: function () { return Object.keys(unknown); }
   };
 
-})(window);
-</script>
-  <script>
-(function (g) {
-  "use strict";
-  function patch() {
-    if (!g.trcallApi || !g.trcallApi._sbPatch) { setTimeout(patch, 400); return; }
-    if (g.trcallApi._refreshPatch) return;
-
-    /* تعطيل الكاش: بُني على أعمدة الورقة القديمة ولم يعد يُستدعى أصلاً */
-    if (g.TreatmentCache && g.TreatmentCache.clear) g.TreatmentCache.clear();
-
-    var WRITES = ["trsaveData","trupdateData","trdeleteData",
-                  "trsaveTempData","trupdateTempData"];
-    var orig = g.trcallApi;
-
-    g.trcallApi = async function (action, payload) {
-      var res = await orig.apply(this, arguments);
-      if (res && res.success && WRITES.indexOf(action) !== -1) {
-        setTimeout(function () {
-          if (typeof g.trloadData === "function") g.trloadData();
-          if (typeof g.trloadIncompleteCount === "function") g.trloadIncompleteCount();
-        }, 150);
-      }
-      return res;
-    };
-    g.trcallApi._refreshPatch = true;
-    g.trcallApi._sbPatch = true;
-    console.log("[Refresh] ✅ تحديث السجل اليومي بعد كل عملية كتابة");
-  }
-  patch();
 })(window);
 </script>
   <script>
