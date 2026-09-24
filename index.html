@@ -4140,8 +4140,29 @@ async function trfetchBreederData(phone) {
 //  عمليات CRUD الرئيسية (Save / Update / Delete / Search)
 // ============================================================
 
+/** التحقق من صفوف التشخيص قبل الإرسال */
+function trcheckDiagnosisRows() {
+  var allowed = Array.from(document.querySelectorAll("#tr_typeListFixed option"))
+                     .map(function (o) { return o.value.trim(); });
+  var errors = [];
+  document.querySelectorAll("#treatment .diagnosis-row").forEach(function (row, i) {
+    var inp = row.querySelectorAll("input");
+    var dz = (inp[0] && inp[0].value.trim()) || "";
+    var ty = (inp[1] && inp[1].value.trim()) || "";
+    var ct = (inp[2] && inp[2].value.trim()) || "";
+    if (!dz && !ty && !ct) return;
+    if (!dz)      errors.push("التشخيص " + (i + 1) + ": اكتب اسم المرض");
+    else if (!ty) errors.push("التشخيص " + (i + 1) + ": اختر نوع الحيوان");
+    else if (allowed.indexOf(ty) === -1)
+                  errors.push("التشخيص " + (i + 1) + ": نوع الحيوان «" + ty + "» غير موجود في القائمة");
+  });
+  if (errors.length) { trshowMessage("❌ " + errors.join("\n"), true); return false; }
+  return true;
+}
+
 /** حفظ حالة جديدة */
 async function trsaveData() {
+  if (!trcheckDiagnosisRows()) return;
   // فحص تكرار الإيصال قبل الحفظ
   var receiptEl = document.getElementById("tr_receipt");
   if (receiptEl && receiptEl.value.trim()) {
@@ -4198,8 +4219,8 @@ async function trupdateData() {
     return;
   }
 
-  trshowConfirm("هل تريد تحديث البيانات؟", async () => {
-    trblockButtons();
+if (!trcheckDiagnosisRows()) return;
+  trshowConfirm("هل تريد تحديث البيانات؟", async () => {    trblockButtons();
     trshowMessage("⏳ جاري تحديث البيانات...", false);
 
     const data = trcollectFormData();
@@ -6709,7 +6730,8 @@ function vaccClearForm() {
    'vacc_intox_sheep','vacc_intox_goat','vacc_pock_sheep','vacc_pock_goat',
    'vacc_fmd_sheep','vacc_fmd_goat','vacc_fmd_cow','vacc_lumpy_cow',
    'vacc_rabies_sheep','vacc_rabies_goat','vacc_rabies_cow','vacc_rabies_camel','vacc_rabies_horse'
-  ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+ ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  document.querySelectorAll('#vaccination .inner-table input').forEach(function(el){ el.value=''; });
   document.getElementById('vacc_vaccinationDataDisplay').innerHTML = '';
   vaccClearTopBarMessage();
 }
@@ -6920,7 +6942,7 @@ async function vaccDoSearchVaccinationRecords() {
       }
     }
 
-    document.getElementById('vacc_srResultCount').textContent = 'عدد النتائج: ' + res.rows.length + ' سجل';
+    document.getElementById('vacc_srResultCount').textContent = 'عدد النتائج: ' + rows.length + ' سجل';
     var html = '<table><thead><tr>';
    html += '<th rowspan="2" style="background:#7b2d8b;color:#fff;border:1px solid #5a1f68;padding:3px 5px;vertical-align:middle;position:sticky;top:0;z-index:10;">م</th>';
 html += '<th rowspan="2" style="background:#7b2d8b;color:#fff;border:1px solid #5a1f68;padding:3px 5px;vertical-align:middle;position:sticky;top:0;z-index:10;">رقم الحالة</th>';
@@ -9325,7 +9347,9 @@ function dtr_renderChart(monthly, byAnimal, disease) {
   // المخطط الشريطي الشهري (الافتراضي — يعمل لجميع الأمراض أو مرض محدد)
   // ============================================================
 
-  var sortedKeys = Object.keys(monthly).sort();
+ var sortedKeys = Object.keys(monthly).filter(function(k){
+    return k && k.indexOf('-') !== -1;
+  }).sort();
 var labels = sortedKeys.filter(function(k){
     return k && k.indexOf('-') !== -1;
 }).map(function(k) {
@@ -9340,14 +9364,7 @@ var values = sortedKeys.filter(function(k){
     var n = Number(v);
     return isNaN(n) ? 0 : n;
 });
-  // ← إصلاح 1: تنظيف القيم — تحويل النصوص إلى أرقام ومعالجة undefined/NaN
-  var values = sortedKeys.map(function(k) {
-    var v = monthly[k];
-    if (v === undefined || v === null || v === '') return 0;
-    var n = Number(v);
-    return isNaN(n) ? 0 : n;
-  });
-  
+
   var maxVal = values.length > 0 ? Math.max.apply(null, values) : 0;
 
   var monthCount = sortedKeys.length;
@@ -14426,12 +14443,21 @@ global.fetch = function (input, init) {
       if (!txt(dz[i])) continue;
       jobs.push(Promise.all([diseaseId(dz[i]), speciesId(ty[i])]).then(
         (function (n) { return function (v) {
-          return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1 };
-        }; })(i)
+return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row: n + 1, _type: txt(ty[n]) };        }; })(i)
       ));
     }
-    return Promise.all(jobs).then(function (rows) {
-      return rows.filter(function (r) { return r.disease_id && r.species_id; });
+      return Promise.all(jobs).then(function (rows) {
+      var bad = rows.filter(function (r) { return !r.disease_id || !r.species_id; });
+      if (bad.length) {
+        throw new Error(bad.map(function (r) {
+          if (!r.disease_id) return "التشخيص " + r._row + ": تعذّر تسجيل المرض";
+          return "التشخيص " + r._row + ": " +
+                 (r._type ? "نوع الحيوان «" + r._type + "» غير معروف" : "اختر نوع الحيوان");
+        }).join("\n"));
+      }
+      return rows.map(function (r) {
+        return { disease_id: r.disease_id, species_id: r.species_id, animal_count: r.animal_count };
+      });
     });
   }
 
@@ -14710,15 +14736,15 @@ global.fetch = function (input, init) {
   }
 
   /* ٨) القوائم المنسدلة */
-  function names(table, col, filterWilayat) {
-    var q = sb.from(table).select(col).order(col);
-    if (filterWilayat) q = q.eq("wilayat_id", me.wilayat_id);
-    return q.then(function (r) {
-      if (r.error) throw r.error;
-      return { success: true, data: (r.data || []).map(function (x) { return x[col]; }) };
+function names(table, col, filterWilayat) {
+    return trPageAll(function () {
+      var q = sb.from(table).select(col).order(col).order("id");
+      if (filterWilayat) q = q.eq("wilayat_id", me.wilayat_id);
+      return q;
+    }).then(function (rows) {
+      return { success: true, data: rows.map(function (x) { return x[col]; }) };
     });
   }
-
   /* ════════════════════════════════════════════════════════════════
      إجراءات مضافة: الحالات غير المكتملة / البحث / تقرير الحيوانات
      ════════════════════════════════════════════════════════════════ */
@@ -15473,10 +15499,12 @@ global.fetch = function (input, init) {
     });
   }
 
-  function names(table, col, filterW) {
-    var q = sb.from(table).select(col).order(col);
-    if (filterW) q = q.eq("wilayat_id", me.wilayat_id);
-    return pageAll(function () { return q; }).then(function (rows) {
+ function names(table, col, filterW) {
+    return pageAll(function () {
+      var q = sb.from(table).select(col).order(col).order("id");
+      if (filterW) q = q.eq("wilayat_id", me.wilayat_id);
+      return q;
+    }).then(function (rows) {
       return { success: true, data: rows.map(function (x) { return x[col]; }) };
     });
   }
