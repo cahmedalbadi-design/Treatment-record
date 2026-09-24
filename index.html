@@ -4192,6 +4192,7 @@ function trIsDupReceipt(val) {
 
 /** حفظ حالة جديدة */
 async function trsaveData() {
+    if (!trcheckDiagnosisRows()) return;
     if (trIsDupReceipt(trgetValue("tr_receipt"))) {
     trshowMessage("⚠️ تنبيه: رقم الإيصال مكرر", true);
   }
@@ -4219,7 +4220,6 @@ async function trsaveData() {
       btn.textContent = orig;
       trunblockButtons();
     }
-  });
 }
 
 /** تحديث حالة موجودة */
