@@ -13814,17 +13814,7 @@ global.fetch = function (input, init) {
     function log(msg) { console.log("[SB-Breeders] " + msg); }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف في PostgREST */
-    function pageAll(build) {
-    var out = [], size = 1000;
-    function step(from) {
-      return build().range(from, from + size - 1).then(function (r) {
-        if (r.error) throw r.error;
-        out = out.concat(r.data || []);
-        return (r.data && r.data.length === size) ? step(from + size) : out;
-      });
-    }
-    return step(0);
-  }
+    var pageAll = SBCore.pageAll;
 
   /* ── تهيئة العميل وتسجيل الدخول ───────────────────────────────── */
 
@@ -14230,37 +14220,17 @@ reset: function () { ready = null; me = null; global._sbProfile = null; },
   var unknown = {};   /* إجراءات لم يغطها الجسر بعد */
 
   function log(m)  { console.log("[SB-Treatment] " + m); }
-  function txt(v)  { return (v === null || v === undefined) ? "" : String(v).trim(); }
-  function strip(v){ return txt(v).replace(/^'/, ""); }
+var txt = SBCore.txt, strip = SBCore.strip, toISO = SBCore.toISO, today = SBCore.today;
 
   function int(v) { var n = parseInt(strip(v), 10);   return isNaN(n) ? 0 : n; }
   function dec(v) { var n = parseFloat(strip(v));     return isNaN(n) ? null : n; }
 
-  /* التواريخ في الورقة بصيغتين: 2026-06-03 و 03/06/2026 */
-  function toISO(v) {
-    var s = strip(v);
-    if (!s) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (m) return m[3] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[1]).slice(-2);
-    m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-    if (m) return m[1] + "-" + ("0"+m[2]).slice(-2) + "-" + ("0"+m[3]).slice(-2);
-    return null;
-  }
 
 function today() { return new Date().toLocaleDateString("en-CA"); }
   /* ── التهيئة: تعتمد على جلسة وحدة الدخول ── */
-  function init() {
-   if (ready && me && me === window.SBAuth.me) return ready;
-    ready = global.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = global.SBAuth.me;
-      return true;
-    }).catch(function (err) { ready = null; throw err; });
-    return ready;
+function init() {
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
-
   /* ════════════════════════════════════════════════════════════════
      ذاكرة المرجعيات — تُجلب مرة واحدة لكل جلسة
      ════════════════════════════════════════════════════════════════ */
@@ -14918,18 +14888,11 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-VaccReq] " + m); }
-  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  var txt = SBCore.txt;
   function n2s(v) { return (v === null || v === undefined || v === 0) ? "" : String(v); }
 
-  function init() {
-   if (ready && me && me === window.SBAuth.me) return ready;
-    ready = global.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = global.SBAuth.me;
-      return true;
-    }).catch(function (e) { ready = null; throw e; });
-    return ready;
+ function init() {
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
 
   /* ترقيم صفحات — يتجاوز سقف الألف صف */
@@ -15041,10 +15004,8 @@ return SBCore.breederByPhone(phone)
   };
 
   function log(m)   { console.log("[SB-Vacc] " + m); }
-  function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
-  function strip(v) { return txt(v).replace(/^'/, ""); }
+  var txt = SBCore.txt, strip = SBCore.strip, toISO = SBCore.toISO, today = SBCore.today;
   function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? 0 : n; }
-  function today()  { return new Date().toLocaleDateString("en-CA"); }
   function toISO(v) {
     var s = strip(v);
     if (!s) return null;
@@ -15056,15 +15017,8 @@ return SBCore.breederByPhone(phone)
   }
 
   /* ── التهيئة ─────────────────────────────────────────────────── */
-  function init() {
-    if (ready && me && me === window.SBAuth.me) return ready;
-    ready = global.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!global.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = global.SBAuth.me;
-      return true;
-    }).catch(function (e) { ready = null; throw e; });
-    return ready;
+ function init() {
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
 
     var pageAll = SBCore.pageAll;
@@ -15479,7 +15433,7 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-Reports] " + m); }
-  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  var txt = SBCore.txt;
   function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
@@ -15619,20 +15573,12 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-Certificate] " + m); }
-  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  var txt = SBCore.txt;
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
 
-  function init() {
-    if (ready && me && me === window.SBAuth.me) return ready;
-    ready = g.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = g.SBAuth.me;
-      return true;
-    }).catch(function (e) { ready = null; throw e; });
-    return ready;
+function init() {
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
-
   /* (نوع اللقاح _ نوع الحيوان) → اسم الحقل الذي تقرؤه الشهادة
      اللقاح: 1 معوي، 2 طاعون/جدري، 3 قلاعية، 4 جلد عقدي، 5 سعار
      الحيوان: 1 ماعز، 2 أغنام، 3 أبقار، 4 جمال، 5 خيول */
@@ -15719,20 +15665,13 @@ return SBCore.breederByPhone(phone)
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-Reports2] " + m); }
-  function txt(v) { return (v === null || v === undefined) ? "" : String(v).trim(); }
+  var txt = SBCore.txt;
   function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function iso(v) { var s = txt(v); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ""; }
   function sum(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
 
   function init() {
-    if (ready && me && me === window.SBAuth.me) return ready;
-    ready = g.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = g.SBAuth.me;
-      return true;
-    }).catch(function (e) { ready = null; throw e; });
-    return ready;
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
 
    var pageAll = SBCore.pageAll;
@@ -16072,37 +16011,18 @@ return SBCore.breederByPhone(phone)
   var viaSheets = { fo: null, camp: null };   /* الأصل — للترحيل فقط */
 
   function log(m)   { console.log("[SB-Samples] " + m); }
-  function txt(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
-  function strip(v) { return txt(v).replace(/^'/, ""); }
+   var txt = SBCore.txt, strip = SBCore.strip, toISO = SBCore.toISO, today = SBCore.today;
   function int(v)   { var n = parseInt(strip(v), 10); return isNaN(n) ? null : n; }
   function nz(v)    { return (v === null || v === undefined) ? "" : v; }
-  function pad(n)   { return ("0" + n).slice(-2); }
-  function ymd(d)   { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
-  function today()  { return ymd(new Date()); }
 
-  function toISO(v) {
-    var s = strip(v);
-    if (!s) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (m) return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
-    var d = new Date(s);                          /* تاريخ محلي — بلا انزياح UTC */
-    return isNaN(d.getTime()) ? null : ymd(d);
-  }
+
   function dmy(iso) {
     var m = txt(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? m[3] + "/" + m[2] + "/" + m[1] : txt(iso);
   }
 
-  function init() {
-    if (ready && me && me === window.SBAuth.me) return ready;
-    ready = g.SBAuth.client().then(function (c) {
-      sb = c;
-      if (!g.SBAuth.me) throw new Error("لم يتم تسجيل الدخول بعد");
-      me = g.SBAuth.me;
-      return true;
-    }).catch(function (e) { ready = null; throw e; });
-    return ready;
+function init() {
+    return SBCore.init().then(function (x) { sb = x.sb; me = x.me; return true; });
   }
 
   var pageAll = SBCore.pageAll;
