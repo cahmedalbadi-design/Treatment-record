@@ -26,12 +26,6 @@ nav button[onclick*="'login'"] {
    ١. RESET & BOX MODEL
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-nav button.nav-active {
-  background: #00e5ff !important;
-  color: #000 !important;
-  font-weight: bold;
-  box-shadow: 0 0 0 2px #00b8d9;
-}
 
 /* ============================================================
    ٢. BODY
@@ -57,12 +51,6 @@ nav {
   display: block;
 }
 
-nav button {
-  display: inline-block;
-  white-space: nowrap;
-}
-  
-nav {background: #000000;padding: 10px;perspective: 600px;}
 nav button {
   margin: 5px;
   padding: 10px 16px;
@@ -228,7 +216,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
 .search-record { background: #9b59b6; color: #fff; }
 .all-total-btn { background: #27ae60; color: #fff; }
 .back-btn      { background: #00b8d9; color: #fff; padding: 8px 24px; font-size: 14px; }
-.close         { background: #000;    color: #fff; }
 .print         { background: #6c5ce7; color: #fff; }
 .print-btn     { background: #00b8d9; color: #fff; }
 .samples-search { background: #9c27b0; color: #fff; }
@@ -252,9 +239,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
 
 .btns { display: flex; justify-content: center; gap: 12px; margin: 4px 0; flex-wrap: wrap; }
 
-/* ============================================================
-   ١٠. TOAST
-   ============================================================ */
 /* ============================================================
    ١١. MODALS
    ============================================================ */
@@ -350,7 +334,7 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
 }
 .page-loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
-.loading-spinner, .loader-spinner, .spinner {
+.loading-spinner {
   width: 70px; height: 70px;
   border: 7px solid #e0e0e0;
   border-top: 7px solid #00b8d9;
@@ -358,13 +342,9 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
   animation: spin 1s linear infinite;
   margin-bottom: 20px;
 }
-.spinner { width: 50px; height: 50px; border-width: 4px; margin: 0 auto 15px; }
 
-.loading-text, .loader-text  { font-size: 1.3rem; font-weight: bold; color: #00b8d9; margin-bottom: 8px; text-align: center; }
+.loading-text { font-size: 1.3rem; font-weight: bold; color: #00b8d9; margin-bottom: 8px; text-align: center; }
 .loading-subtext { font-size: .95rem; color: #666; text-align: center; animation: fadeInOut 2s ease-in-out infinite; }
-.loader-logo { font-size: 2.5rem; margin-bottom: 16px; animation: pulse 1.2s infinite; }
-.loader-sub  { font-size: .85rem; color: #888; }
-
 .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
 
 #vaccination { position: relative; min-height: 200px; }
@@ -412,11 +392,8 @@ td { border: 1px solid #ccc; padding: 5px 4px; font-size: 12px; text-align: cent
 td.nc { text-align: right; padding-right: 8px; }
 .table-container { overflow: auto; max-height: 250px; position: relative; }
 
-tr.cat td { background: #e0f7fa; font-weight: bold; color: #006080; }
 tr.tot td { background: #fffbe6; font-weight: bold; }
 tr.sec td { background: #e8f5e9; font-weight: bold; color: #2e7d32; }
-tr:hover:not(.cat):not(.tot):not(.sec) td { background: #f0fbff; }
-tr.rpt_parasite td { background: #fff3e0; color: #e65100; }
 
 .inner-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
 .inner-table th, .inner-table td { border: 1px solid #ccc; padding: 6px; text-align: center; font-size: 12px; }
@@ -426,7 +403,6 @@ tr.rpt_parasite td { background: #fff3e0; color: #e65100; }
 .results-table th, .results-table td { border: 1px solid #ddd; padding: 6px; text-align: center; white-space: nowrap; }
 .results-table th { background: #00b8d9; color: #fff; position: sticky; top: 0; font-weight: bold; }
 .results-table tr:nth-child(even) { background: #f2f2f2; }
-.results-table tr:hover td { background: #ffff00 !important; }
 
 #fin_searchResultsContainer,
 #dim_searchResultsContainer,
@@ -435,10 +411,7 @@ tr.rpt_parasite td { background: #fff3e0; color: #e65100; }
 #fin_searchResultsTable,
 #dim_searchResultsTable,
 #ani_searchResultsTable { width: 100%; border-collapse: collapse; }
-#vacc_maxAnimalsResults table tr:hover td { background: #ffff00 !important; }
  table tr:hover td { background: #ffff00 !important; }
-#tr_searchTable tr:hover td { background: #ffff00 !important; }
-#vr_searchResultsBody tr:hover td { background: #ffff00 !important; }
 
 #fin_searchResultsTable thead tr th,
 #dim_searchResultsTable thead tr th,
@@ -537,7 +510,6 @@ tr.rpt_parasite td { background: #fff3e0; color: #e65100; }
 .sr-field            { display: flex; flex-direction: column; gap: 3px; }
 .sr-field label      { font-size: 12px; font-weight: bold; color: #333; }
 .sr-field input      { width: 100%; font-size: 12px; padding: 5px 6px; border: 2px solid #ddd; border-radius: 3px; }
-.vaccination-row:hover { background-color: #e6f7ff !important; transition: background-color .2s; }
 
 /* ============================================================
    ١٩. ALERT BADGE
@@ -550,10 +522,6 @@ tr.rpt_parasite td { background: #fff3e0; color: #e65100; }
   box-shadow: 0 2px 8px rgba(229,57,53,.4); white-space: nowrap;
 }
 .badge-icon { font-size: 18px; }
-#quickNotesInput.warning-expired {
-  background-color: #ffcccc; border: 2px solid #e53935; color: #7f0000; font-weight: bold;
-}
-
 /* ============================================================
    ٢٠. TREATMENT SPECIFIC
    ============================================================ */
@@ -610,18 +578,6 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 .dim_qty-link      { color: #0066cc; text-decoration: underline; cursor: pointer; font-weight: bold; padding: 2px 8px; border-radius: 3px; transition: background .2s; }
 .dim_qty-link:hover { background: #e6f2ff; color: #004499; }
 
-/* ============================================================
-   ٢٥. BACK BUTTON
-   ============================================================ */
-.back-button {
-  position: fixed; top: 10px; left: 10px; z-index: 9999;
-  padding: 8px 20px; background: #555; color: #fff;
-  border: none; border-radius: 5px;
-  font-family: inherit; font-weight: bold; font-size: 14px;
-  text-decoration: none;
-}
-#backToMainBtn { padding: 8px 16px; background: #00b8d9; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-family: inherit; }
-#backToMainBtn:hover { background: #0097a7; }
 
 /* ============================================================
    ٢٦. صفحة الإعدادات — شهادة التحصين
@@ -655,14 +611,9 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 .serial-section input { border: none; border-bottom: 1px solid #333; font-family: inherit; font-size: 12pt; font-weight: 700; color: #8B0000; width: 80px; text-align: center; background: transparent; }
 .logo-section { text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; }
 .oman-emblem  { width: 250px; height: 100px; margin-bottom: 4px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.2)); object-fit: contain; }
-.ministry-name   { font-size: 12pt; font-weight: 700; margin-bottom: 2px; }
 .department-name { font-size: 10pt; color: #333; }
 .location-section { text-align: left; font-size: 11pt; line-height: 1.6; }
 .location-section input { border: none; border-bottom: 1px dotted #666; font-family: inherit; font-size: 11pt; width: 140px; text-align: left; background: transparent; }
-
-.main-title     { text-align: center; margin: 10px 0; }
-.main-title h1  { font-size: 16pt; font-weight: 700; margin-bottom: 3px; letter-spacing: 1px; }
-.main-title h2  { font-size: 18pt; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 
 .search-box { display: flex; justify-content: center; align-items: center; gap: 10px; margin: 10px 0; padding: 10px; background: #f9f9f9; border-radius: 6px; border: 1px dashed #8B0000; }
 .search-box label { font-size: 12pt; font-weight: 700; color: #8B0000; }
@@ -692,25 +643,8 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 .footer-notes { display: flex; justify-content: space-between; font-size: 9pt; color: #333; margin-top: 10px; }
 
 /* ============================================================
-   ٢٧. SETUP OVERLAY
-   ============================================================ */
-.setup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-#breeder .setup-overlay { display: none !important; }
-.setup-box { background: #fff; padding: 24px; border-radius: 8px; max-width: 500px; width: 90%; }
-.setup-box h3     { margin-top: 0; }
-.setup-box input  { width: 100%; padding: 8px; margin: 10px 0; border: 2px solid #ddd; border-radius: 4px; }
-.setup-box button { padding: 10px 20px; width: 100%; border: 0; border-radius: 5px; font-weight: bold; cursor: pointer; color: #fff; font-family: inherit; }
-#settings   .setup-box h3     { color: #8B0000; }
-#settings   .setup-box button { background: #8B0000; }
-#treatment  .setup-box h3,
-#vaccination .setup-box h3    { color: #00b8d9; }
-#treatment  .setup-box button,
-#vaccination .setup-box button { background: #2bb673; }
-
-/* ============================================================
    ٢٨. PRINT HEADER (مخفي شاشةً)
    ============================================================ */
-.print-header { display: none; }
 .hidden { display: none !important; }
 
 /* ============================================================
@@ -750,11 +684,8 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
    ============================================================ */
 @keyframes spin       { to { transform: rotate(360deg); } }
 @keyframes fadeInOut  { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
-@keyframes pulse      { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: .7; } }
-@keyframes fadeIn     { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes fadeInCard { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp    { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes popIn      { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes dots       { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
 @keyframes pulseBadge { 0% { box-shadow: 0 0 0 0 rgba(229,57,53,.55); } 70% { box-shadow: 0 0 0 10px rgba(229,57,53,0); } 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0); } }
 @keyframes modalSlideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -789,7 +720,7 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
   body > nav        { display: none !important; }
   body > .page      { display: none !important; }
   body > .page.active { display: block !important; }
-  button, .back-button, .initial-loading-overlay { display: none !important; }
+  button { display: none !important; }
   /* #dashboard — طباعة نموذج العينة */
   body > #dashboard.active { display: block !important; }
   #dashboard .top-bar       { display: none !important; }
@@ -830,7 +761,6 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
   #settings .data-table td { border: 1px solid #333 !important; padding: 3px !important; }
 
   /* صفحات أخرى */
-  #treatment button, #vaccination button, #reports button { display: none !important; }
   .date-row { display: none !important; }
   #dim_searchResultsContainer,
   #ani_searchResultsContainer,
@@ -1206,7 +1136,20 @@ function bootShowOverlay() {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.98);display:flex;' +
     'align-items:center;justify-content:center;z-index:99999;font-family:Tahoma,Arial,sans-serif;direction:rtl;';
   ov.innerHTML =
-    '<div style="text-align:center;max-width:440px;">' +
+       '<div style="text-align:center;max-width:440px;">' +
+      /* ── بطاقة صُمِّم بواسطة ── */
+      '<div style="display:flex;align-items:center;gap:12px;background:#f0fbff;' +
+      'border:2px solid #00b8d9;border-radius:12px;padding:10px 14px;margin:0 auto 22px;' +
+      'max-width:360px;text-align:right;box-shadow:0 4px 14px rgba(0,184,217,.18);">' +
+        '<img src="https://dlivsidtmmtvrqhtxmlu.supabase.co/storage/v1/object/public/assets/WhatsApp%20Image%202026-09-25%20at%204.05.40%20PM.jpeg" alt="" ' +
+        'style="width:58px;height:58px;border-radius:50%;object-fit:cover;border:3px solid #00b8d9;' +
+        'flex-shrink:0;background:#fff;">' +
+        '<div style="line-height:1.8;font-size:12.5px;color:#004e66;">' +
+          '<div style="font-size:11px;color:#00b8d9;font-weight:bold;">صُمِّم بواسطة</div>' +
+          '<div style="font-weight:bold;font-size:13.5px;">أحمد بن علي بن سيف البادي</div>' +
+          '<div style="color:#555;">فني حقول — دائرة الثروة الحيوانية</div>' +
+        '</div>' +
+      '</div>' +
       '<div id="bootSpinner" style="width:70px;height:70px;border:7px solid #e0e0e0;' +
       'border-top:7px solid #00b8d9;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div>' +
       '<div style="font-size:19px;font-weight:bold;color:#00b8d9;margin-bottom:10px;">⏳ جاري تجهيز النظام</div>' +
@@ -1432,7 +1375,7 @@ async function bootLoadAll() {
         } catch (e) {}
 
         if (typeof dtr_loadDiseaseList === 'function') {
-          await dtr_loadDiseaseList();          await dtr_loadDiseaseList();
+                await dtr_loadDiseaseList();
           var df = document.getElementById('dtr_dateFrom');
           var dt = document.getElementById('dtr_dateTo');
           if (df) df.value = '';
@@ -1530,11 +1473,7 @@ function unlockNav() {
     btn.style.cursor = '';
     // إزالة أي إخفاء سابق وإظهار الكل
     btn.style.setProperty('display', 'inline-block', 'important');
-    var originalText = btn.getAttribute('data-original-text');
-    if (originalText) {
-      btn.textContent = originalText;
-      btn.removeAttribute('data-original-text');
-    }
+    
   });
 
   // 2. تطبيق صلاحيات المستخدم
@@ -1558,100 +1497,6 @@ function unlockNav() {
       if (!allowed) btn.classList.remove('nav-active');
     });
   }
-  // 3. تحميل الصفحات (المنطق الأصلي – لم يتغير)
-  var initQueue = [
-    { delay: 1000, fn: function () {
-      if (!window._breederInitialized) {
-        window._breederInitialized = true;
-        if (typeof bd_init === 'function') bd_init();
-      }
-    }},
-    { delay: 1500, fn: function () {
-      if (!window._treatmentInitialized) {
-        window._treatmentInitialized = true;
-        var ov = document.getElementById('loadingOverlay');
-        if (ov) ov.style.display = 'none';
-        if (typeof trinit === 'function') trinit();
-      }
-    }},
-    { delay: 2500, fn: function () {
-      if (!window._vaccinationInitialized) {
-        window._vaccinationInitialized = true;
-        var ov = document.getElementById('vacc_loadingOverlay');
-        if (ov) ov.style.display = 'none';
-        if (typeof vaccInit === 'function') vaccInit();
-      }
-    }},
-    { delay: 3500, fn: function () {
-      if (!window._vrInitialized) {
-        window._vrInitialized = true;
-        if (typeof vr_loadData === 'function') vr_loadData();
-      }
-    }},
-    { delay: 4500, fn: function () {
-      if (typeof ani_loadData === 'function') ani_loadData();
-    }},
-    { delay: 5000, fn: function () {
-      if (typeof dim_loadData === 'function') dim_loadData();
-    }},
-    { delay: 5500, fn: function () {
-      if (typeof rpt_loadReport === 'function') rpt_loadReport();
-    }},
-    { delay: 7000, fn: function () {
-      var today = fin_localToday();
-      var ff = document.getElementById('fin_dateFrom');
-      var ft = document.getElementById('fin_dateTo');
-      if (ff) ff.value = today;
-      if (ft) ft.value = today;
-      fin_isFirstLoad = false;
-      if (typeof fin_loadFinancialData === 'function') fin_loadFinancialData();
-    }},
-    { delay: 7500, fn: function () {
-      if (typeof dtr_loadDiseaseList === 'function') {
-        dtr_loadDiseaseList().then(function() {
-          document.getElementById('dtr_dateFrom').value = '';
-          document.getElementById('dtr_dateTo').value = '';
-          if (typeof dtr_loadData === 'function') dtr_loadData();
-        });
-      }
-      document.getElementById('dtr_diseaseSelect').addEventListener('change', function() {
-        dtr_userClick = true;
-        dtr_loadData();
-      });
-    }},
-    { delay: 8000, fn: function () {
-      if (typeof ani_loadData === 'function') ani_loadData();
-      var af = document.getElementById('ani_dateFrom');
-      var at = document.getElementById('ani_dateTo');
-      if (af) af.addEventListener('change', function() {
-        var to = document.getElementById('ani_dateTo').value;
-        if (!to) return;
-        if (this.value > to) {
-          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
-          this.value = '';
-          return;
-        }
-        ani_loadData();
-      });
-      if (at) at.addEventListener('change', function() {
-        var from = document.getElementById('ani_dateFrom').value;
-        if (!from) {
-          showToast('⚠️ الرجاء إدخال تاريخ البداية أولاً', 'warning');
-          this.value = '';
-          return;
-        }
-        if (from > this.value) {
-          showToast('⚠️ تاريخ البداية يجب أن يكون أصغر من تاريخ النهاية', 'warning');
-          this.value = '';
-          return;
-        }
-        ani_loadData();
-      });
-    }}
-  ];
-
-// ⛔ لم يعد التحميل يعتمد على مؤقتات ثابتة — انظر bootLoadAll()
-  void initQueue;
   bootLoadAll();
 }
 
@@ -1859,48 +1704,28 @@ lockNav();
 
   <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
     <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:6px;">
-      ⚡ تسريع الإقلاع — القوائم المحفوظة
+      🔄 تحديث القوائم المنسدلة
     </div>
     <div style="font-size:12px;color:#666;line-height:1.9;margin-bottom:12px;">
-      تُحفظ القوائم الثابتة في المتصفح ويُتحقق من تحديثها تلقائياً عند كل إقلاع.
-      السجل اليومي والتقارير تُجلب دائماً من الخادم.
+      تُجلب القوائم من قاعدة البيانات تلقائياً عند كل دخول.
+      استخدم الزر فقط إذا أُضيف مرض أو دواء أو فحص أو مربٍّ من جهاز آخر أثناء جلستك.
     </div>
-    <div id="slInfo" style="font-size:12px;color:#004e66;background:#eef9fb;
-         border-radius:6px;padding:8px 10px;margin-bottom:10px;">—</div>
-    <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;">
       <button onclick="slRefresh()" style="flex:1;padding:8px;background:#2bb673;color:#fff;
         border:none;border-radius:5px;font-weight:bold;font-family:inherit;cursor:pointer;">
         🔄 تحديث القوائم الآن</button>
-      <button onclick="slClear()" style="flex:1;padding:8px;background:#e65050;color:#fff;
-        border:none;border-radius:5px;font-weight:bold;font-family:inherit;cursor:pointer;">
-        🗑️ مسح المحفوظ</button>
+ 
     </div>
   </div>
 </div>
 
 <script>
-function slShowInfo() {
-  var el = document.getElementById('slInfo');
-  if (!el || !window.StaticLists) return;
-  var i = StaticLists.info();
-  el.textContent = i
-    ? '✅ محفوظة — ' + i.itemCount + ' عنصر | آخر تحديث: ' +
-      new Date(i.savedAt).toLocaleString('ar-SA')
-    : '⚠️ لا توجد قوائم محفوظة بعد';
-}
 function slRefresh() {
   showToast('⏳ جاري تحديث القوائم...', 'info');
   StaticLists.refresh()
-    .then(function () { showToast('✅ تم تحديث القوائم', 'success'); slShowInfo(); })
+    .then(function () { showToast('✅ تم تحديث القوائم', 'success'); })
     .catch(function (e) { showToast('❌ ' + e.message, 'error'); });
-}
-function slClear() {
-  StaticLists.clear();
-  showToast('🗑️ تم مسح القوائم المحفوظة', 'success');
-  slShowInfo();
-}
-setInterval(slShowInfo, 3000);
-</script>
+}</script>
 
 <script>
 // عرض اسم العيادة الحالية من ملف المستخدم
@@ -1959,44 +1784,7 @@ function clinicInfoRefresh() {
       </div>
     </div>
   </div>
-  <script>
-  // ===== إعدادات المظهر =====
-  function saveAppearance() {
-    var settings = {
-      bgColor: document.getElementById('bgColor').value,
-      cardColor: document.getElementById('cardColor').value,
-      txtColor: document.getElementById('txtColor').value,
-      fontSize: document.getElementById('fontSize').value,
-      navColor: document.getElementById('navColor').value,
-      toastSize: document.getElementById('toastSize').value
-    };
-    localStorage.setItem('appearanceSettings', JSON.stringify(settings));
-    showToast('✅ تم حفظ إعدادات المظهر', 'success');
-  }
-
-  function resetAppearance() {
-    document.getElementById('bgColor').value = '#d9d9d9';
-    document.getElementById('cardColor').value = '#f8ffff';
-    document.getElementById('txtColor').value = '#000000';
-    document.getElementById('fontSize').value = '13';
-    document.getElementById('navColor').value = '#333333';
-    document.getElementById('toastSize').value = '14';
-    
-    document.body.style.background = '#d9d9d9';
-    document.body.style.color = '#000000';
-    document.body.style.fontSize = '13px';
-    document.querySelector('nav').style.background = '#333333';
-    document.getElementById('toastContainer').style.fontSize = '14px';
-    document.querySelectorAll('.card').forEach(function(c) {
-      c.style.background = '#f8ffff';
-    });
-    
-    localStorage.removeItem('appearanceSettings');
-    showToast('↺ تم إعادة تعيين المظهر', 'info');
-  }
-
-  </script>
-</div>
+  </div>
 
 <div id="login" class="page active">
 <style>
@@ -2689,23 +2477,6 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
   <div class="main-container">
     <div class="right-panel">
       <div class="card">
-        <!-- ترويسة الطباعة (مخفية على الشاشة، تظهر عند الطباعة القديمة) -->
-        <div class="print-header">
-          <div class="header-right">
-            <div class="country">سلطنة عُمان</div>
-            <div class="ministry">وزارة الثروة الزراعية</div>
-            <div class="ministry">والسمكية وموارد المياه</div>
-            <div class="dept">المديرية العامة للثروة الحيوانية</div>
-          </div>
-          <div class="header-center">
-            <img src="https://drive.google.com/thumbnail?id=1nLjdSu4S3f8B4RVsUBBY2tDAIr6VCAUI&sz=w1000" alt="شعار سلطنة عمان" class="print-logo">
-            <div class="form-title">استمارة العينات</div>
-            <div class="form-title">Animal Specimen Submission Form</div>
-            <div class="form-title">المختبر المركزي للصحة الحيوانية</div>
-          </div>
-          <div class="header-left"></div>
-        </div>
-
         <div class="form-grid">
           <div class="field"><label>المحافظة / الولاية / العيادة <span class="en">Governorate/Wilayat/Clinic</span></label>
             <select id="db_governorate">
@@ -3111,10 +2882,7 @@ async function searchData() {
     if (result && result.rows && result.rows.length > 0) {
       fillFormDataMultiRows(result.rows, result);
       statusDiv.innerHTML = '<span style="color:green">✅ تم العثور على البيانات (' + result.rows.length + ' صف)</span>';
-    } else if (result && result.ownerName) {
-      // fallback: الـ API لا يزال يعيد object واحد
-      fillFormData(result);
-      statusDiv.innerHTML = '<span style="color:green">✅ تم العثور على البيانات</span>';
+
     } else {
       statusDiv.innerHTML = '<span style="color:#8B0000">❌ لم يتم العثور على بيانات</span>';
       clearFormData();
@@ -3184,10 +2952,6 @@ var dose1El = document.getElementById('set_dose1Date');
   document.getElementById('sheep_entero1').value = intox1_sheep || '';
   document.getElementById('sheep_entero2').value = intox2_sheep || '';
  
-  // ---------------------------------------------------------------
-  // 3. التسمم البخصي  →  يُعامَل كالتسمم المعوي (جرعتان)
-  //    إذا كانت البيانات موجودة في CSV (لم تُوجد في ملفك → تُترك فارغة)
-  // document.getElementById('goat_septic1').value  = ...
  
   // ---------------------------------------------------------------
   // 4. الحمى القلاعية  →  صف 1 = جرعة أولى، صف 2 = جرعة ثانية
@@ -3224,21 +2988,18 @@ var dose1El = document.getElementById('set_dose1Date');
   // ---------------------------------------------------------------
   // 6. السعار  →  جمع كل الصفوف لكل نوع حيوان
   //    (أعمدة: rabiesGoat, rabiesSheep, rabiesCow, rabiesCamel, rabiesHorse)
-  var rab_goat = 0, rab_sheep = 0, rab_cow = 0, rab_camel = 0, rab_horse = 0;
+  var rab_goat = 0, rab_sheep = 0, rab_cow = 0, rab_camel = 0;
   rows.forEach(function(r) {
     rab_goat  += num(r.rabiesGoat);
     rab_sheep += num(r.rabiesSheep);
     rab_cow   += num(r.rabiesCow);
     rab_camel += num(r.rabiesCamel);
-    rab_horse += num(r.rabiesHorse);
   });
   document.getElementById('goat_rabies').value   = rab_goat  || '';
   document.getElementById('sheep_rabies').value  = rab_sheep || '';
   document.getElementById('cattle_rabies').value = rab_cow   || '';
   document.getElementById('camel_rabies').value  = rab_camel || '';
-  // إضافة خيول إذا وُجد الحقل في الشهادة:
-  // document.getElementById('horse_rabies').value = rab_horse || '';
- 
+  
   // ---------------------------------------------------------------
   // 7. عدد الرؤوس المحصنة  →  MAX لكل نوع حيوان عبر جميع الصفوف
   //    (يأخذ أكبر قيمة من أي لقاح لكل حيوان)
@@ -3262,57 +3023,6 @@ var dose1El = document.getElementById('set_dose1Date');
   });
 }
   
-function fillFormData(data) {
-  document.getElementById('serialNum').value      = data.serial     || '';
-  document.getElementById('set_ownerName').value  = data.ownerName  || '';
-  document.getElementById('ownerPhone').value     = data.phone      || '';
-  document.getElementById('village').value        = data.village    || '';
-  document.getElementById('set_notes').value      = data.notes      || '';
-  document.getElementById('cattle_plague').value  = data.cattlePlague  || '';
-  document.getElementById('cattle_entero1').value = data.cattleEntero1 || '';
-  document.getElementById('cattle_entero2').value = data.cattleEntero2 || '';
-  document.getElementById('cattle_septic1').value = data.cattleSeptic1 || '';
-  document.getElementById('cattle_septic2').value = data.cattleSeptic2 || '';
-  document.getElementById('cattle_fmd1').value    = data.cattleFmd1    || '';
-  document.getElementById('cattle_fmd2').value    = data.cattleFmd2    || '';
-  document.getElementById('cattle_lsd').value     = data.cattleLsd     || '';
-  document.getElementById('cattle_rabies').value  = data.cattleRabies  || '';
-  document.getElementById('cattle_brucella').value = data.cattleBrucella || '';
-  document.getElementById('cattle_other').value   = data.cattleOther   || '';
-  document.getElementById('cattle_total').value   = data.cattleTotal   || '';
-  document.getElementById('goat_plague').value    = data.goatPlague    || '';
-  document.getElementById('goat_entero1').value   = data.goatEntero1   || '';
-  document.getElementById('goat_entero2').value   = data.goatEntero2   || '';
-  document.getElementById('goat_septic1').value   = data.goatSeptic1   || '';
-  document.getElementById('goat_septic2').value   = data.goatSeptic2   || '';
-  document.getElementById('goat_fmd1').value      = data.goatFmd1      || '';
-  document.getElementById('goat_fmd2').value      = data.goatFmd2      || '';
-  document.getElementById('goat_lsd').value       = data.goatLsd       || '';
-  document.getElementById('goat_rabies').value    = data.goatRabies    || '';
-  document.getElementById('goat_brucella').value  = data.goatBrucella  || '';
-  document.getElementById('goat_other').value     = data.goatOther     || '';
-  document.getElementById('goat_total').value     = data.goatTotal     || '';
-  document.getElementById('sheep_plague').value   = data.sheepPlague   || '';
-  document.getElementById('sheep_entero1').value  = data.sheepEntero1  || '';
-  document.getElementById('sheep_entero2').value  = data.sheepEntero2  || '';
-  document.getElementById('sheep_septic1').value  = data.sheepSeptic1  || '';
-  document.getElementById('sheep_septic2').value  = data.sheepSeptic2  || '';
-  document.getElementById('sheep_fmd1').value     = data.sheepFmd1     || '';
-  document.getElementById('sheep_fmd2').value     = data.sheepFmd2     || '';
-  document.getElementById('sheep_lsd').value      = data.sheepLsd      || '';
-  document.getElementById('sheep_rabies').value   = data.sheepRabies   || '';
-  document.getElementById('sheep_brucella').value = data.sheepBrucella || '';
-  document.getElementById('sheep_other').value    = data.sheepOther    || '';
-  document.getElementById('sheep_total').value    = data.sheepTotal    || '';
-  document.getElementById('camel_plague').value   = data.camelPlague   || '';
-  document.getElementById('camel_entero1').value  = data.camelEntero1  || '';
-  document.getElementById('camel_entero2').value  = data.camelEntero2  || '';
-  document.getElementById('camel_lsd').value      = data.camelLsd      || '';
-  document.getElementById('camel_rabies').value   = data.camelRabies   || '';
-  document.getElementById('camel_total').value    = data.camelTotal    || '';
-  document.getElementById('other_plague').value   = data.otherPlague   || '';
-  document.getElementById('other_total').value    = data.otherTotal    || '';
-}
   
 function clearAllData() {
   document.getElementById('searchPhone').value=''; document.getElementById('searchStatus').innerHTML='';
@@ -3456,14 +3166,6 @@ function dim_printTable() {
 </script>
 </div>
 
-<!-- ===================================================
-     NOTE: صفحات treatment, breeder, vaccination, vaccinationRequests, samples
-     financialInventory, diseaseTracking, animalDistribution, comprehensiveReport
-     هي نفس محتوى الملف الأصلي بدون أي تغيير — أُبقيت كما هي
-     ===================================================
-     الصفحات التالية منقولة حرفياً من الملف الأصلي:
--->
-
 <div id="treatment" class="page">
 <div class="loading-overlay" id="tr_loadingOverlay">
   <div class="loading-spinner"></div>
@@ -3578,7 +3280,6 @@ function dim_printTable() {
     <div class="table-container"><table id="tr_animalsReportTable"></table></div>
   </div>
 </div></div>
-<!-- Treatment script محفوظ كما هو من الملف الأصلي -->
 <script>
 "use strict";
 
@@ -3586,7 +3287,6 @@ function dim_printTable() {
 //  الإعدادات العامة
 // ============================================================
 
-var TR_API_URL = "";
 // ============================================================
 //  الحالة العامة (State)
 // ============================================================
@@ -4802,10 +4502,7 @@ document.getElementById("tr_incompleteCountBadge").addEventListener("click", asy
 function trinit() {
   trbindEvents();
 document.getElementById("tr_financialDate").value = new Date().toLocaleDateString("en-CA");
-  // trloadIncompleteCount(); ← يُستدعى تلقائياً من trloadData
-  
-  // ④ تحديث دوري كل دقيقتين
-// setInterval(trloadIncompleteCount, 120000); // تم التعليق لتقليل طلبات الخادم  
+
   const overlay = document.getElementById("tr_loadingOverlay");
   if (overlay) overlay.style.display = "flex";
 
@@ -4960,18 +4657,6 @@ async function trSelectIncompleteCase(caseNumber) {
     };
   }
 
-  /* ─── ربط مع المزامنة ─── */
-  if (window.remoteSyncApply) {
-    var origSyncApply = window.remoteSyncApply;
-    window.remoteSyncApply = function (topic, action) {
-      origSyncApply(topic, action);
-      if (topic === "treatment") {
-        setTimeout(updateReceiptFromTable, 500);
-      }
-    };
-  }
-
-  setTimeout(updateReceiptFromTable, 3000);
 
   /* ─── trclearForm: استعد الرقم الصحيح دائماً ─── */
   function patchClearForm() {
@@ -5068,236 +4753,6 @@ async function trSelectIncompleteCase(caseNumber) {
 
 })();
 
-/* ============================================================
-   TreatmentCache — كاش السجل اليومي (فتح فوري + تعديل جزئي)
-   ============================================================ */
-(function (global) {
-  "use strict";
-
-  var DAY_KEY = "tr_daily_cache_v1";
-  var CASE_KEY = "tr_cases_cache_v1";
-  var PREFETCH_DELAY = 400;
-
-  var TC = { date:"", url:"", headers:[], rows:[], cases:{}, skipNextLoad:false, prefetching:false };
-  var _origCallApi = null;
-
-  function today() { return new Date().toLocaleDateString("en-CA"); }
-  function ss(v)   { return (v === null || v === undefined) ? "" : String(v).trim(); }
-  function strip(v){ return ss(v).replace(/^'/, ""); }
-  function curUrl(){ return ss(global._activeApiUrl); }
-
-  /* ── التخزين ── */
-  function save() {
-    try {
-      localStorage.setItem(DAY_KEY,  JSON.stringify({ date:TC.date, url:TC.url, headers:TC.headers, rows:TC.rows }));
-      localStorage.setItem(CASE_KEY, JSON.stringify({ date:TC.date, url:TC.url, cases:TC.cases }));
-    } catch (e) {}
-  }
-  function load() {
-    try {
-      var d = JSON.parse(localStorage.getItem(DAY_KEY) || "null");
-      if (d && d.date === today() && d.url === curUrl()) {
-        TC.date = d.date; TC.url = d.url; TC.headers = d.headers || []; TC.rows = d.rows || [];
-      } else { TC.headers = []; TC.rows = []; }
-      var c = JSON.parse(localStorage.getItem(CASE_KEY) || "null");
-      TC.cases = (c && c.date === today() && c.url === curUrl()) ? (c.cases || {}) : {};
-    } catch (e) { TC.rows = []; TC.cases = {}; }
-  }
-  function clearAll() {
-    TC.headers = []; TC.rows = []; TC.cases = {}; TC.date = ""; TC.url = "";
-    try { localStorage.removeItem(DAY_KEY); localStorage.removeItem(CASE_KEY); } catch (e) {}
-  }
-
-  /* ── فهرسة الأعمدة من صف الرأس ── */
-  function colIdx(keys, fallback) {
-    for (var i = 0; i < TC.headers.length; i++) {
-      var h = ss(TC.headers[i]);
-      for (var k = 0; k < keys.length; k++) if (h.indexOf(keys[k]) !== -1) return i;
-    }
-    return fallback;
-  }
-  function statusIdx() {
-    for (var i = TC.headers.length - 1; i >= 1; i--)
-      if (ss(TC.headers[i]).indexOf("حالة") !== -1) return i;
-    return 6;
-  }
-  function rowIndexOf(cn) {
-    cn = ss(cn);
-    for (var i = 0; i < TC.rows.length; i++) if (ss(TC.rows[i][0]) === cn) return i;
-    return -1;
-  }
-
-  /* ── الرسم من الكاش (نفس شكل trloadData) ── */
-  function render() {
-    var tbl = document.getElementById("tr_dataTable");
-    if (!tbl) return;
-    if (!TC.rows.length) { tbl.innerHTML = "<tr><td colspan='7'>لا توجد بيانات لليوم</td></tr>"; return; }
-    var si = statusIdx();
-    var html = "<thead><tr>";
-    TC.headers.forEach(function (c) { html += "<th>" + (c || "") + "</th>"; });
-    html += "</tr></thead><tbody>";
-    TC.rows.forEach(function (r) {
-      html += ((r[si] + "").indexOf("غير مكتملة") > -1)
-        ? '<tr class="data-missing">' : '<tr style="background-color:#00ff00;">';
-      r.forEach(function (c) { html += "<td>" + (c === "" ? " " : c) + "</td>"; });
-      html += "</tr>";
-    });
-    tbl.innerHTML = html + "</tbody>";
-  }
-
-  function storeTable(data) {
-    TC.date = today(); TC.url = curUrl();
-    if (!data || data.length <= 1) { TC.headers = (data && data[0]) || []; TC.rows = []; }
-    else { TC.headers = data[0] || []; TC.rows = data.slice(1); }
-    save();
-  }
-
-  /* ── تحويل بيانات النموذج إلى شكل trsearchCaseData ── */
-  function toCaseObject(d, prev) {
-    var o = JSON.parse(JSON.stringify(d || {}));
-    o.success        = true;
-    o.possession     = strip(d.possession);
-    o.amount         = strip(d.amount);
-    o.drugQuantities = (d.drugQuantities || []).map(strip);
-    if (prev && !ss(o.dataEntry)) o.dataEntry = prev.dataEntry;
-    return o;
-  }
-
-  /* ── تعديل صف واحد فقط ── */
-  function applyUpdate(d) {
-    var cn = ss(d.caseNumber);
-    if (!cn) return;
-    var i = rowIndexOf(cn);
-    if (i !== -1) {
-      var row = TC.rows[i];
-      var set = function (idx, val) { if (idx >= 0 && idx < row.length) row[idx] = val; };
-      set(colIdx(["هاتف"], 1),            ss(d.phone));
-      set(colIdx(["الاسم","المربي"], 2),  ss(d.name));
-      set(colIdx(["إيصال","ايصال"], 3),   ss(d.receipt));
-      set(colIdx(["مبلغ"], -1),           strip(d.amount));
-      var done = (d.drugs || []).some(function (v) { return ss(v) !== ""; }) ||
-                 (d.diseases || []).some(function (v) { return ss(v) !== ""; });
-      set(statusIdx(), done ? "مكتملة" : "غير مكتملة");
-    }
-    TC.cases[cn] = toCaseObject(d, TC.cases[cn]);
-    save(); render();
-  }
-
-  /* ── حذف صف واحد فقط ── */
-  function applyDelete(cn) {
-    cn = ss(cn);
-    var i = rowIndexOf(cn);
-    if (i !== -1) TC.rows.splice(i, 1);
-    delete TC.cases[cn];
-    save(); render();
-  }
-
-  /* ── تحميل مسبق لبيانات الحالات في الخلفية ── */
-  async function prefetch() {
-    if (TC.prefetching || !_origCallApi) return;
-    TC.prefetching = true;
-    try {
-      for (var i = 0; i < TC.rows.length; i++) {
-        var cn = ss(TC.rows[i][0]);
-        if (!cn || TC.cases[cn]) continue;
-        try {
-          var res = await _origCallApi("trsearchCaseData", { caseNumber: cn });
-          if (res && res.success) TC.cases[cn] = res;
-        } catch (e) {}
-        await new Promise(function (r) { setTimeout(r, PREFETCH_DELAY); });
-      }
-      save();
-    } finally { TC.prefetching = false; }
-  }
-
-  /* ── اعتراض trcallApi ── */
-  function patchApi() {
-    if (!global.trcallApi || global.trcallApi._tcPatch) return;
-    _origCallApi = global.trcallApi;
-    global.trcallApi = async function (action, payload) {
-      var res = await _origCallApi.apply(this, arguments);
-      try {
-        if (res && res.success) {
-          if (action === "trgetAAAData") { storeTable(res.data); setTimeout(prefetch, 1200); }
-          else if (action === "trsearchCaseData") { TC.cases[ss((payload||{}).caseNumber)] = res; save(); }
-            else if (action === "trupdateData" || action === "trupdateTempData") {
-            applyUpdate((payload||{}).data || {});
-          }
-          else if (action === "trdeleteData") {
-            applyDelete((payload||{}).caseNumber);
-          }
-        }
-      } catch (e) { console.warn("[TrCache]", e.message); }
-      return res;
-    };
-    global.trcallApi._tcPatch = true;
-  }
-
-  /* ── منع إعادة الجلب الكامل بعد التعديل/الحذف ── */
-  function patchLoadData() {
-    if (!global.trloadData || global.trloadData._tcPatch) return;
-    var _orig = global.trloadData;
-    global.trloadData = function () {
-      if (TC.skipNextLoad) { TC.skipNextLoad = false; render(); return Promise.resolve(); }
-      return _orig.apply(this, arguments);
-    };
-    global.trloadData._tcPatch = true;
-  }
-
-  /* ── فتح فوري عند تهيئة الصفحة ── */
-  function patchInit() {
-    if (!global.trinit || global.trinit._tcPatch) return;
-    var _orig = global.trinit;
-    global.trinit = function () {
-      load();
-      if (TC.rows.length) render();
-      return _orig.apply(this, arguments);
-    };
-    global.trinit._tcPatch = true;
-  }
-
-  /* ── النقر على صف: من الكاش مباشرة ── */
-  function patchClick() {
-    var tbl = document.getElementById("tr_dataTable");
-    
-if (!tbl || tbl._tcClick) return;
-    tbl._tcClick = true;
-    tbl.addEventListener("click", function (e) {
-      var tr = e.target.closest("tr");
-      if (!tr || !tr.cells || !tr.cells.length) return;
-      var cn = ss(tr.cells[0].textContent);
-      if (!cn || !TC.cases[cn]) return;   /* غير موجود → السلوك الأصلي */
-      e.stopImmediatePropagation();
-      if (typeof global.trclearFormExcept === "function") global.trclearFormExcept(null);
-      global.trfillFormWithData(TC.cases[cn]);
-      if (typeof global.trshowMessage === "function") global.trshowMessage("⚡ تم التحميل فوراً", false);
-    }, true);
-  }
-
-  /* ── مسح الكاش عند الخروج ── */
-  function patchLockNav() {
-    if (!global.lockNav || global.lockNav._tcPatch) return;
-    var _orig = global.lockNav;
-    global.lockNav = function () { _orig.apply(this, arguments); clearAll(); };
-    global.lockNav._tcPatch = true;
-  }
-
-  global.TreatmentCache = {
-    clear: clearAll,
-    render: render,
-    getState: function () { return { rows: TC.rows.length, cases: Object.keys(TC.cases).length, date: TC.date }; }
-  };
-
-  var _n = 0;
-  function tryPatch() {
-    patchApi(); patchLoadData(); patchInit(); patchClick(); patchLockNav();
-    if (++_n < 20 && !(global.trcallApi && global.trcallApi._tcPatch && global.trinit && global.trinit._tcPatch))
-      setTimeout(tryPatch, 500);
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tryPatch);
-  else tryPatch();
-
-})(window);
 </script>
 </div>
 
@@ -5379,7 +4834,7 @@ if (!tbl || tbl._tcClick) return;
         <button id="bd_updatePossessionBtn" style="background:#8e44ad;color:#fff">تحديث الحيازة في العلاج</button>
         <button id="bd_saveVaccinationBtn" style="background:#27ae60;color:#fff">💉 حفظ طلبات التحصين</button>
         <button id="bd_updateVaccinationBtn" style="background:#e67e22;color:#fff">✏️ تحديث طلبات التحصين</button>
-        <button id="bd_deleteVaccinationBtn" style="background:#c0392b;color:#fff">🗑️ حذف تحصين</button>
+        <button id="bd_deleteVaccinationBtn" style="background:#c0392b;color:#fff">🗑️ حذف طلبات التحصين</button>
       </div>
     </div>
     <input type="hidden" id="bd_private">
@@ -5423,6 +4878,7 @@ function bd_fillFormWithData(data) {
   bd_safeSet("bd_caseNumber",data.phone); bd_safeSet("bd_private",data.phone);
   bd_safeSet("bd_nameInput",data.name); bd_safeSet("bd_possessionInput",data.possession);
   bd_safeSet("bd_regionInput",data.region); bd_safeSet("bd_civilInput",data.civil);
+  window._bd_origPossession = String(data.possession || "").replace(/^'/, "").trim();
   bd_safeSet("bd_notes",data.notes);
   bd_safeSet("bd_financialDate",data.financialDate);
   if(data.animals){
@@ -5436,6 +4892,7 @@ function bd_fillFormWithData(data) {
 
 function bd_clearForm() {
   bd_isClearing = true;  // ← أضف هذا السطر
+  window._bd_origPossession = null;
  // إخفاء شارة عدد المربين
 var bdCountBadge = document.getElementById("bd_fetchAllCount");
   if (bdCountBadge) { 
@@ -5576,6 +5033,18 @@ bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDrop
 
 async function bd_updateData() {
   if(!bd_validateUpdate())return;
+  /* سجل مضاف سابقاً بدون حيازة ← الإضافة تتم عبر زر تحديث الحيازة في العلاج */
+  if (bd_getValue("bd_private") !== "" &&
+      window._bd_origPossession === "" &&
+      bd_getValue("bd_possessionInput") !== "") {
+    bd_showMessage("⚠️ هذا المربي مسجَّل سابقاً بدون حيازة\nلإضافة الحيازة اضغط زر (تحديث الحيازة في العلاج)\nليتم تحديثها في سجل المربي وسجل العلاج معاً", true, "warning");
+    var pb = document.getElementById("bd_updatePossessionBtn");
+    if (pb) {
+      pb.style.boxShadow = "0 0 0 4px #f39c12";
+      setTimeout(function () { pb.style.boxShadow = ""; }, 4000);
+    }
+    return;
+  }
   var data  = bd_collectData(true);
   var phone = data.phone;
     bd_showConfirm("هل أنت متأكد من تحديث بيانات الرقم: "+phone+"؟",async function(){
@@ -5585,6 +5054,7 @@ async function bd_updateData() {
     try{
 var res=await bd_callApi("bd_updateData",{data:data});
 if(res.success){bd_setLastEdited();
+bd_showMessage("✅ تم تحديث البيانات بنجاح",false);
 bd_clearForm();bd_refreshDropdowns();}else bd_showMessage(res.message,true);
     }catch(err){bd_showMessage("خطأ: "+err.message,true);}
     finally{btn.disabled=false;}
@@ -5648,9 +5118,14 @@ async function bd_updatePossession() {
     btn.disabled = true;
     bd_showMessage("جاري تحديث الحيازة...", false, "info");
     try {
-      var res = await bd_callApi("bd_updatePossessionInTreatment", { phone: phone, possession: possession });
+      var res = await bd_callApi("bd_updatePossessionInTreatment", {
+        phone: phone,
+        possession: possession,
+        financialDate: bd_getValue("bd_financialDate")
+      });
       if (res.success) {
-        bd_showMessage("تم تحديث الحيازة في " + res.updatedCount + " سجل", false);
+        bd_setLastEdited();
+        bd_showMessage("✅ تم تحديث الحيازة في سجل المربي و " + res.updatedCount + " سجل علاج", false);
         bd_clearForm(); // ← الإضافة هنا
       } else {
         bd_showMessage(res.message, true);
@@ -5809,7 +5284,6 @@ async function bd_fetchAll() {
     var headers = ["رقم الهاتف","الاسم","رقم الحيازة","المنطقة","الرقم المدني","الملاحظات","تاريخ الحيازة","مدخل البيانات"];
     theader.innerHTML = "<tr>" + headers.map(function(h){ return "<th style='border:1px solid #00b8d9;padding:6px 4px;background:#00b8d9;color:#fff;font-size:12px;'>"+h+"</th>"; }).join("") + "</tr>";
     tbody.innerHTML = res.data.map(function(b){
-      var an = b.animals || {};
       return "<tr style='cursor:pointer' onclick=\"document.getElementById('bd_phoneInput').value='"+b.phone+"';bd_loadCaseData('"+b.phone+"');document.getElementById('bd_searchResultsContainer').style.display='none';\">" +
         ["phone","name","possession","region","civil","notes","financialDate","dataEntry"].map(function(k){
           return "<td style='border:1px solid #ccc;padding:4px;font-size:12px;'>"+(b[k]||"")+"</td>";
@@ -6605,7 +6079,6 @@ async function vaccFetchVaccinationDataByPhone(phone, showWarning) {
       html += '</tr>';
     });
     html += '</tbody></table>';
-html += '<style>.vaccination-row:hover{background-color:#e6f7ff!important;transition:background-color .2s}</style>';
     container.innerHTML = html;
   } catch(err) { container.innerHTML = '<p style="color:red;text-align:center;">خطأ: ' + err.message + '</p>'; }
 }
@@ -7522,14 +6995,17 @@ if (sortBy === "date") {
     var tr = document.createElement("tr");
     tr.className = r.vaccinated ? "row-vacc" : "row-not";
 var badge;
+    var vrPh = vr_escapeHtml(r.phone);
     if (vr_isRefused(r)) {
-      badge = '<span class="badge" style="background:#8e44ad">رفض التحصين ⛔</span>';
+      badge = '<span class="badge" data-phone="' + vrPh + '" onclick="vr_toggleRefused(this.dataset.phone)" ' +
+              'title="انقر لإلغاء الرفض" style="background:#8e44ad;cursor:pointer;">رفض التحصين ⛔</span>';
       tr.className = '';
       tr.style.background = '#ff04ff';
     } else if (r.vaccinated) {
       badge = '<span class="badge badge-vacc">محصن ✓</span>';
     } else {
-      badge = '<span class="badge badge-not">غير محصن ✗</span>';
+      badge = '<span class="badge badge-not" data-phone="' + vrPh + '" onclick="vr_toggleRefused(this.dataset.phone)" ' +
+              'title="انقر لتسجيل رفض التحصين" style="cursor:pointer;">غير محصن ✗</span>';
     }
 var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.phone.toString().trim());
     var nameCellStyle = isRegistered
@@ -7546,21 +7022,25 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
       '<td style="' + nameCellStyle + '">' + nameContent + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(r.area) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(vr_formatDate(r.entryDate)) + '</td>' +
-      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + vr_refuseBtn(r) + '</td>' +
+      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + (r.vaccinated ? vr_escapeHtml(r.summary || "—") : vr_requestSummary(r)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
     tbody.appendChild(tr);
   });
 }
-/* زر رفض / إلغاء رفض التحصين — لغير المحصنين فقط */
-function vr_refuseBtn(r) {
-  if (r.vaccinated) return '';
-  var ref = vr_isRefused(r);
-  var ph  = vr_escapeHtml(r.phone).replace(/'/g, "\\'");
-  return ' <button class="vr-refuse-btn" onclick="vr_toggleRefused(\'' + ph + '\')" ' +
-    'style="padding:2px 8px;font-size:11px;border-radius:10px;margin-right:4px;' +
-    'background:' + (ref ? '#95a5a6' : '#8e44ad') + ';color:#fff;">' +
-    (ref ? '↩️ إلغاء الرفض' : '⛔ رفض') + '</button>';
+function vr__confirm(title, html) {
+  return new Promise(function (resolve) {
+    var m = document.createElement('div');
+    m.className = 'custom-modal';
+    m.innerHTML = '<div class="modal-box"><h3>' + title + '</h3><p>' + html + '</p>' +
+      '<div class="modal-buttons"><button class="confirm-btn">نعم</button>' +
+      '<button class="cancel-btn">إلغاء</button></div></div>';
+    document.body.appendChild(m);
+    function done(v) { m.remove(); resolve(v); }
+    m.querySelector('.confirm-btn').onclick = function () { done(true); };
+    m.querySelector('.cancel-btn').onclick  = function () { done(false); };
+    m.onclick = function (e) { if (e.target === m) done(false); };
+  });
 }
 
 async function vr_toggleRefused(phone) {
@@ -7589,9 +7069,10 @@ async function vr_toggleRefused(phone) {
     var req = q.data && q.data[0];
     if (!req) throw new Error('لا يوجد طلب تحصين لهذا الرقم');
 
-    var u = await sb.from('vaccination_requests')
-      .update({ is_refused: makeRefused }).eq('id', req.id);
+        var u = await sb.from('vaccination_requests')
+      .update({ is_refused: makeRefused }).eq('id', req.id).select('id');
     if (u.error) throw u.error;
+    if (!u.data || !u.data.length) throw new Error('لم يُحفظ التغيير — تحقق من صلاحيات التعديل على طلبات التحصين');
 
     r.refused = makeRefused;
     vr_render();
@@ -7704,274 +7185,7 @@ async function vr_saveToBreeder(r) {
     showToast('❌ خطأ: ' + err.message, 'error');
   }
 }
-  /* ══════════════════════════════════════════════════════════
-   تحديث بيانات المربين المسجَّلين من أحدث بيانات التحصين
-   ══════════════════════════════════════════════════════════ */
 
-function vr__txt(v) {
-  if (v === null || v === undefined) return '';
-  return String(v).trim().replace(/^'/, '').replace(/\s+/g, ' ');
-}
-
-function vr__num(v) {
-  var s = vr__txt(v);
-  if (s === '') return '';
-  var n = parseFloat(s.replace(/,/g, ''));
-  return isNaN(n) ? s : String(n);
-}
-
-function vr__date(v) {
-  var s = vr__txt(v);
-  if (!s) return '';
-  var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return m[1] + '-' + String(+m[2]).padStart(2,'0') + '-' + String(+m[3]).padStart(2,'0');
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) return m[3] + '-' + String(+m[2]).padStart(2,'0') + '-' + String(+m[1]).padStart(2,'0');
-  var d = new Date(s);
-  if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-  return s;
-}
-
-function vr__confirm(title, html) {
-  return new Promise(function(resolve) {
-    var m = document.createElement('div');
-    m.className = 'custom-modal';
-    m.innerHTML =
-      '<div class="modal-box" style="max-width:520px;">' +
-        '<h3 style="color:#2bb673;margin-bottom:10px;">' + title + '</h3>' +
-        '<p style="font-size:13px;color:#444;line-height:1.9;text-align:right;direction:rtl;">' + html + '</p>' +
-        '<div class="modal-buttons">' +
-          '<button class="confirm-btn">✅ نعم، ابدأ التحديث</button>' +
-          '<button class="cancel-btn">إلغاء</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(m);
-    m.querySelector('.confirm-btn').onclick = function(){ m.remove(); resolve(true);  };
-    m.querySelector('.cancel-btn').onclick  = function(){ m.remove(); resolve(false); };
-    m.onclick = function(e){ if (e.target === m) { m.remove(); resolve(false); } };
-  });
-}
-
-function vr__progressBox(title) {
-  var el = document.createElement('div');
-  el.id = 'vr_bulkOverlay';
-  el.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:center;z-index:99999;direction:rtl;font-family:Tahoma,Arial,sans-serif;';
-  el.innerHTML =
-    '<div style="text-align:center;min-width:340px;">' +
-      '<div style="width:64px;height:64px;border:7px solid #e0e0e0;border-top:7px solid #2bb673;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 18px;"></div>' +
-      '<div style="font-size:18px;font-weight:bold;color:#2bb673;margin-bottom:10px;">' + title + '</div>' +
-      '<div id="vr_bulkStep" style="font-size:13px;color:#666;margin-bottom:16px;min-height:20px;">جاري التحضير...</div>' +
-      '<div style="width:320px;height:10px;background:#e0e0e0;border-radius:20px;overflow:hidden;margin:0 auto;">' +
-        '<div id="vr_bulkBar" style="height:100%;width:0%;background:#2bb673;border-radius:20px;transition:width .3s ease;"></div>' +
-      '</div>' +
-      '<div id="vr_bulkPct" style="font-size:13px;color:#2bb673;margin-top:8px;font-weight:bold;">0%</div>' +
-    '</div>';
-  document.body.appendChild(el);
-  return {
-    set: function(pct, msg) {
-      var s = document.getElementById('vr_bulkStep');
-      var b = document.getElementById('vr_bulkBar');
-      var p = document.getElementById('vr_bulkPct');
-      if (s && msg) s.textContent = msg;
-      if (b) b.style.width  = pct + '%';
-      if (p) p.textContent  = pct + '%';
-    },
-    close: function() {
-      var x = document.getElementById('vr_bulkOverlay');
-      if (x) x.remove();
-    }
-  };
-}
-
-function vr__resultModal(s, failedList) {
-  var okAll = (s.failed === 0);
-  var rows = [
-    ['👥 مربون مطابقون في السجلين',      s.matched,      '#004e66'],
-    ['🔄 يحتاجون تحديثاً',                s.changed,      '#e67e22'],
-    ['✅ تم تحديثهم بنجاح',               s.success,      '#2bb673'],
-    ['❌ فشل تحديثهم',                    s.failed,       '#e65050'],
-    ['➖ بياناتهم مطابقة (بلا تغيير)',    s.unchanged,    '#888'],
-    ['⚠️ غير مسجلين في سجل المربي',      s.unregistered, '#8e44ad']
-  ].map(function(r) {
-    return '<tr>' +
-      '<td style="padding:6px 10px;border:1px solid #e0e0e0;text-align:right;">' + r[0] + '</td>' +
-      '<td style="padding:6px 10px;border:1px solid #e0e0e0;text-align:center;font-weight:bold;font-size:15px;color:' + r[2] + ';">' + r[1] + '</td>' +
-    '</tr>';
-  }).join('');
-
-  var failHtml = failedList.length
-    ? '<div style="margin-top:12px;background:#fdecea;border:1px solid #f5c6c1;border-radius:6px;padding:9px 12px;font-size:11px;color:#7a0000;text-align:right;max-height:130px;overflow:auto;">' +
-      failedList.map(function(f){ return '• ' + f; }).join('<br>') + '</div>'
-    : '';
-
-  var m = document.createElement('div');
-  m.className = 'custom-modal';
-  m.innerHTML =
-    '<div class="modal-box" style="max-width:520px;">' +
-      '<div style="font-size:46px;margin-bottom:8px;">' + (okAll ? '✅' : '⚠️') + '</div>' +
-      '<h3 style="color:' + (okAll ? '#2bb673' : '#e67e22') + ';margin-bottom:6px;">' +
-        (okAll ? 'تمت عملية التحديث بنجاح' : 'اكتملت العملية مع وجود أخطاء') + '</h3>' +
-      '<p style="font-size:13px;color:#555;margin-bottom:12px;">تم تحديث بيانات ' +
-        '<strong style="color:#2bb673;font-size:17px;">' + s.success + '</strong> مربي اعتماداً على سجل التحصين</p>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:12px;">' + rows + '</table>' +
-      failHtml +
-      '<div class="modal-buttons" style="margin-top:16px;">' +
-        '<button class="confirm-btn" onclick="this.closest(\'.custom-modal\').remove()">إغلاق</button>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(m);
-  m.onclick = function(e){ if (e.target === m) m.remove(); };
-
-  showToast(
-    okAll ? ('✅ تم تحديث ' + s.success + ' مربي بنجاح')
-          : ('⚠️ تم تحديث ' + s.success + ' مربي وفشل ' + s.failed),
-    okAll ? 'success' : 'warning'
-  );
-}
-
-async function vr_bulkUpdateBreeders() {
-  if (!vr_dataLoaded || !vr_allData || !vr_allData.length) {
-    showToast('⚠️ اضغط 🔄 تحديث أولاً لتحميل بيانات التحصين', 'warning');
-    return;
-  }
-
-  var proceed = await vr__confirm(
-    '🔃 تحديث بيانات المربين',
-    'سيتم تحديث بيانات المربين <strong>المسجَّلين مسبقاً</strong> في سجل المربي اعتماداً على أحدث البيانات في سجل متابعة التحصين.<br><br>' +
-    '<strong>الحقول المحدَّثة:</strong> الاسم، المنطقة، رقم الحيازة، الرقم المدني، تاريخ انتهاء الحيازة، وأعداد (ماعز / أغنام / أبقار / جمال).<br><br>' +
-    '<span style="color:#1b5e20;">🛡️ لن يُمسح أي حقل موجود إذا كانت قيمته فارغة في سجل التحصين.</span>'
-  );
-  if (!proceed) return;
-
-  var box   = vr__progressBox('🔃 تحديث بيانات المربين');
-  var stats = { matched:0, changed:0, success:0, failed:0, unchanged:0, unregistered:0 };
-  var failedList = [];
-
-  try {
-    box.set(5, 'جاري جلب سجل المربين...');
-    var bdRes = await bd_callApi('bd_getAllBreeders');
-  if (!bdRes || !bdRes.success || !Array.isArray(bdRes.data))
-      throw new Error('تعذّر جلب سجل المربين');
-
-    var map = {};
-    bdRes.data.forEach(function(b) {
-      var ph = vr__txt(b.phone);
-      if (ph) map[ph] = b;
-    });
-
-    box.set(15, 'جاري مقارنة البيانات...');
-
-    /* إزالة التكرار: آخر صف لكل رقم هاتف */
-    var srcMap = {};
-    vr_allData.forEach(function(r) {
-      var ph = vr__txt(r.phone);
-      if (ph) srcMap[ph] = r;
-    });
-
-    var updater = window._currentUser || 'نظام التحصين';
-    var pending = [];
-
-    Object.keys(srcMap).forEach(function(ph) {
-      var r = srcMap[ph];
-      var b = map[ph];
-      if (!b) { stats.unregistered++; return; }
-      stats.matched++;
-
-      var an    = b.animals || {};
-      var pick  = function(nu, old) { return vr__txt(nu) !== '' ? vr__txt(nu) : vr__txt(old); };
-      var pickN = function(nu, old) { return vr__num(nu) !== '' ? vr__num(nu) : vr__num(old); };
-
-      var next = {
-        name:          pick(r.name,       b.name),
-        region:        pick(r.area,       b.region),
-        possession:    pick(r.possession, b.possession),
-        civil:         pick(r.civil,      b.civil),
-        financialDate: vr__date(r.financialDate) !== '' ? vr__date(r.financialDate) : vr__date(b.financialDate),
-        goat:  pickN(r.goat,  an.goat),
-        sheep: pickN(r.sheep, an.sheep),
-        cow:   pickN(r.cow,   an.cow),
-        camel: pickN(r.camel, an.camel)
-      };
-
-      var cur = {
-        name:          vr__txt(b.name),
-        region:        vr__txt(b.region),
-        possession:    vr__txt(b.possession),
-        civil:         vr__txt(b.civil),
-        financialDate: vr__date(b.financialDate),
-        goat:  vr__num(an.goat),
-        sheep: vr__num(an.sheep),
-        cow:   vr__num(an.cow),
-        camel: vr__num(an.camel)
-      };
-
-      var changed = Object.keys(next).some(function(k) { return next[k] !== cur[k]; });
-      if (!changed) { stats.unchanged++; return; }
-
-      pending.push({
-        phone: ph,
-        label: next.name || ph,
-        data: {
-          phone:       ph,
-          newPhone:    ph,
-          name:        next.name,
-           possession:  next.possession,
-          region:      next.region,
-          civil:       next.civil,
-          notes:       vr__txt(b.notes),
-          animals: {
-            goat:    next.goat,
-            sheep:   next.sheep,
-            cow:     next.cow,
-            camel:   next.camel,
-            poultry: vr__num(an.poultry)
-          },
-          financialDate: next.financialDate
-        }
-      });
-    });
-
-    stats.changed = pending.length;
-
-    if (!pending.length) {
-      box.close();
-      vr__resultModal(stats, failedList);
-      return;
-    }
-
-    for (var i = 0; i < pending.length; i++) {
-      var p   = pending[i];
-      var pct = 20 + Math.round((i / pending.length) * 75);
-      box.set(pct, 'جاري تحديث ' + (i + 1) + ' من ' + pending.length + ' — ' + p.label);
-      try {
-        var res = await bd_callApi('bd_updateData', { data: p.data });
-        if (res && res.success) stats.success++;
-        else {
-          stats.failed++;
-          failedList.push(p.phone + ' — ' + ((res && res.message) || 'فشل غير معروف'));
-        }
-      } catch (e) {
-        stats.failed++;
-        failedList.push(p.phone + ' — ' + (e.message || e));
-      }
-      await new Promise(function(rs){ setTimeout(rs, 120); });
-    }
-
-    box.set(100, '✅ اكتملت العملية');
-    await new Promise(function(rs){ setTimeout(rs, 500); });
-    box.close();
-    vr__resultModal(stats, failedList);
-
-    /* تحديث القوائم والكاش مرة واحدة فقط بعد انتهاء الدفعة */
-    if (typeof bd_refreshDropdowns     === 'function') bd_refreshDropdowns();
-    if (typeof globalRefreshPhoneLists === 'function') globalRefreshPhoneLists();
-    if (typeof syncBroadcast === 'function') syncBroadcast('breeder', 'bd_updateData');
-
-  } catch (err) {
-    box.close();
-    showToast('❌ خطأ: ' + (err.message || err), 'error');
-  }
-}
 // =====================================================
 // التحميل عند فتح الصفحة للمرة الأولى فقط
 // يُستدعى من showPage المركزية
@@ -8203,18 +7417,6 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
 </div>
 <script>
 "use strict";
-
-// ===================================================
-// إخفاء شاشة التحميل
-// ===================================================
-function hideInitialLoadingOverlay() {
-  var overlay = document.getElementById('initialLoadingOverlaySamples');  if (overlay) {
-    overlay.classList.add('hide');
-    setTimeout(function() {
-      overlay.style.display = 'none';
-    }, 500);
-  }
-}
 
 async function focallApi(action, payload) {
   throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
@@ -8631,12 +7833,9 @@ var html = statsHtml
   + '<th>النتيجة</th>'
   + '</tr></thead><tbody>';
 
-    var rowNum = 0;
     matched.forEach(function(r) {
-      var testCount = r.tests.length;
 
       r.tests.forEach(function(t, idx) {
-        rowNum++;
         var resColor     = '#f5f5f5';
         var resTextColor = '#333';
         if (t.result === 'إيجابي') { resColor = '#ffcccc'; resTextColor = '#7a0000'; }
@@ -8648,8 +7847,6 @@ var html = statsHtml
         var testCellBg = isTarget ? 'background:#fff8e1;color:#e67e22;font-weight:bold;' : '';
 
         html += '<tr>';
-
-        // دمج خلية # ورقم العينة عند وجود أكثر من فحص لنفس العينة
        
         html += '<td style="' + testCellBg + '">' + t.name + '</td>';
         html += '<td style="background:' + resColor + ';color:' + resTextColor + ';font-weight:bold;">' + (t.result || '—') + '</td>';
@@ -8750,8 +7947,6 @@ async function foinit(){
   }
 }
 
-// بدء التهيئة عند تحميل DOM
-// foinit تُستدعى من initQueue بعد تسجيل الدخول
 </script>
 </div>
 
@@ -9038,73 +8233,13 @@ async function dtr_loadData() {
       clinic: '', disease: disease, dateFrom: dateFrom, dateTo: dateTo
     });
 
-    // ← إصلاح: بناء monthly بشكل موحد سواء كان مرض محدد أو جميع الأمراض
-    var monthly = result.monthly || {};
-    
-    // إذا كان الـ API يُرجع البيانات بصيغة مختلفة لـ "جميع الأمراض"
-    // نتحقق من أن المفاتيح بصيغة YYYY-MM
-    var normalizedMonthly = {};
-    Object.keys(monthly).forEach(function(key) {
-      var cleanKey = key.toString().trim();
-      // إذا كان المفتاح يحتوي على "/" بدلاً من "-" نحوله
-      if (cleanKey.indexOf('/') !== -1) {
-        var parts = cleanKey.split('/');
-        if (parts.length === 3) {
-          // DD/MM/YYYY → YYYY-MM
-          cleanKey = parts[2] + '-' + parts[1].padStart(2, '0');
-        } else if (parts.length === 2) {
-          // MM/YYYY → YYYY-MM
-          cleanKey = parts[1] + '-' + parts[0].padStart(2, '0');
-        }
-      }
-      // التأكد من صيغة YYYY-MM
-      var match = cleanKey.match(/^(\d{4})-(\d{1,2})$/);
-      if (match) {
-        cleanKey = match[1] + '-' + match[2].padStart(2, '0');
-      }
-      
-      var val = monthly[key];
-      if (typeof val === 'string') val = parseFloat(val.replace(/,/g, '')) || 0;
-      normalizedMonthly[cleanKey] = (normalizedMonthly[cleanKey] || 0) + val;
-    });
-    
-    // ← إصلاح: إذا كانت البيانات فارغة لكن rawRows موجودة، نبني monthly منها
-    if (Object.keys(normalizedMonthly).length === 0 && result.rawRows && result.rawRows.length > 0) {
-      result.rawRows.forEach(function(row) {
-        var dateStr = row.date || row.financialDate || row['التاريخ'] || '';
-        if (dateStr) {
-          var d = new Date(dateStr);
-          if (!isNaN(d.getTime())) {
-            var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-            normalizedMonthly[key] = (normalizedMonthly[key] || 0) + 1;
-          }
-        }
-      });
-    }
-
-    // بناء byRegion من بيانات التفاصيل
-    var byRegion = {};
-    if (!result.byRegion && result.rawRows) {
-      result.rawRows.forEach(function(row) {
-        var region = (row.region || row.المنطقة || '').toString().trim();
-        if (!region) region = 'غير محدد';
-        byRegion[region] = (byRegion[region] || 0) + 1;
-      });
-    } else {
-      byRegion = result.byRegion || {};
-    }
-
+    var normalizedMonthly = result.monthly || {};
     dtr_lastResult = {
-      monthly: normalizedMonthly,
+      monthly:  normalizedMonthly,
       byAnimal: result.byAnimal || {},
-      byRegion: byRegion,
-      rawRows: result.rawRows || []
+      byRegion: result.byRegion || {}
     };
-    
-    console.log('monthly keys:', Object.keys(normalizedMonthly).sort());
-    console.log('byRegion:', JSON.stringify(byRegion));
-    console.log('rawRows count:', result.rawRows ? result.rawRows.length : 0);
-    
+
     dtr_renderChart(normalizedMonthly, result.byAnimal || {}, disease);
     dtr_renderTable(normalizedMonthly, result.byAnimal || {}, disease);
   } catch (err) {
@@ -9763,15 +8898,6 @@ function dp_e(s) {
   } catch(e) { return ''; }
 }
 
-/* قراءة خلية من صف بأمان */
-function dp_v(row, idx) {
-  try {
-    if (!row || !Array.isArray(row) || idx < 0 || idx >= row.length) return '';
-    var v = row[idx];
-    if (v === null || v === undefined) return '';
-    return String(v).trim();
-  } catch(e) { return ''; }
-}
 
 /* تحليل تاريخ بأمان */
 function dp_date(s) {
@@ -10576,14 +9702,14 @@ function rpt_filterT(inputId, tbodyId) {
 
   // أظهر الصفوف المطابقة فقط
   rows.forEach(function(row) {
-    if (row.classList.contains('cat') || row.classList.contains('sec')) return;
+    if (row.classList.contains('sec')) return;
     if (row.textContent.toLowerCase().indexOf(q) >= 0) {
       row.style.display = '';
 
       // أظهر صف الفئة السابق له
       var prev = row.previousElementSibling;
       while (prev) {
-        if (prev.classList.contains('cat') || prev.classList.contains('sec')) {
+        if (prev.classList.contains('sec')) {
           prev.style.display = '';
           break;
         }
@@ -10605,12 +9731,8 @@ function rpt_buildAll() {
   // أمراض الحيوانات
   var h = '';
   rpt_D.diseases.forEach(function(row) {
-    if (row.type === 'category')
-      h += '<tr class="cat"><td colspan="11">' + row.name + '</td></tr>';
-    else if (row.type === 'total')
+      if (row.type === 'total')
       h += '<tr class="tot"><td class="nc">المجموع</td>' + row.values.map(function(v){ return '<td>' + (v || '') + '</td>'; }).join('') + '</tr>';
-    else if (row.type === 'parasite')
-      h += '<tr class="rpt_parasite"><td class="nc">' + row.name + '</td>' + row.values.map(function(v){ return '<td>' + (v || '') + '</td>'; }).join('') + '</tr>';
     else
       h += '<tr><td class="nc">' + row.name + '</td>' + row.values.map(function(v){ return '<td>' + (v || '') + '</td>'; }).join('') + '</tr>';
   });
@@ -10691,16 +9813,6 @@ function rptCamp_reset() {
   });
 }
 
-/* مزامنة حقول بطاقة "المدى الزمني لحملة التحصين" في صفحة الإعدادات */
-function rptCamp_syncSettings(c) {
-  if (!c) return;
-  [['camp_dateFrom', c.dateFrom], ['camp_dateTo', c.dateTo],
-   ['camp_days', c.days], ['camp_target', c.target]].forEach(function (x) {
-    var el = document.getElementById(x[0]);
-    if (el) el.value = x[1] || '';
-  });
-}
-
 async function rptCamp_load(force) {
   var box = document.getElementById('rptCamp_status');
   function status(msg, color) {
@@ -10715,23 +9827,8 @@ async function rptCamp_load(force) {
   if (force || !c || !c.dateFrom || !c.dateTo) {
     status('⏳ جاري تحديث المدى الزمني للحملة من صفحة الإعدادات...');
 
-    var viaSettings = false;
-    if (typeof camp_load === 'function') {
-      try { await camp_load(true); viaSettings = true; } catch (e) {}
-    }
+      await camp_load(true);
     c = window._vaccCampaign;
-
-    /* احتياطي: إن لم تتوفر دالة صفحة الإعدادات */
-    if (!viaSettings) {
-      try {
-        var res = await rpt_callApi('getVaccCampaign');
-        if (res && res.success) {
-          c = { dateFrom: res.dateFrom, dateTo: res.dateTo, days: res.days, target: res.target };
-          window._vaccCampaign = c;
-          rptCamp_syncSettings(c);
-        }
-      } catch (err) {}
-    }
   }
 
   status('⏳ جاري احتساب مؤشرات اللوحة...');
@@ -11189,44 +10286,9 @@ function saveAppearance() {
   localStorage.setItem('app_nav', document.getElementById('navColor').value);
   localStorage.setItem('app_card', document.getElementById('cardColor').value);
   localStorage.setItem('toastSize', document.getElementById('toastSize').value);
-  var t = document.createElement('div');
-  t.className = 'toast success'; t.textContent = '✅ تم حفظ الإعدادات';
-  document.body.appendChild(t);
-  setTimeout(function(){t.classList.add('show');},10);
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},300);},2500);
+  showToast('✅ تم حفظ إعدادات المظهر', 'success');
 }
 
-  // ===== تحديث قوائم الهاتف في جميع الصفحات =====
-async function globalRefreshPhoneLists() {
-  if (typeof bd_refreshDropdowns === "function") return bd_refreshDropdowns();
-  try {
-    var results = await Promise.all([
-      bd_callApi("bd_getPhoneNumbers"),
-      trcallApi("trgetPhoneNumbers"),
-      vaccCallApi("getPhoneNumbers"),
-      focallApi("fogetPhoneNumbers")
-    ]);
-
-    function fillDatalist(id, arr) {
-      var dl = document.getElementById(id);
-      if (!dl) return;
-      dl.innerHTML = "";
-      (arr || []).sort().forEach(function(v) {
-        var o = document.createElement("option");
-        o.value = v;
-        dl.appendChild(o);
-      });
-    }
-
-    if (results[0].success) fillDatalist("bd_phoneList",   results[0].data);
-    if (results[1].success) fillDatalist("tr_phoneList",   results[1].data);
-    if (results[2].success) fillDatalist("vacc_phoneList", results[2].data);
-    if (results[3].success) fillDatalist("phoneList",      results[3].data);
-
-  } catch(err) {
-    console.warn("خطأ في تحديث قوائم الهاتف:", err);
-  }
-}
  
 function resetAppearance() {
 ['app_bg','app_txt','app_fs','app_nav','app_card'].forEach(function(k){localStorage.removeItem(k);});
@@ -11253,13 +10315,9 @@ var card=localStorage.getItem('app_card');
 if(card){document.querySelectorAll('.card').forEach(function(c){c.style.background=card;});var el=document.getElementById('cardColor');if(el)el.value=card;}
 })();
 
-window.addEventListener('load', function () {
-  // الصفحات تُحمَّل بعد تسجيل الدخول فقط عبر unlockNav
-});
   // ===== Overdue Samples Alert =====
 var overdueSessionDismissed = false;
 
-document.getElementById('overdueOverlay').onclick = function(e){ /* disabled */ };
 function foCheckOverdueSamples() {
   if (overdueSessionDismissed) return;
   var _ovNow = Date.now();
@@ -11329,26 +10387,7 @@ function foDismissOverdueAlert() {
   foCloseOverdueAlert();
 }
 
-/**
- * =====================================================
- * نظام الصلاحيات v6.0 — نظيف ومعاد البناء
- * يقرأ الصلاحيات مباشرة من Google Sheets أثناء تسجيل الدخول
- * =====================================================
- *
- * هيكل ورقة "user" في الشيت:
- * username | password | permissions | role | pages | actions
- *
- * - pages:   قائمة بأسماء الصفحات مفصولة بفاصلة  مثال: breeder,treatment,vaccination
- * - actions: قائمة بالإجراءات المسموحة مفصولة بفاصلة  مثال: save,update,delete
- * - إذا كانت pages فارغة → كل الصفحات مسموحة
- * - إذا كانت actions فارغة → كل الإجراءات مسموحة
- *
- * طريقة الاستخدام:
- * 1. ادمج هذا الملف في HTML قبل إغلاق </body>
- * 2. استدعِ PERM.init(username, csvRow) فور نجاح تسجيل الدخول
- * 3. استدعِ PERM.revoke() عند تسجيل الخروج
- * =====================================================
- */
+/* نظام الصلاحيات v6.0 — يُهيَّأ من ملف المستخدم في Supabase عبر PERM.init */
 
 (function (global) {
   "use strict";
@@ -11451,46 +10490,6 @@ function foDismissOverdueAlert() {
   /* ─────────────────────────────────────────────────────
      ٤. دوال تحليل البيانات
      ───────────────────────────────────────────────────── */
-
-  /**
-   * تحليل نص CSV إلى مصفوفة من الكائنات
-   * يدعم الفواصل والاقتباسات
-   */
-  function parseCSV(text) {
-    var lines = text.replace(/\r/g, "").trim().split("\n");
-    if (lines.length < 2) return [];
-
-    var headers = splitCSVLine(lines[0]).map(function (h) {
-      return h.toLowerCase().trim();
-    });
-
-    return lines.slice(1).map(function (line) {
-      var values = splitCSVLine(line);
-      var obj = {};
-      headers.forEach(function (h, i) {
-        obj[h] = (values[i] || "").trim();
-      });
-      return obj;
-    });
-  }
-
-  function splitCSVLine(line) {
-    var result = [], cur = "", inQ = false;
-    for (var i = 0; i < line.length; i++) {
-      var ch = line[i];
-      if (ch === '"') {
-        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (ch === "," && !inQ) {
-        result.push(cur);
-        cur = "";
-      } else {
-        cur += ch;
-      }
-    }
-    result.push(cur);
-    return result;
-  }
 
   /**
    * تحليل قائمة مفصولة بفاصلة أو فاصلة عربية
@@ -12243,7 +11242,7 @@ setInterval(syncWrapApiCalls, 2000);
     ov.className = "custom-modal";
     ov.innerHTML =
       '<div class="modal-box" style="max-width:380px;">' +
-        '<div style="font-size:50px;margin-bottom:10px;">🧑‍💻</div>' +
+        '<img src="https://dlivsidtmmtvrqhtxmlu.supabase.co/storage/v1/object/public/assets/WhatsApp%20Image%202026-09-25%20at%204.05.40%20PM.jpeg" style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid #00b8d9;box-shadow:0 4px 12px rgba(0,184,217,.35);display:block;margin:0 auto 10px;" alt="">' +
         '<h3 style="color:#00b8d9;margin-bottom:14px;">صُمِّم بواسطة</h3>' +
         '<div style="background:#f0fbff;border:1px solid #b3e5fc;border-radius:8px;' +
         'padding:14px 18px;text-align:right;direction:rtl;font-size:14px;line-height:2.2;">' +
@@ -12435,9 +11434,6 @@ window.trcallApi._speedPatched = true;
     window.addEventListener("load", tryPatch);
   }
 
-  // ملاحظة: المستمع القديم على زر الحفظ سيستمر في استدعاء addTimestamp،
-  // ولكن addTimestamp لن تسجل أي شيء ما لم يتم ضبط _allowSpeedRecording = true
-  // (وهو ما يحدث فقط بعد نجاح الحفظ الفعلي).
 })();
 // ============================================================
 //  نظام تنبيه الأمراض المتكررة — v1.0
@@ -13071,18 +12067,6 @@ Promise.all([
     slowStreakWarn:      2   // عدد الطلبات البطيئة المتتالية قبل التحذير
   };
 
-  /* ── الإجراءات التي تُعدّل قاعدة البيانات ───────────────── */
-  var WRITE_ACTIONS = [
-    'trsaveData','trupdateData','trdeleteData','trsaveTempData','trupdateTempData',
-    'saveData','updateData','deleteData',
-    'bd_saveData','bd_updateData','bd_deleteData','bd_updatePossessionInTreatment',
-    'bd_saveVaccinationData','bd_updateVaccinationData','bd_deleteVaccinationData',
-    'fosaveData','foupdateData','fodeleteData',
-    'saveDateRange','saveUserPermissions'
-  ];
-
-  /* ── إجراءات خلفية: تُقاس ولا تُنبّه ولا تُحجب ──────────── */
-  var SILENT_ACTIONS = ['syncNotify','syncGetEvents'];
 
   /* ── عمليات الكتابة إلى جداول Supabase (REST) ───────────── */
   function sbWriteMethod(url, init) {
@@ -13112,9 +12096,7 @@ Promise.all([
     if (typeof global.showToast === 'function') global.showToast(msg, type || 'error');
   }
 
-  function apiUrl() {
-    return global._activeApiUrl || global.TR_API_URL || global.VACC_API_URL || '';
-  }
+ 
 
   /* ── fetch بمهلة زمنية ──────────────────────────────────── */
   function fetchTimed(input, init, ms) {
@@ -13200,7 +12182,7 @@ Promise.all([
 
   /* ── نافذة المنع / الفشل ────────────────────────────────── */
   /* mode: 'blocked' = لم يُرسل الطلب | 'failed' = أُرسل وفشل */
-  function showModal(reason, mode, isSb) {
+  function showModal(reason, mode) {
     if (document.getElementById('netguard-modal')) return;
 
     var detail, safety, color;
@@ -13222,16 +12204,9 @@ Promise.all([
     if (mode === 'blocked') {
       safety = '<strong>لم يتم حفظ أو تعديل أي بيانات.</strong> تحقق من الإنترنت ثم أعد المحاولة.';
       color  = '#e65050';
-    } else if (isSb) {
+        } else {
       safety = 'ربما نُفِّذت العملية قبل انقطاع الاتصال — ' +
                '<strong>تحقق من السجل قبل إعادة المحاولة</strong> لتجنب التكرار.';
-      color  = '#e67e22';
-    } else if (reason === 'offline' || reason === 'network') {
-      safety = '<strong>لم يتم حفظ أو تعديل أي بيانات.</strong> تحقق من الإنترنت ثم أعد المحاولة.';
-      color  = '#e65050';
-    } else {
-        safety = 'النظام يمنع التكرار تلقائياً — <strong>يمكنك إعادة المحاولة بأمان</strong>، ' +
-               'ولن تُحفظ العملية مرتين.';
       color  = '#e67e22';
     }
 
@@ -13271,29 +12246,11 @@ Promise.all([
     return (((h1 >>> 0) * 4096) + (h2 >>> 0)).toString(36) + '_' + str.length.toString(36);
   }
 
-  function ngWatchDedup(resp) {
-    try {
-      resp.clone().json().then(function (d) {
-        if (d && d._dedup) {
-          toast('🛡️ العملية كانت محفوظة مسبقاً — لم يتم تكرارها', 'warning');
-        }
-      }).catch(function () {});
-    } catch (e) {}
-  }
   /* ── الاعتراض المركزي ───────────────────────────────────── */
 global.fetch = function (input, init) {
     var url = (typeof input === 'string') ? input : ((input && input.url) || '');
-    var bodyStr = '', action = '';
-    try {
-      if (init && typeof init.body === 'string' && init.body.charAt(0) === '{') {
-        bodyStr = init.body;
-        action  = (JSON.parse(bodyStr).action || '').toString();
-      }
-    } catch (e) {}
 
-    var silent  = SILENT_ACTIONS.indexOf(action) !== -1 || url.indexOf('ntfy.sh') !== -1;
-    var isWrite = action !== '' && WRITE_ACTIONS.indexOf(action) !== -1;
-    var opId    = '';
+     var silent = url.indexOf('ntfy.sh') !== -1;
 
     /* ── Supabase ── */
     var isSb  = /\/(rest|auth)\/v1\//.test(url);
@@ -13302,11 +12259,9 @@ global.fetch = function (input, init) {
 
     if (sbw) {
       if (!navigator.onLine) {
-        showModal('offline', 'blocked', true);
         return Promise.reject(new Error('لا يوجد اتصال بالإنترنت — لم يتم تنفيذ العملية'));
       }
       if (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs && _lastReason !== 'timeout') {
-        showModal('locked', 'blocked', true);
         return Promise.reject(new Error('الاتصال بقاعدة البيانات منقطع — لم يتم تنفيذ العملية'));
       }
       sbKey = sbKeyOf(sbw, url, init && init.body);
@@ -13317,40 +12272,11 @@ global.fetch = function (input, init) {
       _inflight[sbKey] = true;
     }
 
-    if (isWrite) {
-      /* ١. بوابات الحجب الفورية */
-      if (!navigator.onLine) {
-        showModal('offline', 'blocked');
-        return Promise.reject(new Error('لا يوجد اتصال بالإنترنت — لم يتم تنفيذ العملية'));
-      }
- 
-      if (_lastFailAt && (now() - _lastFailAt) < CFG.failLockMs && _lastReason !== 'timeout') {
-        showModal('locked', 'blocked');
-        return Promise.reject(new Error('الاتصال بقاعدة البيانات منقطع — لم يتم تنفيذ العملية'));
-      }
-
-      /* ٢. بصمة المحتوى + منع الطلب المتزامن المكرر */
-      opId = ngHash(bodyStr);
-      if (_inflight[opId]) {
-        toast('⏳ نفس العملية قيد التنفيذ — انتظر النتيجة', 'warning');
-        return Promise.reject(new Error('العملية قيد التنفيذ بالفعل'));
-      }
-
-      /* ٣. حقن opId في جسم الطلب */
-      try {
-        var o = JSON.parse(bodyStr);
-        o.opId = opId;
-        init = Object.assign({}, init, { body: JSON.stringify(o) });
-        _inflight[opId] = true;
-      } catch (e) { opId = ''; }
-    }
-
     function release() {
-      if (opId)  delete _inflight[opId];
       if (sbKey) delete _inflight[sbKey];
     }
     var t0 = now();
-    var limit = (isWrite || sbw) ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
+    var limit = sbw ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
     return fetchTimed(input, init, limit).then(function (r) {
       release();
       var ms = now() - t0;
@@ -13359,12 +12285,11 @@ global.fetch = function (input, init) {
            يعالجها الجسر نفسه — الاتصال سليم فلا حجب ولا تنبيه */
         if (isSb && r.status < 500) { markSuccess(ms, silent); return r; }
         markFailure('http-' + r.status);
-        if (isWrite || sbw) showModal('http-' + r.status, 'failed', !!sbw);
+        if (sbw) showModal('http-' + r.status, 'failed');
         else if (!silent) toast('❌ الخادم أعاد خطأ ' + r.status, 'error');
         return r;
       }
       markSuccess(ms, silent);
-      if (isWrite) ngWatchDedup(r);
       return r;
     }).catch(function (e) {
       release();
@@ -13372,7 +12297,7 @@ global.fetch = function (input, init) {
       var reason  = aborted ? 'timeout' : (navigator.onLine ? 'network' : 'offline');
       markFailure(reason);
 
-      if (isWrite || sbw) showModal(reason, 'failed', !!sbw);
+if (sbw) showModal(reason, 'failed');
       else if (!silent) {
         toast(aborted ? '⏱️ انتهت مهلة الاتصال بالخادم'
                       : '❌ انقطع الاتصال بالخادم', 'error');
@@ -13405,16 +12330,13 @@ global.fetch = function (input, init) {
   /* ════════════════════════════════════════════════════════════════════
    الجسر الوسيط — سجل المربي على Supabase
    ────────────────────────────────────────────────────────────────────
-   يعترض bd_callApi فقط. بقية الصفحات تبقى على Apps Script بلا تغيير.
-   للرجوع إلى الوضع السابق: اجعل USE_SUPABASE = false.
+ 
    ════════════════════════════════════════════════════════════════════ */
 
 (function (global) {
   "use strict";
 
   /* ══ الإعدادات — املأ الثلاثة أسطر التالية ══════════════════════ */
-
-  var USE_SUPABASE = true;
 
   var SUPABASE_URL      = "https://dlivsidtmmtvrqhtxmlu.supabase.co";   // Project URL   من Settings ← API
   var SUPABASE_ANON_KEY = "sb_publishable_V6SFHbK9hmB7C9TeUk9MSA_my2Wauec";   // anon public   من Settings ← API
@@ -13430,8 +12352,7 @@ global.fetch = function (input, init) {
     "bd_getPhoneNumbers", "bd_getRegionOptions", "bd_getDataEntryOptions",
     "bd_searchBreeders",  "bd_searchCaseData",   "bd_getAllBreeders",
     "bd_saveData",        "bd_updateData",       "bd_deleteData",
-    "bd_updatePossessionInTreatment",
-    "bd_saveVaccinationData", "bd_updateVaccinationData", "bd_deleteVaccinationData"
+      "bd_updatePossessionInTreatment"
   ];
 
   /* ── أدوات ────────────────────────────────────────────────────── */
@@ -13657,12 +12578,21 @@ global.fetch = function (input, init) {
       var q = txt(payload.searchText);
       if (!q) return Promise.resolve({ success: true, data: [] });
 
-      var like = "%" + q + "%";
-      return sb.from("breeders").select(SELECT_COLS)
-        .eq("wilayat_id", me.wilayat_id)
-        .or("phone.ilike." + like + ",name.ilike." + like +
-            ",civil_id.ilike." + like + ",possession_no.ilike." + like)
-        .limit(200)
+           var like = "%" + q + "%";
+      /* المنطقة في جدول منفصل: نجلب معرّفات المناطق المطابقة أولاً */
+      return sb.from("regions").select("id")
+        .eq("wilayat_id", me.wilayat_id).ilike("name", like)
+        .then(function (rg) {
+          if (rg.error) throw rg.error;
+          var ids = (rg.data || []).map(function (x) { return x.id; });
+          var cond = "phone.ilike." + like + ",name.ilike." + like +
+                     ",civil_id.ilike." + like + ",possession_no.ilike." + like;
+          if (ids.length) cond += ",region_id.in.(" + ids.join(",") + ")";
+          return sb.from("breeders").select(SELECT_COLS)
+            .eq("wilayat_id", me.wilayat_id)
+            .or(cond)
+            .limit(200);
+        })
         .then(function (r) {
           if (r.error) throw r.error;
 
@@ -13722,31 +12652,35 @@ global.fetch = function (input, init) {
     }
 
      /* ١٠) تحديث رقم الحيازة في جميع حالات العلاج لهذا المربي */
-    if (action === "bd_updatePossessionInTreatment") {
+        if (action === "bd_updatePossessionInTreatment") {
       var poss = strip(payload.possession);
+      var nowTs = new Date().toISOString();
       return sb.from("breeders").select("id").eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
-          return sb.from("treatment_cases")
-            .update({ possession_no_snapshot: poss,
-                      updated_by: me.id,
-                      updated_at: new Date().toISOString() })
-            .eq("breeder_id", r.data.id).select("id")
+          var bid = r.data.id;
+                    /* ١) سجل المربي — الحيازة + تاريخ انتهائها (إن أُدخل) */
+          var bRow = { possession_no: poss, updated_by: me.id, updated_at: nowTs };
+          var exp  = asDate(payload.financialDate);
+          if (exp) bRow.holding_expiry = exp;
+          return sb.from("breeders")
+            .update(bRow)
+            .eq("id", bid)
+            .then(function (b) {
+              if (b.error) throw b.error;
+              /* ٢) جميع حالات العلاج لهذا المربي */
+              return sb.from("treatment_cases")
+                .update({ possession_no_snapshot: poss, updated_by: me.id, updated_at: nowTs })
+                .eq("breeder_id", bid).select("id");
+            })
             .then(function (u) {
               if (u.error) throw u.error;
               return { success: true, updatedCount: (u.data || []).length };
             });
         });
     }
-
-    /* ١١) طلبات التحصين — لم يُنقل جدولها بعد */
-    if (action.indexOf("bd_") === 0 && action.indexOf("Vaccination") > 0) {
-      return Promise.resolve({
-        success: false,
-        message: "سجل طلبات التحصين لم يُنقل بعد إلى قاعدة البيانات الجديدة"
-      });
-    }
+   
 
     return Promise.resolve({ success: false, message: "إجراء غير معروف: " + action });
   }
@@ -13754,16 +12688,9 @@ global.fetch = function (input, init) {
   /* ── الاعتراض ────────────────────────────────────────────────── */
 
   function patch() {
-    if (!USE_SUPABASE) { log("معطَّل — يعمل على Apps Script"); return; }
     if (typeof global.bd_callApi !== "function") { setTimeout(patch, 400); return; }
     if (global.bd_callApi._sbPatch) return;
 
-    /* الكاش يلتف على bd_callApi أيضاً — يُعطَّل أثناء التجربة */
-        try { localStorage.setItem("breeder_cache_enabled", "false"); } catch (e) {}
-    try {
-      if (global.BreederCache && global.BreederCache.getState().enabled)
-        global.BreederCache.onToggle(false);
-    } catch (e) {}
 
     global.bd_callApi = async function (action, payload) {
       if (HANDLED.indexOf(action) === -1)
@@ -13809,11 +12736,6 @@ reset: function () { ready = null; me = null; global._sbProfile = null; },
     get me() { return me; }
   };
 
-  /* للفحص من Console */
-  global.SBBreeders = {
-    status: function () { return { enabled: USE_SUPABASE, profile: me }; },
-    connect: init
-  };
 
 })(window);
   </script>
@@ -13828,8 +12750,6 @@ reset: function () { ready = null; me = null; global._sbProfile = null; },
 
 (function (global) {
   "use strict";
-
-  var USE_SUPABASE = true;
 
   var sb = null, me = null, ready = null;
   var unknown = {};   /* إجراءات لم يغطها الجسر بعد */
@@ -14275,14 +13195,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
       });
   }
 
-  /* ٧) رقم الحالة التالي */
-  function nextCaseNo() {
-    return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
-      .then(function (r) {
-        if (r.error) throw r.error;
-        return { success: true, caseNumber: r.data, nextNumber: r.data };
-      });
-  }
+
 
   /* ٨) القوائم المنسدلة */
 function names(table, col, filterWilayat) {
@@ -14454,24 +13367,14 @@ function names(table, col, filterWilayat) {
       });
     },
     deletedata:          function (p) { return deleteCase(p); },
-    searchcasedata:      function (p) { return getCase(p); },
-    getcasedata:         function (p) { return getCase(p); },
+      searchcasedata:      function (p) { return getCase(p); },
     getbreederdata:      function (p) { return breederInfo(p); },
     getunpaidcasescount: function (p) { return unpaidCount(p); },
-    loaddata:            function (p) { return dailyLog(p); },
     getaaadata:          function (p) { return dailyLog(p); },
-    getdailydata:        function (p) { return dailyLog(p); },
     getincompletecount:  function ()  { return incompleteCount(); },
-    loadincompletecount: function ()  { return incompleteCount(); },
-    getnextcasenumber:   function ()  { return nextCaseNo(); },
-    getlastcasenumber:   function ()  { return nextCaseNo(); },
-    getdiseaselist:      function ()  { return names("diseases", "name"); },
     getdiseases:         function ()  { return names("diseases", "name"); },
-    getdruglist:         function ()  { return names("drugs", "name"); },
     getdrugs:            function ()  { return names("drugs", "name"); },
-    gettreatmentplacelist: function () { return names("treatment_places", "name"); },
     getphonenumbers:     function ()  { return names("breeders", "phone", true); },
-    getdataentrylist:    function ()  { return names("profiles", "full_name", true); },
     getdataentryoptions: function ()  { return names("profiles", "full_name", true); },
     getincompletecases:     function ()  { return incompleteCases(); },
     searchintreatmentsheet: function (p) { return searchCases(p); },
@@ -14479,15 +13382,9 @@ function names(table, col, filterWilayat) {
   };
 
   function patch() {
-    if (!USE_SUPABASE) { log("معطَّل"); return; }
     if (typeof global.trcallApi !== "function") { setTimeout(patch, 400); return; }
     if (global.trcallApi._sbPatch) return;
 
-    /* الكاش يلتف على نفس الدالة */
-    try {
-      if (global.TreatmentCache && global.TreatmentCache.unpatchApi)
-        global.TreatmentCache.unpatchApi();
-    } catch (e) {}
 
     global.trcallApi = async function (action, payload) {
       var k = key(action);
@@ -14516,7 +13413,6 @@ function names(table, col, filterWilayat) {
   else global.addEventListener("load", function () { setTimeout(patch, 1000); });
 
   global.SBTreatment = {
-    unknownActions: function () { return Object.keys(unknown); },
     clearCache: function () {
       cache = { species: null, places: null, diseases: null, drugs: null, regions: null };
     }
@@ -14532,7 +13428,6 @@ function names(table, col, filterWilayat) {
 (function (global) {
   "use strict";
 
-  var USE_SUPABASE = true;
   var sb = null, me = null, ready = null;
 
   function log(m) { console.log("[SB-VaccReq] " + m); }
@@ -14607,7 +13502,6 @@ function names(table, col, filterWilayat) {
   }
 
   function patch() {
-    if (!USE_SUPABASE) { log("معطَّل"); return; }
     if (typeof global.vr_callApi !== "function") { setTimeout(patch, 400); return; }
     if (global.vr_callApi._sbPatch) return;
 
@@ -14646,14 +13540,12 @@ function names(table, col, filterWilayat) {
 (function (global) {
   "use strict";
 
-  var USE_SUPABASE = true;
 
   var sb = null, me = null, ready = null;
   var unknown = {};
 
   /* ── خرائط ثابتة ─────────────────────────────────────────────── */
-  var VT = { intox: 1, pock: 2, fmd: 3, lumpy: 4, rabies: 5 };
-  var SP = { goat: 1, sheep: 2, cow: 3, camel: 4, horse: 5 };
+  
   var SP_NAME = { 1: "ماعز", 2: "أغنام", 3: "أبقار", 4: "جمال", 5: "خيول" };
 
   /* حقول النموذج المسموحة: اسم الحقل -> [vaccine_type_id, species_id] */
@@ -15073,7 +13965,6 @@ function names(table, col, filterWilayat) {
   };
 
   function patch() {
-    if (!USE_SUPABASE) { log("معطَّل"); return; }
     if (typeof global.vaccCallApi !== "function") { setTimeout(patch, 400); return; }
     if (global.vaccCallApi._sbPatch) return;
 
@@ -15102,10 +13993,6 @@ function names(table, col, filterWilayat) {
   patch();
   if (document.readyState === "complete") setTimeout(patch, 1000);
   else global.addEventListener("load", function () { setTimeout(patch, 1000); });
-
-  global.SBVaccination = {
-    unknownActions: function () { return Object.keys(unknown); }
-  };
 
 })(window);
 </script>
@@ -15231,7 +14118,7 @@ function names(table, col, filterWilayat) {
         });
       });
       return { success: true, monthly: monthly, byAnimal: byAnimal,
-               byRegion: byRegion, rawRows: [] };
+               byRegion: byRegion };
     });
   }
 
@@ -15719,7 +14606,6 @@ function names(table, col, filterWilayat) {
   function patch() {
     var ok = [
       wrap("ani_callApi", { getVaccinationByRegion: byRegion }, false),
-      /* getVaccCampaign يُعترض لاحقاً في جسر العينات (patchRpt) */
       wrap("rpt_callApi", { getReportData: report }, false),
       patchDp()
     ];
@@ -15837,7 +14723,7 @@ function names(table, col, filterWilayat) {
   }
 
   /* أسماء ← معرّفات، مع إنشاء الناقص */
-  function idsFor(key, table, names, allowCreate) {
+function idsFor(key, table, names) {
     var want = [];
     names.forEach(function (n) { n = txt(n); if (n && want.indexOf(n) === -1) want.push(n); });
     if (!want.length) return Promise.resolve({});
@@ -15846,17 +14732,7 @@ function names(table, col, filterWilayat) {
       rows.forEach(function (x) { map[txt(x.name)] = x.id; });
       var missing = want.filter(function (n) { return !map[n]; });
       if (!missing.length) return map;
-      if (!allowCreate)
-        throw new Error("غير موجود في القائمة المعتمدة: " + missing.join("، "));
-      return sb.from(table).insert(missing.map(function (n) { return { name: n }; }))
-        .select("id, name").then(function (r) {
-          if (r.error) {
-            log("⚠️ تعذّر إضافة (" + missing.join("، ") + ") إلى " + table + ": " + r.error.message);
-            return map;
-          }
-          (r.data || []).forEach(function (x) { map[txt(x.name)] = x.id; rows.push(x); });
-          return map;
-        });
+         throw new Error("غير موجود في القائمة المعتمدة: " + missing.join("، "));
     });
   }
 
@@ -15989,7 +14865,7 @@ function names(table, col, filterWilayat) {
   }
 
   /* بناء صفوف الأبناء. keep: تواريخ النتائج السابقة | noDate: للترحيل */
-  function childRows(sampleId, d, tm, sm, keep, noDate) {
+function childRows(sampleId, d, tm, sm, keep) {
     var tests = [], types = [], seen = {};
     testPairs(d).forEach(function (p) {
       var id = tm[p.name];
@@ -15997,7 +14873,7 @@ function names(table, col, filterWilayat) {
       var key = id + "|" + (p.result || "");
       tests.push({
         sample_id: sampleId, test_id: id, result: p.result,
-        result_on: (!p.result || noDate) ? null : ((keep && keep[key]) || today())
+        result_on: !p.result ? null : ((keep && keep[key]) || today())
       });
     });
     typeNames(d).forEach(function (n) {
@@ -16010,7 +14886,7 @@ function names(table, col, filterWilayat) {
   async function writeChildren(sampleId, d, keep) {
     var tm = await idsFor("tests",  "lab_tests",    testPairs(d).map(function (p) { return p.name; }));
     var sm = await idsFor("stypes", "sample_types", typeNames(d));
-    var c  = childRows(sampleId, d, tm, sm, keep, false);
+    var c  = childRows(sampleId, d, tm, sm, keep);
     if (c.tests.length) { var a = await sb.from("sample_tests").insert(c.tests);          if (a.error) throw a.error; }
     if (c.types.length) { var b = await sb.from("sample_specimen_types").insert(c.types); if (b.error) throw b.error; }
   }
@@ -16319,7 +15195,7 @@ function names(table, col, filterWilayat) {
      الاعتراض
      soft = true → الخطأ يُعاد كـ {success:false} بدل رميه
      ════════════════════════════════════════════════════════════ */
-  function route(name, routes, keepKey, soft) {
+function route(name, routes, soft) {
     var fn = g[name];
     if (typeof fn !== "function") return false;
     if (fn._sbPatch) return true;
@@ -16338,18 +15214,6 @@ function names(table, col, filterWilayat) {
     };
     g[name]._sbPatch = true;
     log("✅ " + name + " موصول بـ Supabase");
-    return true;
-  }
-
-  function patchRpt() {
-    var fn = g.rpt_callApi;
-    if (typeof fn !== "function") return false;
-    if (fn._campPatch) return true;
-    g.rpt_callApi = async function (action, payload) {
-      if (action === "getVaccCampaign") { await init(); return await campGet(); }
-      return fn.apply(this, arguments);
-    };
-    g.rpt_callApi._campPatch = true;
     return true;
   }
 
@@ -16377,10 +15241,9 @@ function names(table, col, filterWilayat) {
 
   function patch() {
     var ok = [
-      route("focallApi", FO, "fo", true),
+      route("focallApi", FO, true),
       route("db_call",   { searchSampleData: printData }),
-      route("camp_api",  { getVaccCampaign: campGet, saveVaccCampaign: campSave }, "camp", true),
-      patchRpt(),
+      route("camp_api",  { getVaccCampaign: campGet, saveVaccCampaign: campSave }, true),
       patchBd(),
       replaceStaticLists()
     ];
