@@ -799,6 +799,35 @@ input, select, textarea {
 .overdue-footer button{padding:9px 28px;border:none;border-radius:30px;font-size:.9rem;font-weight:bold;cursor:pointer}
 .overdue-footer .btn-close{background:#e65050;color:#fff}
 .overdue-footer .btn-dismiss{background:#95a5a6;color:#fff}
+
+/* ===== القائمة الجانبية المنبثقة ===== */
+body { padding-top: 62px; }
+nav {
+  position: fixed; top: 0; right: 0; height: 100vh; width: 270px;
+  padding: 70px 12px 20px; white-space: normal; overflow-y: auto;
+  transform: translateX(105%); transition: transform .35s cubic-bezier(.4,0,.2,1);
+  z-index: 10001; box-shadow: -10px 0 35px rgba(0,0,0,.4);
+  border-radius: 18px 0 0 18px;
+}
+nav::before {
+  content: '🏥 القائمة الرئيسية'; position: absolute; top: 22px; right: 18px;
+  color: #00d4f5; font-weight: bold; font-size: 15px;
+}
+body.nav-open nav { transform: translateX(0); }
+nav button { width: calc(100% - 10px); text-align: right; margin: 4px 5px; }
+nav button:hover { transform: translateX(-4px); }
+nav button.nav-active { transform: translateX(-6px) scale(1.02) !important; }
+#navToggle {
+  position: fixed; top: 12px; right: 12px; z-index: 1500;
+  background: #000; color: #fff; border: 2px solid #00b8d9; border-radius: 30px;
+  padding: 9px 20px; font-size: 14px; box-shadow: 0 4px 14px rgba(0,184,217,.35);
+}
+#navBackdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 10000;
+}
+body.nav-open #navBackdrop { opacity: 1; pointer-events: auto; }
+@media print { #navToggle, #navBackdrop { display: none !important; } body { padding-top: 0 !important; } }
 </style>
 <base target="_blank">
 </head>
@@ -931,6 +960,8 @@ window.showToast = function(message, type) {
   </div>
 </div>
 <!-- القائمة -->
+<button id="navToggle" onclick="navToggle()">☰ <span id="navCurrent">تسجيل الدخول</span></button>
+<div id="navBackdrop" onclick="navToggle(false)"></div>
 <nav>
 <button onclick="showPage('login')" title="تسجيل الدخول" aria-label="تسجيل الدخول" style="padding:5px 9px;line-height:0;vertical-align:middle;">
 <svg width="22" height="22" viewBox="0 0 100 100" style="display:block;"><rect x="4" y="4" width="92" height="92" rx="22" fill="#ef3b3b" stroke="#b52b2b" stroke-width="5"/>
@@ -948,8 +979,23 @@ window.showToast = function(message, type) {
   <button onclick="showPage('dashboard')">🖨️طباعة نماذج العينات</button>
   <button onclick="showPage('comprehensiveReport')">📊التقرير الشامل</button>
     <button onclick="showPage('doctorPerformance')">👨‍⚕️أداء الأطباء</button>
-  <button onclick="showPage('home')">⚙️الإعدادات</button>
-</nav>
+  <button onclick="showPage('userAdmin')">🛡️إدارة النظام</button>
+  <button onclick="showPage('home')">⚙️الإعدادات</button></nav>
+<script>
+function navToggle(force) {
+  var open = (typeof force === 'boolean') ? force : !document.body.classList.contains('nav-open');
+  document.body.classList.toggle('nav-open', open);
+}
+function navSetLabel() {
+  var a = document.querySelector('nav button.nav-active');
+  var t = a ? a.textContent.trim() : '';
+  document.getElementById('navCurrent').textContent = t || 'تسجيل الدخول';
+}
+document.querySelector('nav').addEventListener('click', function (e) {
+  if (e.target.closest('button')) setTimeout(function () { navToggle(false); navSetLabel(); }, 60);
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') navToggle(false); });
+</script>
 
 <!-- دالة التنقل المركزية -->
 <script>
@@ -969,7 +1015,7 @@ function showPage(pageId) {
   }
   // التحقق من الصلاحيات
   if (window._isLoggedIn && window._userAllowedPages && publicPages.indexOf(pageId) === -1) {
-    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home') {
+    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home' && pageId !== 'userAdmin') {
       showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
       return;
     }
@@ -989,9 +1035,10 @@ function showPage(pageId) {
 
   // ثم إضافة التأثير للزر النشط (إذا كان مرئياً)
   var activeBtn = document.querySelector('nav button[onclick="showPage(\'' + pageId + '\')"]');
-  if (activeBtn && activeBtn.style.display !== 'none') {
+   if (activeBtn && activeBtn.style.display !== 'none') {
     activeBtn.classList.add("nav-active");
   }
+  if (typeof navSetLabel === 'function') navSetLabel();
 
   // باقي الكود كما هو (فحص العينات المتأخرة، تهيئة الصفحات)
   var excludedPages = ['login', 'settings', 'home'];
@@ -1021,6 +1068,7 @@ function showPage(pageId) {
     window._vrInitialized = true;
     if (typeof vr_loadData === 'function') vr_loadData();
   }
+  if (pageId === 'userAdmin' && typeof ua_init === 'function') ua_init();
 }
   function resetAllPagesData() {
   // مسح جدول العلاج اليومي
@@ -1733,9 +1781,23 @@ function clinicInfoRefresh() {
   var el = document.getElementById('clinicInfoName');
   if (!el) return;
   var p = window._sbProfile;
-  el.textContent = (p && p.wilayat && p.wilayat.name) ? p.wilayat.name : '—';
-}
+  var clinicName = (p && p.wilayat && p.wilayat.name) ? String(p.wilayat.name).trim() : '';
 
+  /* بطاقة العيادة الحالية — صفحة الإعدادات */
+  el.textContent = clinicName || '—';
+
+  /* شهادة التحصين — اسم الولاية */
+  var wEl = document.getElementById('set_clinicWilayat');
+  if (wEl) {
+    var wName = clinicName.replace(/^(العيادة البيطرية\s*(بولاية|بـ?)?|عيادة|ولاية)\s*/, '').trim();
+    wEl.value = wName;
+    wEl.style.width = Math.max(60, wName.length * 12) + 'px';
+  }
+
+  /* طباعة نماذج العينات — المحافظة / الولاية / العيادة */
+  var dbGov = document.getElementById('db_governorate');
+  if (dbGov) dbGov.value = clinicName;
+}
 </script>
   <!-- زر المظهر مستقل عن نظام التبويبات -->
   <div style="padding:15px 0;">
@@ -1785,6 +1847,507 @@ function clinicInfoRefresh() {
     </div>
   </div>
   </div>
+<!-- ===================================================
+     صفحة إدارة النظام — لمدير النظام فقط
+     =================================================== -->
+<div id="userAdmin" class="page">
+<style>
+#userAdmin .ua-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+#userAdmin .ua-bar input,#userAdmin .ua-bar select{padding:6px 8px;border:2px solid #00b8d9;border-radius:4px;font-family:inherit}
+.ua-st{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:bold;color:#fff}
+.ua-modal .modal-box{max-width:720px;text-align:right;max-height:90vh;overflow-y:auto}
+.ua-modal h4{background:#e0f7fc;color:#004e66;padding:6px 10px;border-radius:5px;margin:14px 0 8px;font-size:13px}
+.ua-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px 12px}
+.ua-grid label,.ua-inline label{display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer}
+.ua-inline{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.ua-modal select,.ua-modal input[type=datetime-local]{padding:6px 8px;border:2px solid #ddd;border-radius:4px;font-family:inherit}
+@media(max-width:650px){.ua-grid{grid-template-columns:1fr 1fr}}
+</style>
+
+<div class="card">
+  <h3>🛡️ إدارة المستخدمين</h3>
+  <div class="ua-bar">
+    <input id="ua_q" placeholder="بحث بالاسم أو اسم المستخدم..." oninput="ua_render()" style="width:230px">
+    <select id="ua_fClinic" onchange="ua_render()"><option value="">كل العيادات</option></select>
+    <select id="ua_fStatus" onchange="ua_render()">
+      <option value="">كل الحالات</option><option value="active">نشط</option>
+      <option value="susp">موقوف مؤقتاً</option><option value="closed">مغلق</option>
+    </select>
+    <button class="save" onclick="ua_new()">➕ مستخدم جديد</button>
+    <button class="update" onclick="ua_load()">🔄 تحديث</button>
+    <span id="ua_count" style="font-weight:bold;color:#004e66"></span>
+  </div>
+  <div class="table-container" style="max-height:60vh">
+    <table><thead><tr>
+      <th>الاسم</th><th>اسم المستخدم</th><th>الوظيفة</th><th>العيادة</th>
+      <th>الصفحات</th><th>الإجراءات</th><th>الحالة</th><th>آخر دخول</th><th></th>
+    </tr></thead><tbody id="ua_tb"></tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>📅 الحملة الوطنية للتحصين</h3>
+  <div class="ua-bar">
+    <label>من:</label><input type="date" id="ua_cFrom" onchange="ua_calcDays()">
+    <label>إلى:</label><input type="date" id="ua_cTo" onchange="ua_calcDays()">
+    <label>أيام العمل:</label><input type="number" id="ua_cDays" min="1" style="width:90px">
+    <span style="font-size:11px;color:#777">تُحسب تلقائياً دون الجمعة والسبت، ويمكن تعديلها يدوياً</span>
+  </div>
+  <table><thead><tr><th>العيادة</th><th>الحملة الحالية</th><th>العدد المستهدف</th></tr></thead>
+    <tbody id="ua_cTb"></tbody></table>
+  <div class="btns" style="margin-top:10px">
+    <button class="save" onclick="ua_saveCampaign()">💾 تطبيق على جميع العيادات</button>
+  </div>
+</div>
+
+<script>
+var ua_users = [], ua_clinics = [];
+
+function ua_esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function ua_split(v) { return String(v || '').toLowerCase().split(/[,،\s]+/).filter(Boolean); }
+function ua_fmt(d) {
+  if (!d) return '—';
+  var x = new Date(d);
+  return isNaN(x) ? '—' : x.toLocaleString('ar-OM', { dateStyle: 'short', timeStyle: 'short' });
+}
+function ua_localInput(iso) {
+  var d = new Date(iso); if (isNaN(d)) return '';
+  var p = function (n) { return ('0' + n).slice(-2); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+         'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function ua_status(u) {
+  if (u.is_active === false) return { k: 'closed', t: 'مغلق', c: '#e65050' };
+  if (u.suspended_until && new Date(u.suspended_until) > new Date())
+    return { k: 'susp', t: 'موقوف حتى ' + ua_fmt(u.suspended_until), c: '#e67e22' };
+  return { k: 'active', t: 'نشط', c: '#2bb673' };
+}
+function ua_sb() { return window.SBAuth.client(); }
+
+/* استدعاء إداري مع التحقق من الجلسة وتجديدها عند الحاجة */
+async function ua_rpc(fn, args) {
+  try {
+    var sb = await ua_sb();
+    var s = await sb.auth.getSession();
+    if (!s.data || !s.data.session) {
+      var rf = await sb.auth.refreshSession();
+      if (rf.error || !rf.data || !rf.data.session)
+        return { error: { message: 'انتهت الجلسة — سجّل الخروج ثم ادخل من جديد' } };
+    }
+     var r = await sb.rpc(fn, args);
+    if (r.error && /غير مصرح/.test(r.error.message || '')) {
+      await sb.auth.refreshSession();
+      r = await sb.rpc(fn, args);
+      if (r.error && /غير مصرح/.test(r.error.message || '')) {
+        var w = await sb.rpc('app_whoami');
+        var i = (w && w.data) || {};
+        console.warn('[UA] غير مصرح — تشخيص:', i, w && w.error);
+        var why = !i.uid      ? 'الطلب وصل للخادم بلا جلسة دخول'
+                : !i.found    ? 'لا يوجد ملف شخصي لحسابك'
+                : !i.is_admin ? 'حسابك غير مسجَّل كمدير في قاعدة البيانات'
+                : !i.active   ? 'حسابك موقوف أو مغلق'
+                : 'سبب غير معروف';
+        r.error = { message: 'غير مصرح — ' + why };
+      }
+    }
+    return r;
+  } catch (e) {
+    return { error: { message: (e && e.message) || String(e) } };
+  }
+}
+
+var ua_roles = null;
+
+/* استدعاء خدمة إدارة الحسابات — يُرجع كائناً فيه error نصي عند الفشل */
+async function ua_fn(body) {
+  try {
+    var sb = await ua_sb();
+    await sb.auth.getSession();
+    var r = await sb.functions.invoke('admin-users', { body: body });
+    if (r.error) return { error: r.error.message || 'تعذّر الاتصال بخدمة المستخدمين' };
+    return r.data || {};
+  } catch (e) { return { error: (e && e.message) || String(e) }; }
+}
+
+/* نافذة تأكيد أو إدخال — لا تغلق نافذة التعديل التي تحتها */
+function ua_dialog(o) {
+  return new Promise(function (resolve) {
+    var d = document.createElement('div');
+    d.className = 'custom-modal';
+    d.style.zIndex = '3000';
+    d.innerHTML =
+      '<div class="modal-box"><h3>' + o.title + '</h3>' +
+        '<div style="font-size:14px;color:#333;margin-bottom:14px;line-height:1.8">' + (o.msg || '') + '</div>' +
+        (o.input ? '<input id="ua_dlgIn" type="' + o.input + '" placeholder="' + (o.ph || '') + '" ' +
+          'style="width:100%;padding:8px;border:2px solid #00b8d9;border-radius:5px;margin-bottom:14px;font-family:inherit">' : '') +
+        '<div class="modal-buttons">' +
+          '<button class="confirm-btn" id="ua_dlgOk"' + (o.danger ? ' style="background:#e65050"' : '') + '>' + (o.ok || 'موافق') + '</button>' +
+          '<button class="cancel-btn" id="ua_dlgNo" style="background:#95a5a6">إلغاء</button>' +
+        '</div></div>';
+    document.body.appendChild(d);
+    var inp = d.querySelector('#ua_dlgIn');
+    if (inp) inp.focus();
+    d.querySelector('#ua_dlgOk').onclick = function () { var v = inp ? inp.value : true; d.remove(); resolve(v); };
+    d.querySelector('#ua_dlgNo').onclick = function () { d.remove(); resolve(null); };
+  });
+}
+
+function ua_fld(label, id, type) {
+  return '<div><div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#004e66">' + label + '</div>' +
+         '<input id="' + id + '" type="' + type + '" autocomplete="new-password" ' +
+         'style="width:100%;padding:7px 9px;border:2px solid #ddd;border-radius:4px;font-family:inherit"></div>';
+}
+
+/* ── إنشاء مستخدم جديد ── */
+async function ua_new() {
+  if (!ua_roles) {
+    var rr = await ua_fn({ action: 'roles' });
+    if (rr.error) { showToast('❌ ' + rr.error, 'error'); return; }
+    ua_roles = rr.roles || [];
+  }
+  var wOpts = '<option value="">— اختر العيادة —</option>' + ua_clinics.map(function (c) {
+    return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
+  }).join('');
+  var rOpts = '<option value="">— اختر الدور —</option>' + ua_roles.map(function (r) {
+    return '<option value="' + ua_esc(r) + '">' + ua_esc(r) + '</option>';
+  }).join('');
+
+  var m = document.createElement('div');
+  m.className = 'custom-modal ua-modal';
+  m.innerHTML =
+    '<div class="modal-box"><h3>➕ مستخدم جديد</h3>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        ua_fld('الاسم الكامل', 'ua_nName', 'text') +
+        ua_fld('اسم المستخدم (للدخول)', 'ua_nUser', 'text') +
+        ua_fld('المسمى الوظيفي', 'ua_nJob', 'text') +
+        '<div><div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#004e66">الدور</div>' +
+          '<select id="ua_nRole" style="width:100%">' + rOpts + '</select></div>' +
+        ua_fld('كلمة المرور', 'ua_nPw', 'password') +
+        ua_fld('تأكيد كلمة المرور', 'ua_nPw2', 'password') +
+      '</div>' +
+      '<h4>🏥 النوع والعيادة</h4>' +
+      '<div class="ua-inline">' +
+        '<label><input type="radio" name="ua_nType" value="clinic" checked> مستخدم عيادة</label>' +
+        '<label><input type="radio" name="ua_nType" value="sup"> مشرف (كل العيادات)</label>' +
+        '<select id="ua_nWil">' + wOpts + '</select>' +
+      '</div>' +
+      '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px 10px;margin-top:14px;font-size:12px;color:#7f4f00">' +
+        'ℹ️ يُنشأ الحساب بكل الصفحات وبالإجراءات الافتراضية لدوره، ويمكنك تقييدها بعد ذلك من زر "تعديل".' +
+      '</div>' +
+      '<div class="modal-buttons" style="margin-top:14px">' +
+        '<button class="confirm-btn" id="ua_nSave">➕ إنشاء الحساب</button>' +
+        '<button class="cancel-btn" id="ua_nCancel">إلغاء</button>' +
+      '</div></div>';
+  document.body.appendChild(m);
+
+  function q(s) { return m.querySelector(s); }
+  function isSup() { return q('input[name=ua_nType]:checked').value === 'sup'; }
+  m.addEventListener('change', function () { q('#ua_nWil').disabled = isSup(); });
+  q('#ua_nCancel').onclick = function () { m.remove(); };
+
+  q('#ua_nSave').onclick = async function () {
+    var v = function (id) { return q('#' + id).value.trim(); };
+    var sup = isSup();
+    var body = {
+      action: 'create', full_name: v('ua_nName'), username: v('ua_nUser'),
+      job_title: v('ua_nJob'), role: v('ua_nRole'), is_supervisor: sup,
+      wilayat_id: sup ? null : (Number(v('ua_nWil')) || null), password: q('#ua_nPw').value
+    };
+    if (!body.full_name || !body.username) { showToast('⚠️ الاسم واسم المستخدم مطلوبان', 'warning'); return; }
+    if (!body.role)                        { showToast('⚠️ اختر الدور', 'warning'); return; }
+    if (!sup && !body.wilayat_id)          { showToast('⚠️ اختر العيادة', 'warning'); return; }
+    if (body.password.length < 6)          { showToast('⚠️ كلمة المرور 6 أحرف على الأقل', 'warning'); return; }
+    if (body.password !== q('#ua_nPw2').value) { showToast('⚠️ كلمتا المرور غير متطابقتين', 'warning'); return; }
+
+    var btn = q('#ua_nSave'); btn.disabled = true; btn.textContent = '⏳ جاري الإنشاء...';
+    var r = await ua_fn(body);
+    if (r.error) {
+      showToast('❌ ' + r.error, 'error');
+      btn.disabled = false; btn.textContent = '➕ إنشاء الحساب';
+      return;
+    }
+    showToast('✅ تم إنشاء حساب ' + body.full_name, 'success');
+    m.remove();
+    ua_load();
+  };
+}
+
+
+/* ── التهيئة ── */
+async function ua_init() {
+  if (!(window._sbProfile && window._sbProfile.is_admin)) return;
+  try {
+    var sb = await ua_sb();
+    var w = await sb.from('wilayat').select('id, name, is_central').order('name');
+    if (w.error) throw w.error;
+    ua_clinics = (w.data || []).filter(function (x) { return !x.is_central; });
+    document.getElementById('ua_fClinic').innerHTML =
+      '<option value="">كل العيادات</option><option value="sup">المشرفون والمدير</option>' +
+      ua_clinics.map(function (c) {
+        return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
+      }).join('');
+    await Promise.all([ua_load(), ua_loadCampaign()]);
+  } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
+}
+
+/* ── قائمة المستخدمين ── */
+async function ua_load() {
+  var tb = document.getElementById('ua_tb');
+  tb.innerHTML = '<tr><td colspan="9">⏳ جاري التحميل...</td></tr>';
+  var r = await ua_rpc('admin_list_users');
+  if (r.error) {
+    tb.innerHTML = '<tr><td colspan="9" style="color:red">' + ua_esc(r.error.message) + '</td></tr>';
+    return;
+  }
+  ua_users = r.data || [];
+  ua_render();
+}
+
+function ua_listLabel(v, allTxt) {
+  var n = ua_split(v).length;
+  return n ? n + ' محددة' : '<span style="color:#2bb673;font-weight:bold">' + allTxt + '</span>';
+}
+
+function ua_render() {
+  var q  = (document.getElementById('ua_q').value || '').trim().toLowerCase();
+  var fc = document.getElementById('ua_fClinic').value;
+  var fs = document.getElementById('ua_fStatus').value;
+
+  var rows = ua_users.filter(function (u) {
+    var sup = u.is_supervisor || u.is_admin;
+    if (q && ((u.full_name || '') + ' ' + (u.username || '')).toLowerCase().indexOf(q) === -1) return false;
+    if (fc === 'sup' && !sup) return false;
+    if (fc && fc !== 'sup' && (sup || String(u.wilayat_id) !== fc)) return false;
+    if (fs && ua_status(u).k !== fs) return false;
+    return true;
+  });
+
+  document.getElementById('ua_count').textContent = rows.length + ' مستخدم';
+  document.getElementById('ua_tb').innerHTML = rows.length ? rows.map(function (u) {
+    var st = ua_status(u), sup = u.is_supervisor || u.is_admin;
+    var place = u.is_admin ? '🛡️ مدير النظام' : (sup ? '⭐ مشرف' : ua_esc(u.wilayat_name || '—'));
+    return '<tr>' +
+      '<td class="nc">' + ua_esc(u.full_name) + '</td>' +
+      '<td>' + ua_esc(u.username) + '</td>' +
+      '<td>' + ua_esc(u.job_title) + '</td>' +
+      '<td>' + place + '</td>' +
+      '<td>' + ua_listLabel(u.allowed_pages, 'كل الصفحات') + '</td>' +
+      '<td>' + ua_listLabel(u.allowed_actions, sup ? 'كل الإجراءات' : 'حسب الدور') + '</td>' +
+      '<td><span class="ua-st" style="background:' + st.c + '">' + st.t + '</span></td>' +
+      '<td>' + ua_fmt(u.last_sign_in) + '</td>' +
+      '<td><button class="update" style="padding:4px 12px" onclick="ua_edit(\'' + u.id + '\')">✏️ تعديل</button></td>' +
+      '</tr>';
+  }).join('') : '<tr><td colspan="9" class="no-results">لا توجد نتائج</td></tr>';
+}
+
+/* ── نافذة التعديل ── */
+function ua_edit(id) {
+  var u = ua_users.filter(function (x) { return x.id === id; })[0];
+  if (!u) return;
+  var P = (window.PERM && PERM.pages) || [], A = (window.PERM && PERM.actions) || {};
+  var pSel = ua_split(u.allowed_pages), aSel = ua_split(u.allowed_actions);
+  var st = ua_status(u), isSelf = window._sbProfile && u.id === window._sbProfile.id;
+
+  var wOpts = '<option value="">— اختر العيادة —</option>' + ua_clinics.map(function (c) {
+    return '<option value="' + c.id + '"' + (String(c.id) === String(u.wilayat_id) ? ' selected' : '') +
+           '>' + ua_esc(c.name) + '</option>';
+  }).join('');
+  var pg = P.map(function (p) {
+    return '<label><input type="checkbox" class="ua_p" value="' + p.id + '"' +
+           (pSel.indexOf(p.id.toLowerCase()) !== -1 ? ' checked' : '') + '> ' + p.icon + ' ' + ua_esc(p.label) + '</label>';
+  }).join('');
+  var ac = Object.keys(A).map(function (k) {
+    return '<label><input type="checkbox" class="ua_a" value="' + k + '"' +
+           (aSel.indexOf(k) !== -1 ? ' checked' : '') + '> ' + ua_esc(A[k]) + '</label>';
+  }).join('');
+
+  var m = document.createElement('div');
+  m.className = 'custom-modal ua-modal';
+  m.innerHTML =
+    '<div class="modal-box">' +
+      '<h3>✏️ ' + ua_esc(u.full_name) + ' <small style="color:#888">(' + ua_esc(u.username) + ')</small></h3>' +
+
+      '<h4>🏥 النوع والعيادة</h4>' +
+      '<div class="ua-inline">' +
+        '<label><input type="radio" name="ua_type" value="clinic"' + (u.is_supervisor ? '' : ' checked') + '> مستخدم عيادة</label>' +
+        '<label><input type="radio" name="ua_type" value="sup"' + (u.is_supervisor ? ' checked' : '') + '> مشرف (كل العيادات)</label>' +
+        '<select id="ua_wil">' + wOpts + '</select>' +
+      '</div>' +
+
+      '<h4>📋 الصفحات</h4>' +
+      '<div class="ua-inline" style="margin-bottom:6px"><label><input type="checkbox" id="ua_pAll"' +
+        (pSel.length ? '' : ' checked') + '> <b>كل الصفحات</b></label></div>' +
+      '<div class="ua-grid">' + pg + '</div>' +
+
+      '<h4>⚡ الإجراءات</h4>' +
+      '<div class="ua-inline" style="margin-bottom:6px"><label><input type="checkbox" id="ua_aAll"' +
+        (aSel.length ? '' : ' checked') + '> <b>افتراضي</b> <span style="color:#777">(المشرف: الكل — مستخدم العيادة: حسب دوره)</span></label></div>' +
+      '<div class="ua-grid">' + ac + '</div>' +
+
+      '<h4>🔒 حالة الحساب</h4>' +
+      '<div class="ua-inline">' +
+        '<select id="ua_state"' + (isSelf ? ' disabled' : '') + '>' +
+          '<option value="active"' + (st.k === 'active' ? ' selected' : '') + '>نشط</option>' +
+          '<option value="susp"'   + (st.k === 'susp'   ? ' selected' : '') + '>موقوف مؤقتاً</option>' +
+          '<option value="closed"' + (st.k === 'closed' ? ' selected' : '') + '>مغلق</option>' +
+        '</select>' +
+        '<span id="ua_untilWrap">حتى: <input type="datetime-local" id="ua_until" value="' +
+          (u.suspended_until ? ua_localInput(u.suspended_until) : '') + '"></span>' +
+        (isSelf ? '<span style="color:#e67e22;font-size:12px">لا يمكنك إيقاف حسابك</span>' : '') +
+      '</div>' +
+
+      '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px 10px;margin-top:14px;font-size:12px;color:#7f4f00">' +
+        'ℹ️ الإيقاف والإغلاق يسريان فوراً. تغيير الصفحات والعيادة يظهر للمستخدم عند دخوله التالي.' +
+      '</div>' +
+
+      '<div class="modal-buttons" style="margin-top:14px">' +
+           '<button class="confirm-btn" id="ua_save">💾 حفظ</button>' +
+        '<button class="update" id="ua_pw" style="border-radius:5px">🔑 كلمة مرور جديدة</button>' +
+        (isSelf ? '' : '<button class="delete" id="ua_del" style="border-radius:5px">🗑️ حذف المستخدم</button>') +
+        '<button class="cancel-btn" id="ua_cancel">إلغاء</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(m);
+
+  function q(s) { return m.querySelector(s); }
+  function isSup() { return q('input[name=ua_type]:checked').value === 'sup'; }
+  function tog() {
+    q('#ua_wil').disabled = isSup();
+    m.querySelectorAll('.ua_p').forEach(function (c) { c.disabled = q('#ua_pAll').checked; });
+    m.querySelectorAll('.ua_a').forEach(function (c) { c.disabled = q('#ua_aAll').checked; });
+    q('#ua_untilWrap').style.display = q('#ua_state').value === 'susp' ? '' : 'none';
+  }
+  m.addEventListener('change', tog);
+  tog();
+  q('#ua_cancel').onclick = function () { m.remove(); };
+
+  q('#ua_pw').onclick = async function () {
+    var pw = await ua_dialog({
+      title: '🔑 كلمة مرور جديدة',
+      msg: 'للمستخدم: <b>' + ua_esc(u.full_name) + '</b>',
+      input: 'password', ph: '6 أحرف على الأقل', ok: 'تعيين'
+    });
+    if (pw === null) return;
+    if (String(pw).length < 6) { showToast('⚠️ كلمة المرور 6 أحرف على الأقل', 'warning'); return; }
+    var r = await ua_fn({ action: 'reset_password', user_id: u.id, password: pw });
+    if (r.error) { showToast('❌ ' + r.error, 'error'); return; }
+    showToast('✅ تم تعيين كلمة المرور — أبلغ المستخدم بها', 'success');
+  };
+
+  var delBtn = q('#ua_del');
+  if (delBtn) delBtn.onclick = async function () {
+    var ok = await ua_dialog({
+      title: '🗑️ حذف المستخدم',
+      msg: 'سيتم حذف حساب <b>' + ua_esc(u.full_name) + '</b> نهائياً ولا يمكن التراجع.<br>' +
+           'إذا كان له سجلات في النظام فلن يُحذف، واستخدم حالة (مغلق) بدلاً من ذلك.',
+      ok: 'نعم، احذف', danger: true
+    });
+    if (!ok) return;
+    showToast('⏳ جاري الحذف...', 'info');
+    var r = await ua_fn({ action: 'delete', user_id: u.id });
+    if (r.error) { showToast('❌ ' + r.error, 'error'); return; }
+    showToast('✅ تم حذف المستخدم', 'success');
+    m.remove();
+    ua_load();
+  };
+
+  q('#ua_save').onclick = async function () {
+    var sup = isSup();
+    var wil = sup ? null : (Number(q('#ua_wil').value) || null);
+    if (!sup && !wil) { showToast('⚠️ اختر عيادة المستخدم', 'warning'); return; }
+
+    var pages = q('#ua_pAll').checked ? '' :
+      [].map.call(m.querySelectorAll('.ua_p:checked'), function (c) { return c.value; }).join(',');
+    if (!q('#ua_pAll').checked && !pages) { showToast('⚠️ اختر صفحة واحدة على الأقل أو "كل الصفحات"', 'warning'); return; }
+
+    var actions = q('#ua_aAll').checked ? '' :
+      [].map.call(m.querySelectorAll('.ua_a:checked'), function (c) { return c.value; }).join(',');
+    if (!q('#ua_aAll').checked && !actions) { showToast('⚠️ اختر إجراءً واحداً على الأقل أو "افتراضي"', 'warning'); return; }
+
+    var state = q('#ua_state').value, active = state !== 'closed', until = null;
+    if (state === 'susp') {
+      var v = q('#ua_until').value;
+      if (!v) { showToast('⚠️ حدّد تاريخ انتهاء الإيقاف', 'warning'); return; }
+      if (new Date(v) <= new Date()) { showToast('⚠️ تاريخ انتهاء الإيقاف يجب أن يكون في المستقبل', 'warning'); return; }
+      until = new Date(v).toISOString();
+    }
+
+    var btn = q('#ua_save'); btn.disabled = true; btn.textContent = '⏳ جاري الحفظ...';
+    var r = await ua_rpc('admin_update_user', {
+      p_id: u.id, p_wilayat: wil, p_supervisor: sup,
+      p_pages: pages, p_actions: actions, p_active: active, p_until: until
+    });
+    if (r.error) {
+      showToast('❌ ' + r.error.message, 'error');
+      btn.disabled = false; btn.textContent = '💾 حفظ';
+      return;
+    }
+    showToast('✅ تم حفظ تعديلات ' + u.full_name, 'success');
+    m.remove();
+    ua_load();
+  };
+}
+
+/* ── الحملة الوطنية ── */
+function ua_calcDays() {
+  var f = document.getElementById('ua_cFrom').value, t = document.getElementById('ua_cTo').value;
+  if (f && t && typeof rptCamp_workDays === 'function' && typeof rptCamp_d === 'function')
+    document.getElementById('ua_cDays').value = rptCamp_workDays(rptCamp_d(f), rptCamp_d(t)) || '';
+}
+
+async function ua_loadCampaign() {
+  var sb = await ua_sb();
+  var r = await sb.from('vacc_campaigns')
+    .select('wilayat_id, date_from, date_to, work_days, target_count')
+    .eq('is_active', true).order('id', { ascending: false });
+  var cur = {};
+  (r.data || []).forEach(function (c) { if (!cur[c.wilayat_id]) cur[c.wilayat_id] = c; });
+
+  var any = (r.data || [])[0];
+  if (any) {
+    document.getElementById('ua_cFrom').value = any.date_from || '';
+    document.getElementById('ua_cTo').value   = any.date_to   || '';
+    document.getElementById('ua_cDays').value = any.work_days || '';
+  }
+
+  document.getElementById('ua_cTb').innerHTML = ua_clinics.map(function (c) {
+    var k = cur[c.id];
+    return '<tr><td class="nc">' + ua_esc(c.name) + '</td>' +
+      '<td>' + (k ? (k.date_from + ' → ' + k.date_to) : '<span style="color:#999">لا توجد</span>') + '</td>' +
+      '<td><input type="number" min="0" class="ua_tgt" data-w="' + c.id + '" value="' +
+        (k && k.target_count ? k.target_count : '') + '" style="width:130px;text-align:center"></td></tr>';
+  }).join('');
+}
+
+function ua_saveCampaign() {
+  var from = document.getElementById('ua_cFrom').value;
+  var to   = document.getElementById('ua_cTo').value;
+  var days = Number(document.getElementById('ua_cDays').value) || null;
+  if (!from || !to) { showToast('⚠️ حدّد تاريخ البداية والنهاية', 'warning'); return; }
+  if (from > to)    { showToast('⚠️ تاريخ البداية يجب أن يسبق تاريخ النهاية', 'warning'); return; }
+
+  var targets = {};
+  document.querySelectorAll('#ua_cTb .ua_tgt').forEach(function (i) {
+    if (i.value !== '') targets[i.dataset.w] = Number(i.value);
+  });
+
+  bd_showConfirm('سيتم تطبيق الحملة (' + from + ' → ' + to + ') على جميع العيادات، ' +
+                 'وتُحفظ الحملة الحالية في السجل. هل تريد المتابعة؟', async function () {
+    showToast('⏳ جاري تطبيق الحملة...', 'info');
+    var r = await ua_rpc('admin_set_campaign',
+      { p_from: from, p_to: to, p_days: days, p_targets: targets });
+    if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+    showToast('✅ تم تطبيق الحملة على جميع العيادات', 'success');
+    ua_loadCampaign();
+    if (typeof camp_load === 'function') camp_load(true);
+  });
+}
+</script>
+</div>
 
 <div id="login" class="page active">
 <style>
@@ -2300,22 +2863,44 @@ if (!u || !p) {
 
     var pr = await sb.from('profiles')
       .select('id, username, full_name, job_title, wilayat_id, role, ' +
-              'is_supervisor, allowed_pages, allowed_actions, ' +
+              'is_supervisor, is_admin, is_active, suspended_until, ' +
+              'allowed_pages, allowed_actions, ' +
               'wilayat:wilayat_id ( name, is_central )')
       .eq('id', au.data.user.id).single();
     if (pr.error || !pr.data) throw new Error('لا يوجد ملف شخصي لهذا الحساب');
 
      var me = pr.data;
+
+    /* ── حساب مغلق أو موقوف مؤقتاً ── */
+    if (me.is_active === false) {
+      try { await sb.auth.signOut(); } catch (e) {}
+      throw new Error('حسابك مغلق — راجع مدير النظام');
+    }
+    if (me.suspended_until && new Date(me.suspended_until) > new Date()) {
+      try { await sb.auth.signOut(); } catch (e) {}
+      throw new Error('حسابك موقوف مؤقتاً حتى ' +
+        new Date(me.suspended_until).toLocaleString('ar-OM') + ' — راجع مدير النظام');
+    }
+
+    /* ── المشرف والمدير: اختيار العيادة ── */
+    var isSup = !!(me.is_supervisor || me.is_admin);
+    if (!me.wilayat_id && !isSup) {
+      try { await sb.auth.signOut(); } catch (e) {}
+      throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مدير النظام');
+    }
+    if (isSup) {
+      var clinic = await window.ClinicPicker.pick(sb, true);
+      if (!clinic) {
+        try { await sb.auth.signOut(); } catch (e) {}
+        throw new Error('لم يتم اختيار عيادة');
+      }
+      me.wilayat_id = clinic.id;
+      me.wilayat    = { name: clinic.name, is_central: false };
+    }
+
     lCU                 = me;
     window._sbProfile   = me;
     window._currentUser = me.username;
-    if (!me.wilayat_id) {
-      try { await sb.auth.signOut(); } catch (e) {}
-      lCU = null;
-      window._sbProfile   = null;
-      window._currentUser = null;
-      throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مسؤول النظام');
-    }
 
     window.SBAuth.setProfile(me);
     if (window.SBTreatment) window.SBTreatment.clearCache();
@@ -2329,7 +2914,8 @@ if (!u || !p) {
 
     document.getElementById('l_welcomeName').textContent = 'مرحباً...';
     lShow(lViews.welcome);
-    if (typeof clinicInfoRefresh === 'function') clinicInfoRefresh();
+      if (typeof clinicInfoRefresh === 'function') clinicInfoRefresh();
+    if (window.ClinicPicker) window.ClinicPicker.refreshBadge();
     unlockNav();
     return true;
   }
@@ -2479,12 +3065,8 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
       <div class="card">
         <div class="form-grid">
           <div class="field"><label>المحافظة / الولاية / العيادة <span class="en">Governorate/Wilayat/Clinic</span></label>
-            <select id="db_governorate">
-              <option value="">-- اختر --</option>
-              <option>عيادة السويق</option><option>عيادة الخابورة</option>
-              <option>عيادة صحم</option><option>عيادة صحار</option>
-              <option>عيادة لوى</option><option>عيادة شناص</option>
-            </select>
+                    <input type="text" id="db_governorate" readonly
+              style="background:#f0f0f0;font-weight:bold;color:#004e66;cursor:default;">
           </div>
           <div class="field"><label>اسم صاحب الحيوان <span class="en">Name of Animal Owner</span></label><input type="text" id="db_ownerName"></div>
           <div class="field"><label>رقم العينة في العيادة <span class="en">Sample Number</span></label><input type="text" id="db_sampleNo"></div>
@@ -2704,7 +3286,6 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
   /* زر المسح */
   document.getElementById("db_clearBtn").addEventListener("click", function(){
     document.getElementById("db_caseNumberis").value = "";
-    document.getElementById("db_governorate").selectedIndex = 0;
     ["db_ownerName","db_sampleNo","db_species","db_ageSex","db_contactAnimals","db_sickAnimals",
      "db_deadAnimals","db_specimen","db_specimenNo","db_dateTaken","db_dateSent","db_caseHistory",
      "db_postmortem","db_requestedTests","db_vetName","db_vetPhone","db_clinicPhone","db_note"
@@ -2901,12 +3482,18 @@ function fillFormDataMultiRows(rows, data) {
  
   // بيانات المربي من أول صف
   var first = rows[0];
-  document.getElementById('serialNum').value = data.serial || first.serial || '';
+  var serialEl = document.getElementById('serialNum');
+  var serials  = rows.map(function (r) { return String(r.serial || '').trim(); })
+                     .filter(function (s, i, a) { return s && a.indexOf(s) === i; });
+  serialEl.value = serials.length ? serials.join(' - ') : (data.serial || '');
+  serialEl.style.width = Math.max(80, serialEl.value.length * 11) + 'px';
   document.getElementById('set_ownerName').value = first.ownerName  || '';
   document.getElementById('ownerPhone').value    = first.phone      || '';
   document.getElementById('village').value       = first.village    || '';
-  document.getElementById('set_notes').value     = first.notes      || '';
-
+  document.getElementById('set_notes').value = rows
+    .map(function (r) { return String(r.notes || '').trim(); })
+    .filter(function (s, i, a) { return s && a.indexOf(s) === i; })
+    .join(' - ');
 // ── تواريخ الجرعات من العمود AA: الصف الأول = جرعة أولى، الثاني = جرعة ثانية ──
   var fmtDose = function(v) {
     if (!v) return '';
@@ -3625,6 +4212,8 @@ function trfillFormWithData(data) {
     trsafeSet("tr_receipt",       data.receipt);
     trsafeSet("tr_amount",        data.amount);
     trsafeSet("tr_financialDate", data.financialDate);
+
+    window._trLoadedCase = data.caseNumber || null;
   } catch (e) {
     trshowMessage("خطأ في التعبئة: " + e.message, true);
   }
@@ -3632,6 +4221,7 @@ function trfillFormWithData(data) {
 
 /** مسح النموذج بالكامل */
 function trclearForm() {
+  window._trLoadedCase = null;
   document.getElementById("tr_caseNumber").value       = "";
   document.getElementById("tr_mirrorCaseNumber").value = "";
   document.getElementById("tr_dataUpdaterInput").value = "";
@@ -3667,6 +4257,7 @@ function trclearForm() {
 
 /** مسح النموذج مع الاحتفاظ بحقل واحد */
 function trclearFormExcept(exceptId) {
+  window._trLoadedCase = null;
   const fieldsToClear = [
     "tr_caseNumber","tr_mirrorCaseNumber","tr_dataUpdaterInput","tr_phoneInput",
     "tr_nameInput","tr_possessionInput","tr_regionInput","tr_civilInput",
@@ -3784,23 +4375,100 @@ async function trfetchBreederData(phone) {
 //  عمليات CRUD الرئيسية (Save / Update / Delete / Search)
 // ============================================================
 
-/** التحقق من صفوف التشخيص قبل الإرسال */
+/** التحقق من الحقول الإلزامية قبل الحفظ والتحديث */
 function trcheckDiagnosisRows() {
+  var errors = [], firstBad = null;
+
+  /* إزالة تلوين المحاولة السابقة */
+  (window._trReqMarked || []).forEach(function (el) {
+    el.style.borderColor = ""; el.style.backgroundColor = "";
+  });
+  window._trReqMarked = [];
+
+  function mark(el) {
+    if (!el) return;
+    el.style.borderColor = "#e65050";
+    el.style.backgroundColor = "#fdecea";
+    window._trReqMarked.push(el);
+    if (!firstBad) firstBad = el;
+    if (!el._trReqBound) {
+      el._trReqBound = true;
+      el.addEventListener("input", function () {
+        this.style.borderColor = ""; this.style.backgroundColor = "";
+      });
+    }
+  }
+  function val(el) { return el ? el.value.trim() : ""; }
+  function pos(v)  { var n = Number(v); return v !== "" && !isNaN(n) && n > 0; }
+
+  /* ١) مكان العلاج */
+  var place = document.getElementById("tr_treatmentPlace");
+  if (!val(place)) { errors.push("مكان العلاج مطلوب"); mark(place); }
+
+  /* ٢) الإيصال */
+  var receipt = document.getElementById("tr_receipt");
+  if (!val(receipt)) { errors.push("رقم الإيصال مطلوب"); mark(receipt); }
+
+  /* ٣) المبلغ */
+  var amount = document.getElementById("tr_amount");
+  if (!val(amount) || isNaN(Number(val(amount))) || Number(val(amount)) < 0) {
+    errors.push("المبلغ مطلوب"); mark(amount);
+  }
+
+  /* ٤) عدد الحيوانات — نوع واحد على الأقل */
+  var animalIds = ["tr_animal_goat","tr_animal_sheep","tr_animal_cow","tr_animal_camel",
+                   "tr_animal_horse","tr_animal_cat","tr_animal_dog","tr_animal_poultry"];
+  var hasAnimal = animalIds.some(function (id) { return pos(val(document.getElementById(id))); });
+  if (!hasAnimal) {
+    errors.push("عدد الحيوانات: أدخل عدد نوع واحد على الأقل");
+    animalIds.forEach(function (id) { mark(document.getElementById(id)); });
+  }
+
+  /* ٥) تشخيص المرض — صف واحد على الأقل، والحقول الثلاثة متلازمة */
   var allowed = Array.from(document.querySelectorAll("#tr_typeListFixed option"))
                      .map(function (o) { return o.value.trim(); });
-  var errors = [];
+  var diagCount = 0, firstDiagRow = null;
   document.querySelectorAll("#treatment .diagnosis-row").forEach(function (row, i) {
     var inp = row.querySelectorAll("input");
-    var dz = (inp[0] && inp[0].value.trim()) || "";
-    var ty = (inp[1] && inp[1].value.trim()) || "";
-    var ct = (inp[2] && inp[2].value.trim()) || "";
+    if (!firstDiagRow) firstDiagRow = inp;
+    var dz = val(inp[0]), ty = val(inp[1]), ct = val(inp[2]);
     if (!dz && !ty && !ct) return;
-    if (!dz)      errors.push("التشخيص " + (i + 1) + ": اكتب اسم المرض");
-    else if (!ty) errors.push("التشخيص " + (i + 1) + ": اختر نوع الحيوان");
-    else if (allowed.indexOf(ty) === -1)
-                  errors.push("التشخيص " + (i + 1) + ": نوع الحيوان «" + ty + "» غير موجود في القائمة");
+    var n = "التشخيص " + (i + 1) + ": ", ok = true;
+    if (!dz) { errors.push(n + "اكتب اسم المرض"); mark(inp[0]); ok = false; }
+    if (!ty) { errors.push(n + "اختر نوع الحيوان"); mark(inp[1]); ok = false; }
+    else if (allowed.indexOf(ty) === -1) {
+      errors.push(n + "نوع الحيوان «" + ty + "» غير موجود في القائمة"); mark(inp[1]); ok = false;
+    }
+    if (!pos(ct)) { errors.push(n + "أدخل العدد"); mark(inp[2]); ok = false; }
+    if (ok) diagCount++;
   });
-  if (errors.length) { trshowMessage("❌ " + errors.join("\n"), true); return false; }
+  if (!diagCount && !errors.some(function (e) { return e.indexOf("التشخيص") === 0; })) {
+    errors.push("تشخيص المرض: أدخل صفاً واحداً على الأقل (المرض + نوع الحيوان + العدد)");
+    if (firstDiagRow) Array.from(firstDiagRow).forEach(mark);
+  }
+
+  /* ٦) الأدوية — صف واحد على الأقل، والحقلان متلازمان */
+  var drugCount = 0, firstDrugRow = null;
+  document.querySelectorAll("#treatment .drug-row").forEach(function (row, i) {
+    var di = row.querySelector(".tr_drug-input"), qi = row.querySelector(".tr_drug-qty");
+    if (!firstDrugRow) firstDrugRow = [di, qi];
+    var dv = val(di), qv = val(qi);
+    if (!dv && !qv) return;
+    var n = "الدواء " + (i + 1) + ": ", ok = true;
+    if (!dv)      { errors.push(n + "اختر اسم الدواء"); mark(di); ok = false; }
+    if (!pos(qv)) { errors.push(n + "أدخل الكمية");     mark(qi); ok = false; }
+    if (ok) drugCount++;
+  });
+  if (!drugCount && !errors.some(function (e) { return e.indexOf("الدواء") === 0; })) {
+    errors.push("الأدوية: أدخل صفاً واحداً على الأقل (الدواء + الكمية)");
+    if (firstDrugRow) firstDrugRow.forEach(mark);
+  }
+
+  if (errors.length) {
+    trshowMessage("❌ " + errors.join("\n"), true);
+    if (firstBad) try { firstBad.focus(); } catch (e) {}
+    return false;
+  }
   return true;
 }
 
@@ -4259,18 +4927,31 @@ function trshowAllCards() {
 //  ربط الأحداث (Event Binding)
 // ============================================================
 
+/** منع الحفظ عند وجود حالة محمَّلة — المسموح التحديث فقط */
+function trblockIfCaseLoaded() {
+  if (!window._trLoadedCase) return false;
+  trshowMessage("⚠️ الحالة رقم " + window._trLoadedCase + " محمَّلة حالياً\n" +
+                "لا يمكن الحفظ لتجنب تكرار نفس البيانات — استخدم زر (تحديث)\n" +
+                "أو اضغط (مسح) لإدخال حالة جديدة", true);
+  return true;
+}
+
 function trbindEvents() {
   if (trbindEvents._done) return; trbindEvents._done = true;
   // --- أزرار CRUD ---
-  document.getElementById("tr_saveBtn").onclick   = trsaveData;
-  document.getElementById("tr_updateBtn").onclick = trupdateData;
+  document.getElementById("tr_saveBtn").onclick   = function () {
+    if (trblockIfCaseLoaded()) return;
+    trsaveData();
+  };  document.getElementById("tr_updateBtn").onclick = trupdateData;
   document.getElementById("tr_clearBtn").onclick  = trclearForm;
   document.getElementById("tr_deleteBtn").onclick = trdeleteCase;
   document.getElementById("tr_searchBtn").onclick = trsearchCase;
 
   // --- أزرار الحفظ المؤقت ---
-  document.getElementById("tr_tempSaveBtn").onclick   = trtempSave;
-  document.getElementById("tr_tempUpdateBtn").onclick = trtempUpdate;
+  document.getElementById("tr_tempSaveBtn").onclick   = function () {
+    if (trblockIfCaseLoaded()) return;
+    trtempSave();
+  };  document.getElementById("tr_tempUpdateBtn").onclick = trtempUpdate;
   // --- رقم الهاتف: جلب بيانات المربي ---
   document.getElementById("tr_phoneInput").addEventListener("change", function () {
     const phoneValue = this.value.trim();
@@ -7168,7 +7849,8 @@ async function vr_saveToBreeder(r) {
       try {
         var sbc = await window.SBAuth.client();
         var ph  = r.phone.toString().trim();
-        var br  = await sbc.from('breeders').select('id').eq('phone', ph).maybeSingle();
+        var br  = await sbc.from('breeders').select('id')
+          .eq('wilayat_id', window._sbProfile.wilayat_id).eq('phone', ph).maybeSingle();
         if (br.data && window._sbProfile) {
           await sbc.from('vaccination_requests')
             .update({ breeder_id: br.data.id })
@@ -7332,7 +8014,7 @@ function fo_stRemove(v){fo_stSel.splice(fo_stSel.indexOf(v),1);fo_stRefresh();}
 function fo_stClear(){fo_stSel=[];fo_stRefresh();}
 function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim();}).filter(Boolean):[];fo_stRefresh();}
 </script>        
-        <div class="row"><label>تاريخ المرض</label><input type="date" id="diseaseDate"></div>
+<div class="row"><label>تاريخ المرض</label><input type="text" id="diseaseDate" placeholder=" "></div>
         <div class="row"><label>الصفة التشريحية</label><input id="anatomicalFeature"></div>
         <div class="row"><label>توصيف الحالة</label><input id="pathologyDesc"></div>
         <div class="row"><label>عدد المريضة</label><input type="number" id="sickCount"></div>
@@ -7544,6 +8226,7 @@ async function fosaveData() {
   if(!fogetValue('animalType')){foshowMessage('النوع مطلوب',true);return;}
   if(!fogetValue('gender')){foshowMessage('الجنس مطلوب',true);return;}
   if(!fogetValue('age')){foshowMessage('العمر مطلوب',true);return;}
+  if(!fogetValue('sampleType')){foshowMessage('نوع العينة مطلوب',true);var stD=document.getElementById('fo_stDisplay');if(stD)stD.style.borderColor='#e65050';return;}
   if(!fogetValue('sampleTakenDate')){foshowMessage('تاريخ أخذ العينة مطلوب',true);return;}
   if(!fogetValue('sampleSentDate')){foshowMessage('تاريخ إرسال العينة مطلوب',true);return;}
   if(!fogetValue('test1')&&!fogetValue('test2')&&!fogetValue('test3')&&!fogetValue('test4')&&!fogetValue('test5')){foshowMessage('أدخل فحص واحد على الأقل',true);return;}
@@ -7567,6 +8250,7 @@ async function foupdateData() {
   if(!fogetValue('animalType')){foshowMessage('النوع مطلوب',true);return;}
   if(!fogetValue('gender')){foshowMessage('الجنس مطلوب',true);return;}
   if(!fogetValue('age')){foshowMessage('العمر مطلوب',true);return;}
+  if(!fogetValue('sampleType')){foshowMessage('نوع العينة مطلوب',true);var stD=document.getElementById('fo_stDisplay');if(stD)stD.style.borderColor='#e65050';return;}
   if(!fogetValue('sampleTakenDate')){foshowMessage('تاريخ أخذ العينة مطلوب',true);return;}
   if(!fogetValue('sampleSentDate')){foshowMessage('تاريخ إرسال العينة مطلوب',true);return;}
   if(!fogetValue('test1')&&!fogetValue('test2')&&!fogetValue('test3')&&!fogetValue('test4')&&!fogetValue('test5')){foshowMessage('أدخل فحص واحد على الأقل',true);return;}
@@ -10523,6 +11207,8 @@ function foDismissOverdueAlert() {
    * هل الصفحة مسموحة للمستخدم الحالي؟
    */
   function isPageAllowed(pageId) {
+    if (String(pageId).toLowerCase() === "useradmin")
+      return !!(global._sbProfile && global._sbProfile.is_admin);
     if (pageId === "login" || pageId === "home") return true;
     if (!state.allowedPages || state.allowedPages.length === 0) return true;
     return state.allowedPages.indexOf(pageId.toLowerCase()) !== -1;
@@ -10994,8 +11680,10 @@ function showUserBadge(name, role) {
     isPageAllowed:  isPageAllowed,
     isActionAllowed: isActionAllowed,
     getState:       getState,
-    showModal:      showPermissionsModal,
+       showModal:      showPermissionsModal,
     applyButtons:   applyButtonPermissions,
+    pages:          ALL_PAGES,
+    actions:        ALL_ACTIONS,
   };
 
 })(window);
@@ -12050,6 +12738,119 @@ Promise.all([
   tryPatch();
 })();
 </script>
+<script>
+/* ════════════════════════════════════════════════════════════════
+   اختيار العيادة وتبديلها — للمشرف ومدير النظام
+   ════════════════════════════════════════════════════════════════ */
+(function (g) {
+  "use strict";
+  var list = null;
+
+  function load(sb) {
+    if (list) return Promise.resolve(list);
+    return sb.from('wilayat').select('id, name, is_central').order('name')
+      .then(function (r) {
+        if (r.error) throw r.error;
+        list = (r.data || []).filter(function (w) { return !w.is_central; });
+        return list;
+      });
+  }
+
+  function pick(sb, required) {
+    return load(sb).then(function (ws) {
+      return new Promise(function (resolve) {
+        var cur = g._sbProfile && g._sbProfile.wilayat_id;
+        var ov = document.createElement('div');
+        ov.className = 'custom-modal';
+        ov.style.zIndex = '100001';
+        ov.innerHTML =
+          '<div class="modal-box" style="max-width:520px;">' +
+            '<h3>🏥 اختر العيادة</h3>' +
+            '<p style="margin-bottom:14px;">ستعمل في العيادة المختارة بصلاحياتك الكاملة، ويمكنك التبديل لاحقاً من الزر أعلى الشاشة.</p>' +
+            '<div id="cp_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;"></div>' +
+            '<div class="modal-buttons" style="margin-top:16px;">' +
+              '<button class="cancel-btn" id="cp_cancel">' + (required ? 'إلغاء الدخول' : 'إلغاء') + '</button>' +
+            '</div>' +
+          '</div>';
+        document.body.appendChild(ov);
+
+        var grid = ov.querySelector('#cp_grid');
+        ws.forEach(function (w) {
+          var on = String(w.id) === String(cur);
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = w.name;
+          b.style.cssText =
+            'padding:14px 10px;border:2px solid #00b8d9;border-radius:10px;font-family:inherit;' +
+            'font-size:14px;font-weight:bold;cursor:pointer;' +
+            'background:' + (on ? '#00b8d9' : '#f8ffff') + ';color:' + (on ? '#fff' : '#004e66') + ';';
+          b.onclick = function () { ov.remove(); resolve({ id: w.id, name: w.name }); };
+          grid.appendChild(b);
+        });
+        ov.querySelector('#cp_cancel').onclick = function () { ov.remove(); resolve(null); };
+      });
+    });
+  }
+
+  function refreshBadge() {
+    var me  = g._sbProfile;
+    var btn = document.getElementById('clinicSwitchBtn');
+    var sup = me && (me.is_supervisor || me.is_admin);
+    if (!sup) { if (btn) btn.remove(); return; }
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'clinicSwitchBtn';
+      btn.type = 'button';
+      btn.title = 'تبديل العيادة';
+      btn.onclick = switchClinic;
+      btn.style.cssText =
+        'position:fixed;top:12px;left:12px;z-index:1500;background:#004e66;color:#fff;' +
+        'border:2px solid #00b8d9;border-radius:30px;padding:9px 18px;font-size:13px;' +
+        'font-weight:bold;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(0,184,217,.35);';
+      document.body.appendChild(btn);
+      var st = document.createElement('style');
+      st.textContent = '@media print { #clinicSwitchBtn { display:none !important; } }';
+      document.head.appendChild(st);
+    }
+    btn.textContent = '🏥 ' + ((me.wilayat && me.wilayat.name) || '—') + '  ⇄';
+  }
+
+  async function switchClinic() {
+    if (g._bootRunning) { showToast('⏳ انتظر اكتمال تحميل العيادة الحالية', 'info'); return; }
+    var me = g._sbProfile;
+    if (!me) return;
+    var sb = await g.SBAuth.client();
+    var c  = await pick(sb, false);
+    if (!c || String(c.id) === String(me.wilayat_id)) return;
+
+    /* تعديل نفس الكائن — كل الجسور تشير إليه */
+    me.wilayat_id = c.id;
+    me.wilayat    = { name: c.name, is_central: false };
+
+    /* إعادة ضبط الصفحات لتُهيَّأ من جديد للعيادة الجديدة */
+    g._treatmentInitialized   = false;
+    g._vaccinationInitialized = false;
+    g._vrInitialized          = false;
+    g._breederInitialized     = false;
+    g._samplesInitialized     = false;
+    g._vaccCampaign           = null;
+    g._overdueLastCheck       = 0;
+
+    if (typeof resetAllPagesData === 'function') resetAllPagesData();
+    if (g.SBTreatment) g.SBTreatment.clearCache();
+    if (typeof clinicInfoRefresh === 'function') clinicInfoRefresh();
+    refreshBadge();
+
+    /* قناة المزامنة مرتبطة بالعيادة */
+    if (typeof remoteSyncStop === 'function') { remoteSyncStop(); remoteSyncStart(); }
+
+    showToast('🏥 جاري الانتقال إلى ' + c.name, 'info');
+    if (typeof bootLoadAll === 'function') bootLoadAll();
+  }
+
+  g.ClinicPicker = { pick: pick, switchClinic: switchClinic, refreshBadge: refreshBadge };
+})(window);
+</script>
   <!-- ============================================================
      NetGuard v2.0 — حارس الاتصال بقاعدة البيانات
      قياس سلبي للطلبات الفعلية — بلا أي طلب إضافي على الشبكة
@@ -12408,8 +13209,21 @@ if (sbw) showModal(reason, 'failed');
     var boot = loadLib().then(function () {
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY)
         throw new Error("لم تُملأ قيم SUPABASE_URL أو SUPABASE_ANON_KEY");
-      if (!sb) sb = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return sb;
+      if (!sb) {
+        /* جلسة مستقلة لكل تبويب — لا يتأثر تبويب بدخول حساب آخر في تبويب مجاور */
+        sb = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { storage: global.sessionStorage, persistSession: true, autoRefreshToken: true }
+        });
+        /* حماية إضافية: إن تغيّر الحساب داخل الجلسة لأي سبب، أعد الدخول */
+        sb.auth.onAuthStateChange(function (ev, session) {
+          var p = global._sbProfile;
+          if (!p) return;
+          if (session && session.user && session.user.id !== p.id) {
+            if (global.showToast) global.showToast('⚠️ تغيّر الحساب في هذه الجلسة — سيُعاد تحميل الصفحة', 'warning');
+            setTimeout(function () { location.reload(); }, 2500);
+          }
+        });
+      }    return sb;
     });
 
     if (barePlease) return boot;
@@ -12554,8 +13368,8 @@ if (sbw) showModal(reason, 'failed');
 
     /* ٤) جلب مربٍّ واحد برقم هاتفه */
     if (action === "bd_searchCaseData") {
-      return sb.from("breeders").select(SELECT_COLS)
-        .eq("phone", txt(payload.phone)).maybeSingle()
+          return sb.from("breeders").select(SELECT_COLS)
+        .eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
@@ -12631,7 +13445,7 @@ if (sbw) showModal(reason, 'failed');
         var row = toRow(d, rid);
         row.updated_by = me.id;
         row.updated_at = new Date().toISOString();
-        return sb.from("breeders").update(row).eq("phone", txt(d.phone));
+        return sb.from("breeders").update(row).eq("wilayat_id", me.wilayat_id).eq("phone", txt(d.phone));
      }).then(function (r) {
         if (r.error && r.error.code === "23505") return global.SBOtherClinic(d.newPhone || d.phone);
         if (r.error) throw r.error;
@@ -12640,7 +13454,7 @@ if (sbw) showModal(reason, 'failed');
     }
     /* ٩) حذف مربٍّ */
     if (action === "bd_deleteData") {
-      return sb.from("breeders").delete().eq("phone", txt(payload.phone))
+      return sb.from("breeders").delete().eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone))
         .then(function (r) {
           if (r.error) {
             if (r.error.code === "23503")
@@ -12655,7 +13469,7 @@ if (sbw) showModal(reason, 'failed');
         if (action === "bd_updatePossessionInTreatment") {
       var poss = strip(payload.possession);
       var nowTs = new Date().toISOString();
-      return sb.from("breeders").select("id").eq("phone", txt(payload.phone)).maybeSingle()
+      return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
@@ -12877,7 +13691,7 @@ function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, fal
     var phone = txt(d.phone);
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
 
-    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.data) return r.data.id;
         return regionId(d.region).then(function (rid) {
@@ -13118,7 +13932,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
     if (!phone) return Promise.resolve({ success: false, message: "رقم الهاتف مطلوب" });
     return sb.from("breeders")
       .select("name, possession_no, civil_id, holding_expiry, regions(name)")
-      .eq("phone", phone).maybeSingle()
+      .eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
@@ -13137,7 +13951,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function unpaidCount(p) {
     var phone = txt(p.phone);
     if (!phone) return Promise.resolve({ success: true, count: 0 });
-    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: true, count: 0 };
@@ -13464,6 +14278,7 @@ function names(table, col, filterWilayat) {
         return sb.from("vaccination_requests_view")
                  .select("phone,name,area,possession,civil,financial_date,notes," +
                          "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
+                 .eq("wilayat_id", me.wilayat_id)
                  .order("name");
       }),
       pageAll(function () {
@@ -13601,7 +14416,7 @@ function names(table, col, filterWilayat) {
   function breederId(d) {
     var phone = txt(d.phone);
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
-    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (r.data) return r.data.id;
@@ -13763,7 +14578,7 @@ function names(table, col, filterWilayat) {
   function breederData(p) {
     return sb.from("breeders")
       .select("name, possession_no, civil_id, regions(name)")
-      .eq("phone", txt(p.phone)).maybeSingle()
+      .eq("wilayat_id", me.wilayat_id).eq("phone", txt(p.phone)).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
@@ -13778,8 +14593,8 @@ function names(table, col, filterWilayat) {
   /* ── جدول تحصينات المربي المعروض أسفل النموذج ───────────────── */
   function byPhone(p) {
     var phone = txt(p.phone);
-    if (!phone) return Promise.resolve({ success: false, rows: [] });
-    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+      if (!phone) return Promise.resolve({ success: false, rows: [] });
+    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, rows: [] };
@@ -13840,7 +14655,8 @@ function names(table, col, filterWilayat) {
   function searchRecords(p) {
     var f = p.filters || {};
     return pageAll(function () {
-      var q = sb.from("vaccination_records").select(REC_COLS)
+          var q = sb.from("vaccination_records").select(REC_COLS)
+                .eq("wilayat_id", me.wilayat_id)
                 .order("vaccinated_on", { ascending: false });
       if (txt(f.caseNumber)) q = q.eq("case_no", int(f.caseNumber));
       if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
@@ -13866,7 +14682,8 @@ function names(table, col, filterWilayat) {
     var f = p.filters || {};
     return pageAll(function () {
       var q = sb.from("vaccination_records")
-                .select("id, vaccination_doses(vaccine_type_id, species_id, animal_count)");
+                .select("id, vaccination_doses(vaccine_type_id, species_id, animal_count)")
+                .eq("wilayat_id", me.wilayat_id);
       if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
       if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
       return q;
@@ -13900,7 +14717,8 @@ function names(table, col, filterWilayat) {
     return pageAll(function () {
       var q = sb.from("vaccination_records")
                 .select("id, breeders(phone, name, regions(name)), " +
-                        "vaccination_doses(species_id, animal_count)");
+                        "vaccination_doses(species_id, animal_count)")
+                .eq("wilayat_id", me.wilayat_id);
       if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
       if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
       return q;
@@ -14197,7 +15015,7 @@ function names(table, col, filterWilayat) {
     if (!phone) return Promise.resolve({ success: true, rows: [] });
 
     return sb.from("breeders").select("id, name, phone, regions(name)")
-      .eq("phone", phone).maybeSingle()
+      .eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: true, rows: [] };
@@ -14749,7 +15567,7 @@ function idsFor(key, table, names) {
 
   function lookupBreeder(phone) {
     if (!phone) return Promise.resolve(null);
-    return sb.from("breeders").select("id").eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) { return (r.data && r.data.id) || null; });
   }
 
@@ -14838,7 +15656,7 @@ function idsFor(key, table, names) {
       possession_no_snapshot: strip(d.possession) || null,
       sex:                    sexOf(d.gender),
       age:                    txt(d.age) || null,
-      disease_onset:          toISO(d.diseaseDate),
+      disease_onset:          txt(d.diseaseDate) || null,
       anatomical_findings:    txt(d.anatomicalFeature) || null,
       case_history:           txt(d.pathologyDesc) || null,
       suspected_disease:      txt(d.suspectedDisease) || null,
@@ -15006,7 +15824,7 @@ function childRows(sampleId, d, tm, sm, keep) {
 
   function breederData(p) {
     return sb.from("breeders").select("name, possession_no, civil_id, regions(name)")
-      .eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
+      .eq("wilayat_id", me.wilayat_id).eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على بيانات" };
         var b = r.data;
