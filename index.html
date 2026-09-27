@@ -3849,7 +3849,7 @@ function dim_printTable() {
       <label>إلى تاريخ:</label><input type="date" id="tr_searchEndDate">
       <button id="tr_clearSearchDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح التواريخ</button>
       <button id="tr_backToMainBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
-    </div>
+      <button type="button" class="print" onclick="printSection('tr_searchTable','البحث في سجل العلاج')">🖨️ طباعة</button> </div>
 <div style="text-align:center;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:10px">
   <input type="text" id="tr_searchKeyword" placeholder="اكتب كلمة البحث..." style="width:250px">
   <span id="tr_searchStatus" style="font-size:13px;font-weight:bold;color:#9b59b6;display:none;">⏳ جاري البحث...</span>
@@ -3858,8 +3858,8 @@ function dim_printTable() {
   </div>
   <div class="card full-width" id="tr_animalsReportCard" style="display:none;">
     <h3>📊 إجمالي الحيوانات المعالجة</h3>
-    <div style="text-align:center;margin-bottom:10px"><button id="tr_backFromAnimalsBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button></div>
-    <div style="display:flex;justify-content:center;gap:15px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+<div style="text-align:center;margin-bottom:10px"><button id="tr_backFromAnimalsBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
+<button type="button" class="print" onclick="printSection('tr_animalsReportTable','إجمالي الحيوانات المعالجة')">🖨️ طباعة</button></div>    <div style="display:flex;justify-content:center;gap:15px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       <label>من تاريخ:</label><input type="date" id="tr_animalsStartDate">
       <label>إلى تاريخ:</label><input type="date" id="tr_animalsEndDate">
       <button id="tr_clearAnimalsDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح</button>
@@ -6566,7 +6566,7 @@ function bd_printHoldList() {
         <button class="back-btn" id="vacc_srBackBtn">← رجوع</button>
         <button class="search-record" id="vacc_srSearchBtn">بحث</button>
         <button class="clear" id="vacc_srClearBtn">مسح البحث</button>
-      </div>
+        <button type="button" class="print" onclick="printSection('vacc_searchRecordResults','البحث في سجل التحصين')">🖨️ طباعة</button>      </div>
       <div id="vacc_srResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#9b59b6;font-size:13px;"></div>
       <div id="vacc_searchRecordResults" style="overflow:auto;max-height:80vh;margin-top:8px;font-size:13px;border:1px solid #ddd;border-radius:3px;"></div>    </div>
 
@@ -6581,7 +6581,7 @@ function bd_printHoldList() {
         <button class="back-btn" id="vacc_atBackBtn">← رجوع</button>
         <button class="all-total-btn" id="vacc_atSearchBtn">عرض الإجمالي</button>
         <button class="clear" id="vacc_atClearBtn">مسح</button>
-      </div>
+        <button type="button" class="print" onclick="printSection('vacc_allTotalResults','إجمالي عدد الجرعات')">🖨️ طباعة</button>      </div>
       <div id="vacc_atResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#27ae60;font-size:13px;"></div>
       <div id="vacc_allTotalResults" style="overflow:auto;max-height:500px;margin-top:8px;font-size:12px;border:1px solid #ddd;border-radius:3px;"></div>
     </div>
@@ -6598,7 +6598,7 @@ function bd_printHoldList() {
         <button class="back-btn" id="vacc_maBackBtn">← رجوع</button>
         <button class="all-total-btn" id="vacc_maSearchBtn">عرض البيانات</button>
         <button class="clear" id="vacc_maClearBtn">مسح</button>
-      </div>
+        <button type="button" class="print" onclick="printSection('vacc_maxAnimalsResults','إجمالي الحيوانات المحصنة')">🖨️ طباعة</button>      </div>
   <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0;">
   <div id="vacc_maResultCount" style="font-weight:bold;color:#27ae60;font-size:13px;"></div>
   <label style="display:flex;align-items:center;gap:5px;font-weight:bold;font-size:13px;cursor:pointer;background:#e8f5e9;padding:4px 10px;border-radius:20px;border:1px solid #27ae60;">
@@ -10965,6 +10965,20 @@ async function rpt_saveDates() {
 
 <!-- ===== Script العام للمظهر ===== -->
 <script>
+function printSection(id, title) {
+  var el = document.getElementById(id);
+  if (!el || !el.innerText.trim()) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
+  var w = window.open('', '_blank', 'width=1100,height=800');
+  w.document.write('<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + title + '</title>' +
+    '<style>body{font-family:Tahoma,Arial;direction:rtl;padding:15px;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    'h2{text-align:center;color:#00b8d9}table{width:100%;border-collapse:collapse;font-size:11px}' +
+    'th,td{border:1px solid #999;padding:5px;text-align:center}th{background:#00b8d9;color:#fff;position:static!important}' +
+    '.pbtn{background:#6c5ce7;color:#fff;border:none;border-radius:6px;padding:9px 30px;font-size:14px;font-weight:bold;cursor:pointer;font-family:Tahoma}' +
+    '@media print{@page{size:A4 landscape;margin:8mm}.pbtn{display:none}}</style></head><body>' +
+    '<div style="text-align:center;margin-bottom:12px"><button class="pbtn" onclick="window.print()">🖨️ طباعة</button></div>' +
+    '<h2>' + title + '</h2>' + el.outerHTML + '</body></html>');
+  w.document.close();
+}
 function saveAppearance() {
   localStorage.setItem('app_bg', document.getElementById('bgColor').value);
   localStorage.setItem('app_txt', document.getElementById('txtColor').value);
