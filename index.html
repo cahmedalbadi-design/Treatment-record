@@ -855,6 +855,29 @@ var savedToastSize = localStorage.getItem('toastSize');
 if (savedToastSize) {
   container.style.fontSize = savedToastSize + 'px';
 }
+
+
+/* إرسال تنبيه إلى تيليجرام عبر خدمة notify على الخادم — لا بيانات سرية في الواجهة */
+window.sendAlert = function (text) {
+  if (!window.SBAuth || !window._isLoggedIn) return Promise.resolve(false);
+  return window.SBAuth.client()
+    .then(function (sb) { return sb.functions.invoke('notify', { body: { text: String(text || '') } }); })
+    .then(function (r) {
+      var ok = !!(r && r.data && r.data.ok);
+      console.log('[Alert]', ok ? '✅ أُرسل' : '❌ فشل',
+        ok ? '' : ((r && r.error && r.error.message) || (r && r.data && r.data.detail) || ''));
+      return ok;
+    })
+    .catch(function (e) { console.warn('[Alert] خطأ:', e && e.message); return false; });
+};
+
+/* تهريب النصوص قبل وضعها في innerHTML — يمنع تنفيذ أي كود مخزَّن */
+window.escHtml = function (s) {
+  return String(s == null ? '' : s).replace(/[&<>"'`]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c];
+  });
+};
+
 window.showToast = function(message, type) {
     type = type || 'info';
     var colors = {
@@ -979,6 +1002,7 @@ window.showToast = function(message, type) {
   <button onclick="showPage('dashboard')">🖨️طباعة نماذج العينات</button>
   <button onclick="showPage('comprehensiveReport')">📊التقرير الشامل</button>
     <button onclick="showPage('doctorPerformance')">👨‍⚕️أداء الأطباء</button>
+  <button onclick="showPage('allClinics')">🏥التقرير المجمع للعيادات</button>
   <button onclick="showPage('userAdmin')">🛡️إدارة النظام</button>
   <button onclick="showPage('home')">⚙️الإعدادات</button></nav>
 <script>
@@ -1015,7 +1039,7 @@ function showPage(pageId) {
   }
   // التحقق من الصلاحيات
   if (window._isLoggedIn && window._userAllowedPages && publicPages.indexOf(pageId) === -1) {
-    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home' && pageId !== 'userAdmin') {
+    if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home' && pageId !== 'userAdmin' && pageId !== 'allClinics') {
       showToast('⛔ ليس لديك صلاحية الوصول إلى هذه الصفحة', 'error');
       return;
     }
@@ -1069,6 +1093,9 @@ function showPage(pageId) {
     if (typeof vr_loadData === 'function') vr_loadData();
   }
   if (pageId === 'userAdmin' && typeof ua_init === 'function') ua_init();
+  if (pageId === 'allClinics' && !window._acLoaded && typeof ac_load === 'function') {
+    window._acLoaded = true; setTimeout(ac_load, 100);
+  }
 }
   function resetAllPagesData() {
   // مسح جدول العلاج اليومي
@@ -1555,9 +1582,21 @@ lockNav();
 
 <!-- الصفحات -->
 <div id="home" class="page">
+<style>
+#home .home-grid{display:grid;grid-template-columns:repeat(2,minmax(0,420px));gap:14px;padding:15px 0;}
+#home .home-grid > div{max-width:none !important;margin-top:0 !important;}
+#home .hg-clinic{grid-column:1;grid-row:1;}
+#home .hg-lists {grid-column:2;grid-row:1;}
+#home .hg-camp  {grid-column:1;grid-row:2;}
+#home .hg-look  {grid-column:2;grid-row:2;}
+@media (max-width:900px){
+  #home .home-grid{grid-template-columns:1fr;}
+  #home .home-grid > div{grid-column:auto;grid-row:auto;}
+}
+</style>
     <!-- ===== بطاقة العيادة الحالية ===== -->
-<div style="padding:15px 0 5px 0;">
-  <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;">
+<div class="home-grid">
+  <div class="hg-clinic" style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;">
     <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:10px;">
       🏥 العيادة الحالية
     </div>
@@ -1568,7 +1607,7 @@ lockNav();
     </div>
   </div>
   <!-- ===== بطاقة المدى الزمني لحملة التحصين ===== -->
-  <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
+  <div class="hg-camp" style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
     <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:12px;">
       📅 المدى الزمني لحملة التحصين
     </div>
@@ -1603,15 +1642,6 @@ lockNav();
 
     <div id="camp_vaccPct" style="display:none;font-size:12px;font-weight:bold;
          text-align:center;margin-bottom:10px;"></div>
-
-    <div style="display:flex;gap:8px;">
-      <button onclick="camp_save()" id="camp_saveBtn"
-        style="flex:1;padding:9px;background:#2bb673;color:#fff;border:none;border-radius:5px;
-               font-size:14px;font-weight:bold;font-family:inherit;cursor:pointer;">💾 حفظ</button>
-      <button onclick="camp_load(false)" id="camp_loadBtn"
-        style="flex:1;padding:9px;background:#00b8d9;color:#fff;border:none;border-radius:5px;
-               font-size:14px;font-weight:bold;font-family:inherit;cursor:pointer;">🔄 جلب</button>
-    </div>
 
     <div id="camp_status" style="margin-top:10px;font-size:12px;font-weight:bold;
          text-align:center;display:none;"></div>
@@ -1750,7 +1780,7 @@ lockNav();
   }
   </script>
 
-  <div style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
+  <div class="hg-lists" style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
     <div style="font-size:15px;font-weight:bold;color:#004e66;margin-bottom:6px;">
       🔄 تحديث القوائم المنسدلة
     </div>
@@ -1762,10 +1792,48 @@ lockNav();
       <button onclick="slRefresh()" style="flex:1;padding:8px;background:#2bb673;color:#fff;
         border:none;border-radius:5px;font-weight:bold;font-family:inherit;cursor:pointer;">
         🔄 تحديث القوائم الآن</button>
- 
     </div>
   </div>
-</div>
+
+  <!-- ===== بطاقة ضبط المظهر ===== -->
+  <div class="hg-look">
+    <div id="settingsPanel" style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;height:100%;">
+      <h3 style="margin:0 0 12px 0;color:#00b8d9">⚙️ ضبط المظهر</h3>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">لون الخلفية:</label>
+        <input type="color" id="bgColor" value="#d9d9d9" oninput="document.body.style.background=this.value">
+      </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">لون البطاقات:</label>
+        <input type="color" id="cardColor" value="#f8ffff" oninput="document.querySelectorAll('.card').forEach(function(c){c.style.background=this.value}.bind(this))">
+      </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">لون النص:</label>
+        <input type="color" id="txtColor" value="#000000" oninput="document.body.style.color=this.value">
+      </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">حجم الخط:</label>
+        <input type="range" id="fontSize" min="10" max="20" value="13" style="flex:1" oninput="document.body.style.fontSize=this.value+'px';document.getElementById('fontSizeVal').textContent=this.value+'px'">
+        <span id="fontSizeVal" style="min-width:35px;font-weight:bold;color:#00b8d9">13px</span>
+      </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">لون الشريط:</label>
+        <input type="color" id="navColor" value="#333333" oninput="document.querySelector('nav').style.background=this.value">
+      </div>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">حجم الإشعارات:</label>
+        <input type="range" id="toastSize" min="10" max="22" value="14" style="flex:1"
+          oninput="document.getElementById('toastSizeVal').textContent=this.value+'px';document.getElementById('toastContainer').style.fontSize=this.value+'px';">
+        <span id="toastSizeVal" style="min-width:35px;font-weight:bold;color:#00b8d9">14px</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onclick="saveAppearance()" style="background:#2bb673;color:#fff;padding:7px 16px;border:none;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:bold">💾 حفظ</button>
+        <button onclick="resetAppearance()" style="background:#e65050;color:#fff;padding:7px 16px;border:none;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:bold">↺ إعادة تعيين</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- نهاية شبكة بطاقات الإعدادات -->
 
 <script>
 function slRefresh() {
@@ -1799,54 +1867,7 @@ function clinicInfoRefresh() {
   if (dbGov) dbGov.value = clinicName;
 }
 </script>
-  <!-- زر المظهر مستقل عن نظام التبويبات -->
-  <div style="padding:15px 0;">
-    <button 
-      onclick="document.getElementById('settingsPanel').style.display = document.getElementById('settingsPanel').style.display === 'none' ? 'block' : 'none'" 
-      style="background:#00b8d9;color:#fff;padding:8px 20px;border:none;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:bold">
-      ⚙️ ضبط المظهر
-    </button>
-
-    <div id="settingsPanel" style="display:none;margin-top:15px;background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:350px">
-      <h3 style="margin:0 0 12px 0;color:#00b8d9">⚙️ ضبط المظهر</h3>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">لون الخلفية:</label>
-        <input type="color" id="bgColor" value="#d9d9d9" oninput="document.body.style.background=this.value">
-      </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">لون البطاقات:</label>
-        <input type="color" id="cardColor" value="#f8ffff" oninput="document.querySelectorAll('.card').forEach(function(c){c.style.background=this.value}.bind(this))">
-      </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">لون النص:</label>
-        <input type="color" id="txtColor" value="#000000" oninput="document.body.style.color=this.value">
-      </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">حجم الخط:</label>
-        <input type="range" id="fontSize" min="10" max="20" value="13" style="flex:1" oninput="document.body.style.fontSize=this.value+'px';document.getElementById('fontSizeVal').textContent=this.value+'px'">
-        <span id="fontSizeVal" style="min-width:35px;font-weight:bold;color:#00b8d9">13px</span>
-      </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">لون الشريط:</label>
-        <input type="color" id="navColor" value="#333333" oninput="document.querySelector('nav').style.background=this.value">
-      </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">حجم الإشعارات:</label>
-        <input type="range" id="toastSize" min="10" max="22" value="14" style="flex:1"
-          oninput="
-            document.getElementById('toastSizeVal').textContent=this.value+'px';
-            document.getElementById('toastContainer').style.fontSize=this.value+'px';
-          ">
-        <span id="toastSizeVal" style="min-width:35px;font-weight:bold;color:#00b8d9">14px</span>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button onclick="saveAppearance()" style="background:#2bb673;color:#fff;padding:7px 16px;border:none;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:bold">💾 حفظ</button>
-        <button onclick="resetAppearance()" style="background:#e65050;color:#fff;padding:7px 16px;border:none;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:bold">↺ إعادة تعيين</button>
-        <button onclick="document.getElementById('settingsPanel').style.display='none'" style="background:#888;color:#fff;padding:7px 16px;border:none;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:bold">✖ إغلاق</button>
-      </div>
-    </div>
-  </div>
-  </div>
+  </div><!-- نهاية صفحة الإعدادات -->
 <!-- ===================================================
      صفحة إدارة النظام — لمدير النظام فقط
      =================================================== -->
@@ -2060,7 +2081,7 @@ async function ua_new() {
     if (!body.full_name || !body.username) { showToast('⚠️ الاسم واسم المستخدم مطلوبان', 'warning'); return; }
     if (!body.role)                        { showToast('⚠️ اختر الدور', 'warning'); return; }
     if (!sup && !body.wilayat_id)          { showToast('⚠️ اختر العيادة', 'warning'); return; }
-    if (body.password.length < 6)          { showToast('⚠️ كلمة المرور 6 أحرف على الأقل', 'warning'); return; }
+    if (body.password.length < 10)         { showToast('⚠️ كلمة المرور 10 أحرف على الأقل', 'warning'); return; }
     if (body.password !== q('#ua_nPw2').value) { showToast('⚠️ كلمتا المرور غير متطابقتين', 'warning'); return; }
 
     var btn = q('#ua_nSave'); btn.disabled = true; btn.textContent = '⏳ جاري الإنشاء...';
@@ -2229,10 +2250,10 @@ function ua_edit(id) {
     var pw = await ua_dialog({
       title: '🔑 كلمة مرور جديدة',
       msg: 'للمستخدم: <b>' + ua_esc(u.full_name) + '</b>',
-      input: 'password', ph: '6 أحرف على الأقل', ok: 'تعيين'
+      input: 'password', ph: '10 أحرف على الأقل', ok: 'تعيين'
     });
     if (pw === null) return;
-    if (String(pw).length < 6) { showToast('⚠️ كلمة المرور 6 أحرف على الأقل', 'warning'); return; }
+    if (String(pw).length < 10) { showToast('⚠️ كلمة المرور 10 أحرف على الأقل', 'warning'); return; }
     var r = await ua_fn({ action: 'reset_password', user_id: u.id, password: pw });
     if (r.error) { showToast('❌ ' + r.error, 'error'); return; }
     showToast('✅ تم تعيين كلمة المرور — أبلغ المستخدم بها', 'success');
@@ -2348,6 +2369,147 @@ function ua_saveCampaign() {
 }
 </script>
 </div>
+
+
+<!-- ===================================================
+     التقرير المجمع لجميع العيادات — للمشرفين والمدير
+     =================================================== -->
+<div id="allClinics" class="page">
+<div class="card" id="ac_wrap">
+  <h3>🏥 التقرير المجمع لجميع العيادات</h3>
+  <div class="fb">
+    <label>من:</label><input type="date" id="ac_from">
+    <label>إلى:</label><input type="date" id="ac_to">
+    <span style="font-size:11px;color:#777">اتركهما فارغين لاعتماد مدى حملة كل عيادة</span>
+    <button class="bp" id="ac_btn" onclick="ac_load()">🔄 تحميل</button>
+    <button class="bp" style="background:#6c5ce7" onclick="rpt_printTab('ac_wrap')">🖨️ طباعة</button>
+    <button class="bp exp-xls" onclick="expTable('#ac_table','التقرير المجمع للعيادات','xlsx')">📗 Excel</button>
+    <span id="ac_status" style="font-weight:bold;color:#00b8d9"></span>
+  </div>
+  <div class="table-container" style="max-height:none">
+    <table id="ac_table"><thead><tr>
+      <th>العيادة</th><th>المستهدف التراكمي</th><th>المنجز الفعلي</th><th>نسبة الإنجاز</th>
+      <th>الفارق عن المستهدف</th><th>حالة الأداء</th><th>مستفيدو العلاج</th><th>مستفيدو التحصين</th>
+      <th>الحيوانات المعالجة</th><th>عدد الجرعات</th><th>الحيوانات المحصنة</th>
+    </tr></thead><tbody id="ac_tb"></tbody><tfoot id="ac_tf"></tfoot></table>
+  </div>
+</div>
+
+<script>
+/* حالة الأداء — نفس منطق لوحة متابعة التحصين */
+function ac_perf(dayNow, cum, gap) {
+  if (!dayNow)  return ['لم تبدأ الحملة', '#95a5a6'];
+  if (cum <= 0) return ['لا يوجد مستهدف', '#95a5a6'];
+  if (gap > 0)  return ['🔼 متقدم', '#2bb673'];
+  if (gap === 0) return ['✔️ ضمن الخطة', '#e0a800'];
+  return ['🔽 متأخر', '#e65050'];
+}
+
+/* بيانات العيادة الحالية — بنفس دوال التطبيق */
+async function ac_clinic(pf, pt) {
+  var c  = await camp_api('getVaccCampaign');
+  var cf = c.dateFrom || '', ct = c.dateTo || '';
+  var from = pf || cf, to = pt || ct;
+
+  /* المستهدف التراكمي — نفس حساب rptCamp_load */
+  var dFrom = rptCamp_d(cf), dTo = rptCamp_d(ct);
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var days  = parseInt(c.days, 10) || ((dFrom && dTo) ? rptCamp_workDays(dFrom, dTo) : 0);
+  var ended = !!(dTo && today > dTo), dayNow = 0;
+  if (dFrom && today >= dFrom) dayNow = rptCamp_workDays(dFrom, today);
+  if (days > 0 && dayNow > days) dayNow = days;
+  if (ended) dayNow = days;
+  var target = Number(c.target) || 0;
+  var rate   = (days > 0 && target > 0) ? Math.ceil(target / days) : 0;
+  var cum    = (ended && target > 0) ? target : rate * dayNow;
+
+  var done = (cf && ct) ? (await vaccGetTotalVaccinated(cf, ct, '')).total : 0;
+  var vacc = (from === cf && to === ct) ? done : (await vaccGetTotalVaccinated(from, to, '')).total;
+
+  var rp = await rpt_callApi('getReportData', { dateFrom: from, dateTo: to });
+  var tr = await trcallApi('trgetAnimalsReport', { startDate: from, endDate: to });
+  var ds = await vaccCallApi('getAllTotalVaccinatedAnimals', { filters: { dateFrom: from, dateTo: to } });
+
+  return {
+    cum: cum, done: done, dayNow: dayNow,
+    trt: Math.round((rp.beneficiaries || {}).therapeutic || 0),
+    vb:  Math.round((rp.beneficiaries || {}).vaccination || 0),
+    animals: (tr.success && tr.data && tr.data[1]) ? (Number(tr.data[1][8]) || 0) : 0,
+    doses:   (ds.success && ds.totals) ? (Number(ds.totals[5]) || 0) : 0,
+    vacc: vacc || 0
+  };
+}
+
+function ac_row(name, r, cls) {
+  var gap = r.done - r.cum;
+  var pct = r.cum > 0 ? Math.round(r.done / r.cum * 100) + '%' : '—';
+  var p   = ac_perf(r.dayNow, r.cum, gap);
+  var gc  = gap >= 0 ? '#1b5e20' : '#c62828';
+  return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' +
+    '<td class="nc">' + escHtml(name) + '</td>' +
+    '<td>' + rptCamp_num(r.cum) + '</td>' +
+    '<td>' + rptCamp_num(r.done) + '</td>' +
+    '<td><b>' + pct + '</b></td>' +
+    '<td style="color:' + gc + ';font-weight:bold">' + (gap >= 0 ? '+' : '−') + rptCamp_num(Math.abs(gap)) + '</td>' +
+    '<td><span class="badge" style="background:' + p[1] + '">' + p[0] + '</span></td>' +
+    '<td>' + rptCamp_num(r.trt) + '</td>' +
+    '<td>' + rptCamp_num(r.vb) + '</td>' +
+    '<td>' + rptCamp_num(r.animals) + '</td>' +
+    '<td>' + rptCamp_num(r.doses) + '</td>' +
+    '<td>' + rptCamp_num(r.vacc) + '</td></tr>';
+}
+
+async function ac_load() {
+  var me = window._sbProfile;
+  if (!me || !(me.is_admin || me.is_supervisor)) { showToast('⛔ هذه الصفحة للمشرفين والمدير فقط', 'error'); return; }
+  if (window._bootRunning) { showToast('⏳ انتظر اكتمال التحميل الحالي', 'info'); return; }
+  var pf = document.getElementById('ac_from').value, pt = document.getElementById('ac_to').value;
+  if (pf && pt && pf > pt) { showToast('⚠️ تاريخ البداية أكبر من تاريخ النهاية', 'warning'); return; }
+
+  var btn = document.getElementById('ac_btn'), st = document.getElementById('ac_status');
+  var tb = document.getElementById('ac_tb'), tf = document.getElementById('ac_tf');
+
+  var sb = await window.SBAuth.client();
+  var w  = await sb.from('wilayat').select('id, name, is_central').order('name');
+  if (w.error) { showToast('❌ ' + w.error.message, 'error'); return; }
+  var clinics = (w.data || []).filter(function (x) { return !x.is_central; });
+
+  var orig = { id: me.wilayat_id, wilayat: me.wilayat };
+  var T = { cum: 0, done: 0, dayNow: 0, trt: 0, vb: 0, animals: 0, doses: 0, vacc: 0 };
+  var html = '';
+  window._bootRunning = true; btn.disabled = true;
+  tb.innerHTML = ''; tf.innerHTML = '';
+
+  try {
+    for (var i = 0; i < clinics.length; i++) {
+      var c = clinics[i];
+      st.textContent = '⏳ ' + c.name + ' (' + (i + 1) + '/' + clinics.length + ')';
+      me.wilayat_id = c.id;
+      me.wilayat = { name: c.name, is_central: false };
+      try {
+        var r = await ac_clinic(pf, pt);
+        Object.keys(T).forEach(function (k) { T[k] = (k === 'dayNow') ? Math.max(T[k], r[k]) : T[k] + r[k]; });
+        html += ac_row(c.name, r);
+      } catch (e) {
+        html += '<tr><td class="nc">' + escHtml(c.name) + '</td><td colspan="10" style="color:#c62828">❌ ' +
+                escHtml(e.message || e) + '</td></tr>';
+      }
+      tb.innerHTML = html;
+    }
+    tf.innerHTML = ac_row('الإجمالي', T, 'tot');
+    st.textContent = '✅ ' + new Date().toLocaleTimeString('ar-SA');
+  } finally {
+    /* إعادة العيادة الأصلية دائماً */
+    me.wilayat_id = orig.id;
+    me.wilayat    = orig.wilayat;
+    if (window.SBTreatment) window.SBTreatment.clearCache();
+    window._bootRunning = false;
+    btn.disabled = false;
+  }
+}
+</script>
+</div>
+
 
 <div id="login" class="page active">
 <style>
@@ -2684,9 +2846,9 @@ function ua_saveCampaign() {
       item.innerHTML =
         '<div style="display:flex;align-items:center;gap:8px;">' +
         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7a8d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>' +
-        '<span style="font-size:14px;font-weight:600;color:#1a2535;">' + user + '</span>' +
+        '<span style="font-size:14px;font-weight:600;color:#1a2535;">' + escHtml(user) + '</span>' +
         '</div>' +
-        '<button type="button" data-user="' + user + '" class="l_removeUser" ' +
+        '<button type="button" data-user="' + escHtml(user) + '" class="l_removeUser" ' +
         'style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:16px;' +
         'line-height:1;padding:0 2px;" title="حذف">×</button>';
 
@@ -2846,20 +3008,34 @@ if (!u || !p) {
       document.getElementById('l_lbi').style.display='block';
     }
   }
+  /* البريد الداخلي = أول 32 خانة من SHA-256 لاسم المستخدم
+     ⚠️ يجب أن تطابق تماماً الدالة loginEmail في خدمة admin-users */
+  async function lEmailOf(uname) {
+    if (!window.crypto || !crypto.subtle)
+      throw new Error('المتصفح لا يدعم التشفير المطلوب — افتح الصفحة عبر https');
+    var data = new TextEncoder().encode(String(uname).trim().toLowerCase());
+    var hash = await crypto.subtle.digest('SHA-256', data);
+    var hex  = Array.from(new Uint8Array(hash)).map(function (x) {
+      return x.toString(16).padStart(2, '0');
+    }).join('');
+    return hex.slice(0, 32) + '@vet.local';
+  }
+
+  /* الدخول بالعنوان المحسوب من اسم المستخدم — رسالة موحّدة لكل حالات الفشل */
+  async function lSignIn(sb, uname, pass) {
+    var BAD = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+    var au = await sb.auth.signInWithPassword({ email: await lEmailOf(uname), password: pass });
+    if (au.error) {
+      if ((au.error.message || '').indexOf('Invalid login') >= 0) throw new Error(BAD);
+      throw new Error(au.error.message);
+    }
+    return au;
+  }
    /* ── دخول Supabase: اسم عربي → بريد داخلي → مصادقة ── */
   async function sbDoLogin(uname, pass) {
     var sb = await window.SBAuth.client(true);
 
-    var em = await sb.rpc('login_email', { p_username: uname.trim() });
-    if (em.error) throw new Error('تعذّر الاتصال بالخادم');
-    if (!em.data) throw new Error('اسم المستخدم غير موجود');
-
-    var au = await sb.auth.signInWithPassword({ email: em.data, password: pass });
-    if (au.error) {
-      if ((au.error.message || '').indexOf('Invalid login') >= 0)
-        throw new Error('كلمة المرور غير صحيحة');
-      throw new Error(au.error.message);
-    }
+     var au = await lSignIn(sb, uname, pass);
 
     var pr = await sb.from('profiles')
       .select('id, username, full_name, job_title, wilayat_id, role, ' +
@@ -2989,7 +3165,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
     document.getElementById('l_cpAlert').style.display='none';
 
     if(!oldP||!newP||!conf){ lAlert('l_cpAlert','l_cpAlertIco','l_cpAlertTx','error','يرجاء ملء جميع الحقول.'); return; }
-    if(newP.length<6)       { lAlert('l_cpAlert','l_cpAlertIco','l_cpAlertTx','error','كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل.'); return; }
+    if(newP.length<10)      { lAlert('l_cpAlert','l_cpAlertIco','l_cpAlertTx','error','كلمة المرور الجديدة يجب أن تكون 10 أحرف على الأقل.'); return; }
     if(newP!==conf)         { lAlert('l_cpAlert','l_cpAlertIco','l_cpAlertTx','error','كلمة المرور وتأكيدها غير متطابقتين.'); return; }
     if(newP===oldP)         { lAlert('l_cpAlert','l_cpAlertIco','l_cpAlertTx','warn','كلمة المرور الجديدة مطابقة للحالية.'); return; }
 
@@ -3003,11 +3179,10 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
       const uname = (lCU && lCU.username) || window._currentUser || '';
       if (!uname) throw new Error('انتهت الجلسة — أعد تسجيل الدخول');
 
-      const em = await sb.rpc('login_email', { p_username: uname });
-      if (em.error || !em.data) throw new Error('تعذّر التحقق من الحساب');
-
-      const re = await sb.auth.signInWithPassword({ email: em.data, password: oldP });
-      if (re.error) throw new Error('كلمة المرور الحالية غير صحيحة');
+      try { await lSignIn(sb, uname, oldP); }
+      catch (e) {
+        throw new Error(/غير صحيحة/.test(e.message) ? 'كلمة المرور الحالية غير صحيحة' : e.message);
+      }
 
       const up = await sb.auth.updateUser({ password: newP });
       if (up.error) throw new Error(up.error.message);
@@ -3849,7 +4024,9 @@ function dim_printTable() {
       <label>إلى تاريخ:</label><input type="date" id="tr_searchEndDate">
       <button id="tr_clearSearchDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح التواريخ</button>
       <button id="tr_backToMainBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
-      <button type="button" class="print" onclick="printSection('tr_searchTable','البحث في سجل العلاج')">🖨️ طباعة</button> </div>
+      <button class="exp-xls" onclick="expTable('#tr_searchTable','سجل العلاج','xlsx')">📗 Excel</button>
+      <button class="exp-pdf" onclick="expTable('#tr_searchTable','سجل العلاج','pdf',true)">📕 PDF</button>
+    </div>
 <div style="text-align:center;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:10px">
   <input type="text" id="tr_searchKeyword" placeholder="اكتب كلمة البحث..." style="width:250px">
   <span id="tr_searchStatus" style="font-size:13px;font-weight:bold;color:#9b59b6;display:none;">⏳ جاري البحث...</span>
@@ -3859,7 +4036,9 @@ function dim_printTable() {
   <div class="card full-width" id="tr_animalsReportCard" style="display:none;">
     <h3>📊 إجمالي الحيوانات المعالجة</h3>
 <div style="text-align:center;margin-bottom:10px"><button id="tr_backFromAnimalsBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
-<button type="button" class="print" onclick="printSection('tr_animalsReportTable','إجمالي الحيوانات المعالجة')">🖨️ طباعة</button></div>    <div style="display:flex;justify-content:center;gap:15px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+  <button class="exp-xls" onclick="expTable('#tr_animalsReportTable','إجمالي الحيوانات المعالجة','xlsx')">📗 Excel</button>
+  <button class="exp-pdf" onclick="expTable('#tr_animalsReportTable','إجمالي الحيوانات المعالجة','pdf')">📕 PDF</button>
+</div>    <div style="display:flex;justify-content:center;gap:15px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       <label>من تاريخ:</label><input type="date" id="tr_animalsStartDate">
       <label>إلى تاريخ:</label><input type="date" id="tr_animalsEndDate">
       <button id="tr_clearAnimalsDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح</button>
@@ -3975,7 +4154,7 @@ function trshowConfirm(msg, onConfirm) {
   modal.innerHTML = `
     <div class="modal-box">
       <h3>تأكيد</h3>
-      <p>${msg}</p>
+      <p>${escHtml(msg)}</p>
       <div class="modal-buttons">
         <button class="confirm-btn">نعم</button>
         <button class="cancel-btn">إلغاء</button>
@@ -4196,7 +4375,11 @@ function trfillFormWithData(data) {
     trsafeSet("tr_treatmentPlace",  data.treatmentPlace);
     trsafeSet("tr_notes",           data.notes);
     trsafeSet("tr_dataEntryInput",  data.dataEntry);
-
+    /* إيقاف التعبئة التلقائية حتى يبقى اسم مُنشئ الحالة ظاهراً */
+    ["tr_dataEntryInput", "tr_dataUpdaterInput"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && data.caseNumber) el.dataset.userModified = "1";
+    });
     // الحيوانات
     if (data.animals) {
       trsafeSet("tr_animal_goat",    data.animals.goat);
@@ -4222,6 +4405,10 @@ function trfillFormWithData(data) {
 /** مسح النموذج بالكامل */
 function trclearForm() {
   window._trLoadedCase = null;
+  ["tr_dataEntryInput", "tr_dataUpdaterInput"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) delete el.dataset.userModified;
+  });
   document.getElementById("tr_caseNumber").value       = "";
   document.getElementById("tr_mirrorCaseNumber").value = "";
   document.getElementById("tr_dataUpdaterInput").value = "";
@@ -4258,6 +4445,10 @@ function trclearForm() {
 /** مسح النموذج مع الاحتفاظ بحقل واحد */
 function trclearFormExcept(exceptId) {
   window._trLoadedCase = null;
+  ["tr_dataEntryInput", "tr_dataUpdaterInput"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) delete el.dataset.userModified;
+  });
   const fieldsToClear = [
     "tr_caseNumber","tr_mirrorCaseNumber","tr_dataUpdaterInput","tr_phoneInput",
     "tr_nameInput","tr_possessionInput","tr_regionInput","tr_civilInput",
@@ -4749,7 +4940,7 @@ async function trloadData() {
       html += isIncomplete
         ? '<tr class="data-missing">'
         : '<tr style="background-color:#00ff00;">';
-      res.data[i].forEach(c => { html += "<td>" + (c === "" ? " " : c) + "</td>"; });
+      res.data[i].forEach(c => { html += "<td>" + (c === "" ? " " : escHtml(c)) + "</td>"; });
       html += "</tr>";
     }
     html += "</tbody>";
@@ -4823,7 +5014,6 @@ var res = await trcallApi("trsearchInTreatmentSheet", {
   keyword:   kw,
   startDate: sd,
   endDate:   ed,
-  limit: 100,    // تحديد عدد النتائج لتقليل حجم البيانات
   offset: 0
 });
     const tbl = document.getElementById("tr_searchTable");
@@ -4840,7 +5030,7 @@ var res = await trcallApi("trsearchInTreatmentSheet", {
 
     for (let i = 1; i < res.data.length; i++) {
       html += "<tr>";
-      res.data[i].forEach(c => { html += "<td>" + (c || "") + "</td>"; });
+      res.data[i].forEach(c => { html += "<td>" + escHtml(c || "") + "</td>"; });
       html += "</tr>";
     }
     html += "</tbody>";
@@ -5112,7 +5302,7 @@ document.getElementById("tr_topAlertBadge").addEventListener("click", () => {
     modal.innerHTML = `
       <div class="modal-box">
         <h3>⚠️ تنبيهات</h3>
-        <p>${msgs.join("\n\n")}</p>
+        <p>${escHtml(msgs.join("\n\n"))}</p>
         <div class="modal-buttons">
           <button class="confirm-btn" style="background:#3498db">حسناً</button>
         </div>
@@ -5164,18 +5354,41 @@ document.getElementById("tr_incompleteCountBadge").addEventListener("click", asy
 
   cases.forEach(c => {
     html += `<tr style="cursor:pointer" onclick="trSelectIncompleteCase('${c.caseNumber}')">
-      <td><strong style="color:#00b8d9">${c.caseNumber || ''}</strong></td>
-      <td>${c.name || ''}</td>
-      <td>${c.phone || ''}</td>
-      <td>${c.dataEntry || ''}</td>
+       <td><strong style="color:#00b8d9">${escHtml(c.caseNumber)}</strong></td>
+      <td>${escHtml(c.name)}</td>
+      <td>${escHtml(c.phone)}</td>
+      <td>${escHtml(c.dataEntry)}</td>
     </tr>`;
   });
 
   html += `</tbody></table>`;
   document.getElementById("incompleteTableContainer").innerHTML = html;
 });
-}
 
+  // --- المبلغ = مجموع الحيوانات عدا الدواجن (تلقائي مع إمكانية التعديل) ---
+  var trAmtIds = ["tr_animal_goat","tr_animal_sheep","tr_animal_cow","tr_animal_camel",
+                  "tr_animal_horse","tr_animal_cat","tr_animal_dog"];
+  var trAmt = document.getElementById("tr_amount");
+  function trAmtKey() { return String(window._trLoadedCase || "new"); }
+
+  /* كتابة المستخدم في المبلغ = تعديل يدوي يوقف الحساب التلقائي */
+  trAmt.addEventListener("input", function (e) {
+    if (e.isTrusted) this.dataset.manual = this.value.trim() ? trAmtKey() : "";
+  });
+
+  trAmtIds.forEach(function (id) {
+    document.getElementById(id).addEventListener("input", function () {
+      /* احترام التعديل اليدوي لنفس الحالة ما دام المبلغ غير فارغ */
+      if (trAmt.dataset.manual === trAmtKey() && trAmt.value.trim()) return;
+      trAmt.dataset.manual = "";
+      var s = trAmtIds.reduce(function (t, x) {
+        var n = Number(document.getElementById(x).value);
+        return t + (isNaN(n) || n < 0 ? 0 : n);
+      }, 0);
+trAmt.value = s > 0 ? Math.round(s * 0.1 * 1000) / 1000 : "";
+    });
+  });
+}
 // ============================================================
 //  نقطة البداية (Initialization)
 // ============================================================
@@ -5496,6 +5709,8 @@ async function trSelectIncompleteCase(caseNumber) {
         <input type="text" id="bd_globalSearchInput" placeholder="اكتب للبحث..." style="width:250px;padding:5px">
 <button onclick="bd_fetchAll()" style="background:#00b8d9;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;">⬇️ جلب الكل</button>
 <span id="bd_fetchAllCount" style="display:none;background:#2bb673;color:#fff;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:bold;margin-right:6px;"></span>
+<button class="exp-xls" onclick="expTable('#bd_searchResultsTable','سجل المربين','xlsx')">📗 Excel</button>
+<button class="exp-pdf" onclick="expTable('#bd_searchResultsTable','سجل المربين','pdf',true)">📕 PDF</button>
 <button onclick="bd_analyzeInactive()" style="background:#e67e22;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📊 تصنيف نشاط المربين</button>
 <button onclick="bd_expiredHoldings()" style="background:#e65050;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📅 حالة الحيازات</button>      </div>
       <div id="bd_searchResultsContainer" style="display:none;max-height:300px;overflow:auto">
@@ -5545,7 +5760,7 @@ function bd_showConfirm(msg, onConfirm) {
 function bd_showConfirmNow(msg, onConfirm) {
   var existing = document.querySelector(".custom-modal"); if (existing) existing.remove();
   var modal = document.createElement("div"); modal.className = "custom-modal";
-  modal.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="confirm-btn">نعم</button><button class="cancel-btn">إلغاء</button></div></div>';
+  modal.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+escHtml(msg)+'</p><div class="modal-buttons"><button class="confirm-btn">نعم</button><button class="cancel-btn">إلغاء</button></div></div>';
   document.body.appendChild(modal);
   modal.querySelector(".confirm-btn").addEventListener("click",function(){modal.remove();onConfirm();});
   modal.querySelector(".cancel-btn").addEventListener("click",function(){modal.remove();});
@@ -5770,8 +5985,7 @@ async function bd_performGlobalSearch() {
     if(!res.success||!res.data||res.data.length<=1){tbody.innerHTML="<tr><td colspan='100' style='text-align:center'>لا توجد نتائج</td></tr>";return;}
     var headers=res.data[0],rows=res.data.slice(1);
     document.getElementById("bd_searchResultsHeader").innerHTML="<tr>"+headers.map(function(h){return"<th style='border:1px solid #00b8d9;padding:6px 4px;background:#00b8d9;color:#fff;font-size:12px;text-align:center;'>"+(h||" ")+"</th>";}).join("")+"</tr>";
-    tbody.innerHTML=rows.map(function(row){return"<tr>"+row.map(function(c){return"<td style='border:1px solid #ccc;padding:4px'>"+(c||" ")+"</td>";}).join("")+"</tr>";}).join("");
-    Array.from(tbody.querySelectorAll("tr")).forEach(function(tr){
+    tbody.innerHTML=rows.map(function(row){return"<tr>"+row.map(function(c){return"<td style='border:1px solid #ccc;padding:4px'>"+escHtml(c||" ")+"</td>";}).join("")+"</tr>";}).join(""); Array.from(tbody.querySelectorAll("tr")).forEach(function(tr){
       tr.style.cursor="pointer";
       tr.addEventListener("click",async function(){
         var firstCell=tr.cells[0].textContent.trim();
@@ -5967,7 +6181,7 @@ async function bd_fetchAll() {
     tbody.innerHTML = res.data.map(function(b){
       return "<tr style='cursor:pointer' onclick=\"document.getElementById('bd_phoneInput').value='"+b.phone+"';bd_loadCaseData('"+b.phone+"');document.getElementById('bd_searchResultsContainer').style.display='none';\">" +
         ["phone","name","possession","region","civil","notes","financialDate","dataEntry"].map(function(k){
-          return "<td style='border:1px solid #ccc;padding:4px;font-size:12px;'>"+(b[k]||"")+"</td>";
+          return "<td style='border:1px solid #ccc;padding:4px;font-size:12px;'>"+escHtml(b[k]||"")+"</td>";
         }).join("") + "</tr>";
     }).join("");
     bd_showMessage("✅ تم جلب " + res.data.length + " مربي", false);
@@ -6247,9 +6461,9 @@ function bd_showActivityList(mode) {
 
     html += '<tr style="background:' + c.bg + ';">' +
       '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i + 1) + '</td>' +
-      '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
-      '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
-      '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+      '<td style="' + td + 'text-align:center;direction:ltr;">' + escHtml(r.phone) + '</td>' +
+      '<td style="' + td + 'text-align:right;">' + escHtml(r.name) + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + escHtml(r.region) + '</td>' +
       '<td style="' + td + 'text-align:center;">' + bd_fmtDate(dCol) + '</td>' +
       '<td style="' + td + 'text-align:center;font-weight:bold;color:' + c.txt + ';">' + dTxt + '</td>' +
       '<td style="' + td + 'text-align:center;"><span style="display:inline-block;min-width:34px;background:#00b8d9;color:#fff;border-radius:12px;padding:2px 10px;font-weight:bold;font-size:12px;">' + (r.visits || 0) + '</span></td>' +
@@ -6412,9 +6626,9 @@ function bd_showHoldList(mode) {
            : 'تبقى ' + r.days + ' يوم';
     html += '<tr style="background:' + conf.bg + ';">' +
       '<td style="' + td + 'text-align:center;font-weight:bold;">' + (i + 1) + '</td>' +
-      '<td style="' + td + 'text-align:center;direction:ltr;">' + r.phone + '</td>' +
-      '<td style="' + td + 'text-align:right;">' + r.name + '</td>' +
-      '<td style="' + td + 'text-align:center;">' + r.region + '</td>' +
+      '<td style="' + td + 'text-align:center;direction:ltr;">' + escHtml(r.phone) + '</td>' +
+      '<td style="' + td + 'text-align:right;">' + escHtml(r.name) + '</td>' +
+      '<td style="' + td + 'text-align:center;">' + escHtml(r.region) + '</td>' +
       '<td style="' + td + 'text-align:center;">' + bdHold_fmt(r.date) + '</td>' +
       '<td style="' + td + 'text-align:center;font-weight:bold;color:' + conf.color + ';">' + st + '</td>' +
       '<td style="' + td + 'text-align:center;">' +
@@ -6456,7 +6670,7 @@ function bd_printHoldList() {
     'table button{display:none}th:last-child,td:last-child{display:none}' +
     '.pbtn{background:#6c5ce7;color:#fff;border:none;border-radius:6px;padding:9px 30px;font-size:14px;font-weight:bold;cursor:pointer;font-family:Tahoma}' +
     '@media print{@page{size:A4 portrait;margin:10mm}.pbtn{display:none}}</style></head><body>' +
-    '<div style="text-align:center;margin-bottom:12px"><button class="pbtn" onclick="window.print()">🖨️ طباعة</button></div>' +
+      '<div style="text-align:center;margin-bottom:12px"><button class="pbtn" onclick="window.print()">🖨️ طباعة</button></div>' +
     '<h2>' + t + '</h2>' + wrap.innerHTML +
     '</body></html>');
   w.document.close();
@@ -6566,7 +6780,9 @@ function bd_printHoldList() {
         <button class="back-btn" id="vacc_srBackBtn">← رجوع</button>
         <button class="search-record" id="vacc_srSearchBtn">بحث</button>
         <button class="clear" id="vacc_srClearBtn">مسح البحث</button>
-        <button type="button" class="print" onclick="printSection('vacc_searchRecordResults','البحث في سجل التحصين')">🖨️ طباعة</button>      </div>
+        <button class="exp-xls" onclick="expTable('#vacc_searchRecordResults table','سجل التحصين','xlsx')">📗 Excel</button>
+        <button class="exp-pdf" onclick="expTable('#vacc_searchRecordResults table','سجل التحصين','pdf',true)">📕 PDF</button>
+      </div>
       <div id="vacc_srResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#9b59b6;font-size:13px;"></div>
       <div id="vacc_searchRecordResults" style="overflow:auto;max-height:80vh;margin-top:8px;font-size:13px;border:1px solid #ddd;border-radius:3px;"></div>    </div>
 
@@ -6581,7 +6797,9 @@ function bd_printHoldList() {
         <button class="back-btn" id="vacc_atBackBtn">← رجوع</button>
         <button class="all-total-btn" id="vacc_atSearchBtn">عرض الإجمالي</button>
         <button class="clear" id="vacc_atClearBtn">مسح</button>
-        <button type="button" class="print" onclick="printSection('vacc_allTotalResults','إجمالي عدد الجرعات')">🖨️ طباعة</button>      </div>
+        <button class="exp-xls" onclick="expTable('#vacc_allTotalResults table','إجمالي عدد الجرعات','xlsx')">📗 Excel</button>
+        <button class="exp-pdf" onclick="expTable('#vacc_allTotalResults table','إجمالي عدد الجرعات','pdf')">📕 PDF</button>
+      </div>
       <div id="vacc_atResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#27ae60;font-size:13px;"></div>
       <div id="vacc_allTotalResults" style="overflow:auto;max-height:500px;margin-top:8px;font-size:12px;border:1px solid #ddd;border-radius:3px;"></div>
     </div>
@@ -6598,7 +6816,9 @@ function bd_printHoldList() {
         <button class="back-btn" id="vacc_maBackBtn">← رجوع</button>
         <button class="all-total-btn" id="vacc_maSearchBtn">عرض البيانات</button>
         <button class="clear" id="vacc_maClearBtn">مسح</button>
-        <button type="button" class="print" onclick="printSection('vacc_maxAnimalsResults','إجمالي الحيوانات المحصنة')">🖨️ طباعة</button>      </div>
+        <button class="exp-xls" onclick="expTable('#vacc_maxAnimalsResults table','عدد الحيوانات المحصنة','xlsx')">📗 Excel</button>
+        <button class="exp-pdf" onclick="expTable('#vacc_maxAnimalsResults table','عدد الحيوانات المحصنة','pdf')">📕 PDF</button>
+      </div>
   <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0;">
   <div id="vacc_maResultCount" style="font-weight:bold;color:#27ae60;font-size:13px;"></div>
   <label style="display:flex;align-items:center;gap:5px;font-weight:bold;font-size:13px;cursor:pointer;background:#e8f5e9;padding:4px 10px;border-radius:20px;border:1px solid #27ae60;">
@@ -6640,7 +6860,7 @@ function vaccShowMessage(message, isError, type) {
 
 function vaccShowConfirm(message, onConfirm) {
   var overlay = document.createElement('div'); overlay.className = 'modal-overlay';
-  overlay.innerHTML = '<div class="modal-box"><h3>تأكيد العملية</h3><p>' + message + '</p>' +
+overlay.innerHTML = '<div class="modal-box"><h3>تأكيد العملية</h3><p>' + escHtml(message) + '</p>' +
     '<div class="modal-buttons"><button class="modal-btn confirm">نعم</button>' +
     '<button class="modal-btn cancel">إلغاء</button></div></div>';
   document.body.appendChild(overlay);
@@ -6757,7 +6977,7 @@ async function vaccFetchVaccinationDataByPhone(phone, showWarning) {
         }
         var cellStyle = 'border:1px solid #ccc;padding:4px;text-align:center;';
         if (colIndex === caseNumberColumnIndex && cellValue) cellStyle += 'color:#00b8d9;font-weight:bold;text-decoration:underline;';
-        html += '<td style="' + cellStyle + '">' + cellValue + '</td>';
+        html += '<td style="' + cellStyle + '">' + escHtml(cellValue) + '</td>';
       });
       html += '</tr>';
     });
@@ -7019,7 +7239,7 @@ async function vaccDoSearchVaccinationRecords() {
         return String(row[0]).trim() === srCaseNumber.trim();
       });
       if (rows.length === 0) {
-        div.innerHTML = '<p style="text-align:center;color:#e65050;padding:12px;">لا توجد نتائج مطابقة لرقم الحالة: ' + srCaseNumber + '</p>';
+        div.innerHTML = '<p style="text-align:center;color:#e65050;padding:12px;">لا توجد نتائج مطابقة لرقم الحالة: ' + escHtml(srCaseNumber) + '</p>';
         return;
       }
     }
@@ -7081,7 +7301,7 @@ colOrder.forEach(function(col){
           } catch(e) {}
         }
         var bg = col.bg ? 'background:'+col.bg+';' : '';
-        html += '<td style="border:1px solid #ddd;padding:5px;text-align:center;'+bg+'">'+val+'</td>';
+        html += '<td style="border:1px solid #ddd;padding:5px;text-align:center;'+bg+'">'+escHtml(val)+'</td>';
       });
       html += '</tr>';
     });
@@ -7151,7 +7371,7 @@ var html='<table><thead><tr>'+(res.headers||[]).map(function(h){
 displayRows.forEach(function(row,idx){
   var bg=(idx%2!==0)?' style="background:#eafaf1;"':'';
   html+='<tr'+bg+'>'+row.map(function(c){
-    return '<td style="border:1px solid #ddd;padding:5px;">'+(c!=null?c:'')+'</td>';
+    return '<td style="border:1px solid #ddd;padding:5px;">'+escHtml(c!=null?c:'')+'</td>';
   }).join('')+'</tr>';
 });
     html+='</tbody>';
@@ -7696,7 +7916,7 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
       : 'border:1px solid #ccc;padding:6px 8px;text-align:center;background:#fff3cd;color:#856404;font-weight:bold;cursor:pointer;';
     var nameContent = isRegistered
       ? vr_escapeHtml(r.name)
-      : '<span title="انقر لحفظ في سجل المربي" onclick="vr_saveToBreeder(' + JSON.stringify(r).replace(/"/g, '&quot;') + ')">'
+      : '<span title="انقر لحفظ في سجل المربي" onclick="vr_saveToBreeder(' + escHtml(JSON.stringify(r)) + ')">'
         + '⚠️ ' + vr_escapeHtml(r.name) + ' <small style="font-size:10px;color:#cc7000;">(غير مسجل)</small></span>';
 
     tr.innerHTML =
@@ -7780,17 +8000,17 @@ async function vr_saveToBreeder(r) {
       <div style="background:#f0f9ff;border:1px solid #b3e5fc;border-radius:8px;
                   padding:10px 14px;margin-bottom:18px;font-size:13px;
                   text-align:right;direction:rtl;line-height:2.2;">
-        <div>👤 <strong>الاسم:</strong> ${r.name || '—'}</div>
-        <div>📞 <strong>الهاتف:</strong> ${r.phone || '—'}</div>
-        <div>📍 <strong>المنطقة:</strong> ${r.area || '—'}</div>
-        <div>🪪 <strong>رقم الحيازة:</strong> ${r.possession || '—'}</div>
-        <div>🪪 <strong>الرقم المدني:</strong> ${r.civil || '—'}</div>
-        <div>📅 <strong>تاريخ انتهاء الحيازة:</strong> ${r.financialDate || '—'}</div>
+        <div>👤 <strong>الاسم:</strong> ${escHtml(r.name || '—')}</div>
+        <div>📞 <strong>الهاتف:</strong> ${escHtml(r.phone || '—')}</div>
+        <div>📍 <strong>المنطقة:</strong> ${escHtml(r.area || '—')}</div>
+        <div>🪪 <strong>رقم الحيازة:</strong> ${escHtml(r.possession || '—')}</div>
+        <div>🪪 <strong>الرقم المدني:</strong> ${escHtml(r.civil || '—')}</div>
+        <div>📅 <strong>تاريخ انتهاء الحيازة:</strong> ${escHtml(r.financialDate || '—')}</div>
         <div>🐐 <strong>ماعز:</strong> ${r.goat || '—'} &nbsp;|&nbsp;
              🐑 <strong>أغنام:</strong> ${r.sheep || '—'} &nbsp;|&nbsp;
              🐄 <strong>أبقار:</strong> ${r.cow || '—'} &nbsp;|&nbsp;
              🐪 <strong>جمال:</strong> ${r.camel || '—'}</div>
-        ${r.notes ? `<div>📝 <strong>ملاحظات:</strong> ${r.notes}</div>` : ''}
+        ${r.notes ? `<div>📝 <strong>ملاحظات:</strong> ${escHtml(r.notes)}</div>` : ''}
       </div>
       <div class="modal-buttons" style="gap:12px;">
         <button class="confirm-btn" id="vr_confirmSave"
@@ -7892,6 +8112,7 @@ async function vr_saveToBreeder(r) {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/ https://cdn.jsdelivr.net/npm/chart.js@4.4.1/ https://cdn.jsdelivr.net/npm/xlsx@0.18.5/; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com https://dlivsidtmmtvrqhtxmlu.supabase.co; font-src 'self' data:; connect-src 'self' https://dlivsidtmmtvrqhtxmlu.supabase.co wss://dlivsidtmmtvrqhtxmlu.supabase.co; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'">
 <title>طباعة متابعة طلبات التحصين</title>
 <style>
   body { font-family: Tahoma, Arial, sans-serif; direction: rtl; padding: 20px; font-size: 13px; color: #000; }
@@ -8115,7 +8336,7 @@ function foshowMessage(msg, isError, type) {
 }
 function foshowConfirm(msg, onConfirm) {
   var o = document.createElement('div'); o.className = 'modal-overlay';
-  o.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+msg+'</p><div class="modal-buttons"><button class="modal-btn confirm">نعم</button><button class="modal-btn cancel">إلغاء</button></div></div>';
+  o.innerHTML = '<div class="modal-box"><h3>تأكيد</h3><p>'+escHtml(msg)+'</p><div class="modal-buttons"><button class="modal-btn confirm">نعم</button><button class="modal-btn cancel">إلغاء</button></div></div>';
   document.body.appendChild(o); setTimeout(function(){o.classList.add('show');},10);
   var close = function(){o.classList.remove('show');setTimeout(function(){o.remove();},300);};
   o.querySelector('.confirm').onclick = function(){close();onConfirm();};
@@ -8360,9 +8581,9 @@ function fodisplaySearchResults(data) {
   html+='</tr></thead><tbody>';
   data.forEach(function(row){
        html+='<tr>';
-    cols.forEach(function(c){html+='<td>'+(row[c.split(':')[0]]||'')+'</td>';});
-    colsES.forEach(function(c){html+='<td class="col-e-s">'+(row[c.split(':')[0]]||'')+'</td>';});
-    colsTest.forEach(function(c){html+='<td>'+(row[c.split(':')[0]]||'')+'</td>';});
+    cols.forEach(function(c){html+='<td>'+escHtml(row[c.split(':')[0]]||'')+'</td>';});
+    colsES.forEach(function(c){html+='<td class="col-e-s">'+escHtml(row[c.split(':')[0]]||'')+'</td>';});
+    colsTest.forEach(function(c){html+='<td>'+escHtml(row[c.split(':')[0]]||'')+'</td>';});
     html+='</tr>';
   });
   html+='</tbody></table>';
@@ -8534,8 +8755,8 @@ var html = statsHtml
 
         html += '<tr>';
        
-        html += '<td style="' + testCellBg + '">' + t.name + '</td>';
-        html += '<td style="background:' + resColor + ';color:' + resTextColor + ';font-weight:bold;">' + (t.result || '—') + '</td>';
+        html += '<td style="' + testCellBg + '">' + escHtml(t.name) + '</td>';
+        html += '<td style="background:' + resColor + ';color:' + resTextColor + ';font-weight:bold;">' + escHtml(t.result || '—') + '</td>';
         html += '</tr>';
       });
     });
@@ -8815,8 +9036,9 @@ function fin_localToday() {
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"
+        integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG"
+        crossorigin="anonymous"></script><script>
 var dtr_userClick = false;
 async function dtr_callApi(action, payload) {
   throw new Error("جسر قاعدة البيانات لم يُحمَّل بعد — أعد تحميل الصفحة");
@@ -10963,22 +11185,157 @@ async function rpt_saveDates() {
 </div>
 </div>
 
+<script>
+/* ════════════════════════════════════════════════════════════
+   تصدير الجداول — Excel / PDF
+   ════════════════════════════════════════════════════════════ */
+(function (g) {
+  "use strict";
+  var XLSX_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+  var XLSX_SRI = "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw";
+  var xlsxLoading = null;
+
+  function toast(m, t) { if (g.showToast) g.showToast(m, t); }
+
+  function loadXlsx() {
+    if (g.XLSX) return Promise.resolve();
+    if (xlsxLoading) return xlsxLoading;
+    xlsxLoading = new Promise(function (res, rej) {
+      var s = document.createElement("script");
+      s.src = XLSX_URL;
+      s.integrity = XLSX_SRI;
+      s.crossOrigin = "anonymous";
+      s.onload = res;
+      s.onerror = function () { xlsxLoading = null; rej(new Error("تعذّر تحميل مكتبة Excel — تحقق من الإنترنت")); };
+      document.head.appendChild(s);
+    });
+    return xlsxLoading;
+  }
+
+  /* نسخة من الجدول بالصفوف الظاهرة فقط وبلا أزرار */
+  function visibleClone(tbl) {
+    var clone = tbl.cloneNode(true), o = tbl.rows, c = clone.rows;
+    for (var i = o.length - 1; i >= 0; i--) {
+      if (!o[i].getClientRects().length) c[i].parentNode.removeChild(c[i]);
+    }
+    clone.querySelectorAll("button").forEach(function (b) { b.remove(); });
+    clone.removeAttribute("id");
+    return clone;
+  }
+
+  function hasData(t) {
+    return Array.prototype.some.call(t.rows, function (r) {
+      return r.parentNode.tagName !== "THEAD" && r.cells.length > 1;
+    });
+  }
+
+  function fileName(title) {
+    return (title + "_" + new Date().toLocaleDateString("en-CA")).replace(/[\\\/:*?"<>|\s]+/g, "_");
+  }
+
+  function clinicName() {
+    var p = g._sbProfile;
+    return (p && p.wilayat && p.wilayat.name) ? p.wilayat.name : "";
+  }
+
+  /* النصوص الرقمية ← أرقام فعلية حتى تعمل الجمع والفرز في Excel */
+  function fixNumbers(ws) {
+    Object.keys(ws).forEach(function (k) {
+      if (k[0] === "!") return;
+      var c = ws[k];
+      if (c.t !== "s") return;
+      var s = String(c.v).trim();
+      if (/^-?\d+(\.\d+)?$/.test(s) && s.length < 15 && !/^0\d/.test(s)) {
+        c.t = "n"; c.v = Number(s); delete c.w;
+      }
+    });
+  }
+
+  function autoWidth(ws) {
+    if (!ws["!ref"]) return;
+    var R0 = XLSX.utils.decode_range(ws["!ref"]), cols = [];
+    for (var C = R0.s.c; C <= R0.e.c; C++) {
+      var max = 6;
+      for (var R = R0.s.r; R <= R0.e.r; R++) {
+        var cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+        if (cell && cell.v != null) max = Math.max(max, String(cell.v).length + 2);
+      }
+      cols.push({ wch: Math.min(max, 45) });
+    }
+    ws["!cols"] = cols;
+  }
+
+  async function toExcel(tbl, title) {
+    await loadXlsx();
+    var sheet = title.replace(/[\\\/?*\[\]:]/g, " ").slice(0, 31);
+    var wb = XLSX.utils.table_to_book(tbl, { raw: true, sheet: sheet });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    fixNumbers(ws);
+    autoWidth(ws);
+    wb.Workbook = { Views: [{ RTL: true }] };
+    XLSX.writeFile(wb, fileName(title) + ".xlsx");
+  }
+
+  function toPdf(tbl, title, landscape) {
+    var w = g.open("", "_blank");
+    if (!w) { toast("⚠️ المتصفح منع فتح النافذة — اسمح بالنوافذ المنبثقة", "warning"); return; }
+    var sub = [clinicName(), new Date().toLocaleDateString("en-GB")].filter(Boolean).join(" — ");
+    w.document.write(
+      '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + fileName(title) + '</title><style>' +
+      '*{-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+      'body{font-family:Tahoma,Arial;direction:rtl;padding:14px;color:#000}' +
+      'h2{text-align:center;color:#004e66;margin:4px 0}.sub{text-align:center;font-size:12px;color:#555;margin-bottom:10px}' +
+      'table{width:100%;border-collapse:collapse;font-size:' + (landscape ? '9px' : '11px') + '}' +
+      'th,td{border:1px solid #999;padding:4px;text-align:center}' +
+      'th{background:#00b8d9;color:#fff;position:static!important}' +
+      'thead{display:table-header-group}tr{page-break-inside:avoid}' +
+      '.pbtn{background:#c0392b;color:#fff;border:none;border-radius:6px;padding:9px 30px;font-size:14px;font-weight:bold;cursor:pointer;font-family:Tahoma}' +
+      '@media print{@page{size:A4 ' + (landscape ? 'landscape' : 'portrait') + ';margin:8mm}.pbtn{display:none}}' +
+      '</style></head><body>' +
+      '<div style="text-align:center;margin-bottom:10px"><button class="pbtn" onclick="window.print()">📕 حفظ PDF / طباعة</button></div>' +
+      '<h2>' + title + '</h2><div class="sub">' + sub + '</div>' +
+      tbl.outerHTML + '</body></html>');
+    w.document.close();
+    setTimeout(function () { w.focus(); w.print(); }, 500);
+  }
+
+  /* sel: محدد الجدول | fmt: "xlsx" أو "pdf" | landscape: للجداول العريضة */
+  g.expTable = async function (sel, title, fmt, landscape) {
+    if (g.PERM && PERM.isActionAllowed && !PERM.isActionAllowed("print")) {
+      toast("⛔ ليس لديك صلاحية التصدير", "error"); return;
+    }
+    var tbl = document.querySelector(sel);
+    var clone = tbl ? visibleClone(tbl) : null;
+    if (!clone || !hasData(clone)) {
+      toast("⚠️ لا توجد بيانات للتصدير — نفّذ البحث أولاً", "warning"); return;
+    }
+    try {
+      if (fmt === "xlsx") {
+        toast("⏳ جاري تجهيز ملف Excel...", "info");
+        await toExcel(clone, title);
+        toast("✅ تم تنزيل ملف Excel", "success");
+      } else {
+        toPdf(clone, title, landscape);
+      }
+    } catch (e) {
+      toast("❌ " + (e.message || e), "error");
+    }
+  };
+
+  var st = document.createElement("style");
+  st.textContent =
+    ".exp-xls{background:#1d6f42!important;color:#fff!important}" +
+    ".exp-pdf{background:#c0392b!important;color:#fff!important}" +
+    "@media print{.exp-xls,.exp-pdf{display:none!important}}";
+  document.head.appendChild(st);
+})(window);
+</script>
+
+
+
+
 <!-- ===== Script العام للمظهر ===== -->
 <script>
-function printSection(id, title) {
-  var el = document.getElementById(id);
-  if (!el || !el.innerText.trim()) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
-  var w = window.open('', '_blank', 'width=1100,height=800');
-  w.document.write('<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' + title + '</title>' +
-    '<style>body{font-family:Tahoma,Arial;direction:rtl;padding:15px;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
-    'h2{text-align:center;color:#00b8d9}table{width:100%;border-collapse:collapse;font-size:11px}' +
-    'th,td{border:1px solid #999;padding:5px;text-align:center}th{background:#00b8d9;color:#fff;position:static!important}' +
-    '.pbtn{background:#6c5ce7;color:#fff;border:none;border-radius:6px;padding:9px 30px;font-size:14px;font-weight:bold;cursor:pointer;font-family:Tahoma}' +
-    '@media print{@page{size:A4 landscape;margin:8mm}.pbtn{display:none}}</style></head><body>' +
-    '<div style="text-align:center;margin-bottom:12px"><button class="pbtn" onclick="window.print()">🖨️ طباعة</button></div>' +
-    '<h2>' + title + '</h2>' + el.outerHTML + '</body></html>');
-  w.document.close();
-}
 function saveAppearance() {
   localStorage.setItem('app_bg', document.getElementById('bgColor').value);
   localStorage.setItem('app_txt', document.getElementById('txtColor').value);
@@ -11060,12 +11417,12 @@ function foCheckOverdueSamples() {
       var badgeCls = row._diffDays > 14 ? '' : 'warn';
       html += '<tr>'
         + '<td><strong>' + (row.caseNumberrt||'') + '</strong></td>'
-        + '<td>' + (row.name||'') + '</td>'
-        + '<td>' + (row.region||'') + '</td>'
-        + '<td>' + (row.sampleType||'') + '</td>'
+        + '<td>' + escHtml(row.name||'') + '</td>'
+        + '<td>' + escHtml(row.region||'') + '</td>'
+        + '<td>' + escHtml(row.sampleType||'') + '</td>'
         + '<td>' + (row.sampleSentDate||row.samplesentdate||'') + '</td>'
         + '<td><span class="overdue-days-badge ' + badgeCls + '">' + row._diffDays + ' يوم</span></td>'
-        + '<td style="text-align:right">' + tests + '</td>'
+        + '<td style="text-align:right">' + escHtml(tests) + '</td>'
         + '</tr>';
     });
     html += '</tbody></table>';
@@ -11223,8 +11580,8 @@ function foDismissOverdueAlert() {
    * هل الصفحة مسموحة للمستخدم الحالي؟
    */
   function isPageAllowed(pageId) {
-    if (String(pageId).toLowerCase() === "useradmin")
-      return !!(global._sbProfile && global._sbProfile.is_admin);
+    if (String(pageId).toLowerCase() === "allclinics")
+      return !!(global._sbProfile && (global._sbProfile.is_admin || global._sbProfile.is_supervisor));
     if (pageId === "login" || pageId === "home") return true;
     if (!state.allowedPages || state.allowedPages.length === 0) return true;
     return state.allowedPages.indexOf(pageId.toLowerCase()) !== -1;
@@ -12047,15 +12404,7 @@ setInterval(syncWrapApiCalls, 2000);
       "🕐 الوقت: " + new Date().toLocaleString("ar-SA") + "\n" +
       "📊 عدد الحالات: " + (getTimestamps().length) + " خلال 3 دقائق";
 
-    fetch("https://ntfy.sh/oman_lab_2026_alerts_x92", {
-      method: "POST",
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-      body: msg
-    })
-    .then(function(r) {
-      console.log("[ntfy]", r.ok ? "✅ تم الإرسال" : "❌ فشل");
-    })
-    .catch(function(e) { console.warn("[ntfy] خطأ:", e); });
+       sendAlert(msg);
 
     var overlay = document.createElement("div");
     overlay.id = "tr-speed-warning-modal";
@@ -12106,7 +12455,8 @@ setInterval(syncWrapApiCalls, 2000);
     var _orig = window.trcallApi;
     window.trcallApi = function(action, payload) {
       return _orig.call(this, action, payload).then(function(res) {
-        if (action === "trsaveData" && res && res.success) {
+            var trPlace = (payload && payload.data) ? String(payload.data.treatmentPlace || "").trim() : "";
+        if (action === "trsaveData" && res && res.success && trPlace !== "وصف علاج") {
           _allowSpeedRecording = true;
           try {
             addTimestamp();
@@ -12149,25 +12499,45 @@ window.trcallApi._speedPatched = true;
   /* ── الإعدادات ── */
   var DISEASE_THRESHOLD    = 15;
   var DISEASE_COL_INDEXES  = [6, 9, 12, 15, 18]; // أعمدة G,J,M,P,S
+
+  /* الأمراض الوبائية فقط — لا يُنبَّه عن غيرها */
+  var EPIDEMIC_LIST = [
+    "اشتباه حمى قلاعيه", "اشتباه طاعون",
+    "تريبانوسوما", "زنبور", "Surra", "Trypanosomiasis",
+    "ثيليريا", "Blood Parasite - Theileriosis", "Theileriosis",
+    "أنابلازما", "Anaplasmosis", "Blood Parasite - Anaplasmosis",
+    "بابيزيا", "Blood Parasite - Babesiosis", "Babesiosis",
+    "السل البقري", "Bovine Tuberculosis",
+    "حمى الثلاث أيام", "Three days sickness",
+    "الجدري", "Sheep Pox", "Goat Pox", "Camel Pox", "Pox",
+    "الحمى القلاعية", "FMD", "Foot and Mouth Disease",
+    "الإلتهاب الرئوي البلوري المعدي (CCPP)", "CCPP", "Contagious Caprine Pleuropneumonia (CCPP)",
+    "السعار", "Rabies",
+    "البروسيلا", "Brucellosis",
+    "حمى كيو (المجهولة)", "Q Fever",
+    "اشتباه التهاب الجلد العقدي", "اشتباه جدري",
+    "نيوكاسل - دواجن", "Poultry - Newcastle Disease (ND)", "ND",
+    "جمبورو - دواجن", "IBD", "Poultry - Infectious Bursal Disease (IBD)", "Poultry - Gumboro Disease",
+    "إلتهاب الشعب الهوائية المعدي (IB) - دواجن", "IB", "Poultry - Infectious Bronchitis (IB)",
+    "إلتهاب الحنجرة والقصبات الهوائية المعدي (ILT) - دواجن", "ILT", "Poultry - Infectious Laryngotracheitis (ILT)",
+    "انفلونزا الطيور - دواجن", "Bird Flu", "AI", "Poultry - Avian Influenza (AI)",
+    "جدري - دواجن", "Poultry - Avian Pox", "Fowl Pox"
+  ];
+
+  /* توحيد الكتابة: المسافات، حالة الأحرف، الهمزات، التاء المربوطة، الياء */
+  function dnorm(s) {
+    return String(s || "").trim().replace(/\s+/g, " ").toLowerCase()
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
+  }
+  var EPIDEMIC = {};
+  EPIDEMIC_LIST.forEach(function (n) { EPIDEMIC[dnorm(n)] = true; });
   /* منع تكرار التنبيه لنفس المرض في نفس الجلسة */
   var _alreadyAlerted = {};
  
   /* ═══════════════════════════════════════════════════════
      ١. إرسال رسالة Telegram
      ═══════════════════════════════════════════════════════ */
-  var NTFY_TOPIC = "oman_lab_2026_alerts_x92";
-
-function sendTelegram(text) {
-  fetch("https://ntfy.sh/" + NTFY_TOPIC, {
-    method : "POST",
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-    body   : text
-  })
-  .then(function (r) {
-    console.log("[DiseaseAlert] ntfy:", r.ok ? "✅ أُرسل" : "❌ فشل");
-  })
-  .catch(function (e) { console.warn("[DiseaseAlert] ntfy خطأ:", e); });
-}
+function sendTelegram(text) { sendAlert(text); }
  
   /* ═══════════════════════════════════════════════════════
      ٢. النافذة المنبثقة داخل النظام
@@ -12274,6 +12644,7 @@ function sendTelegram(text) {
           if (colIdx >= row.length) return;
           var disease = (row[colIdx] || "").toString().trim().replace(/\s+/g, " ");
           if (!disease || disease === "-" || disease === "0") return;
+          if (!EPIDEMIC[dnorm(disease)]) return;   // غير وبائي — لا يُحتسب
           diseaseCount[disease] = (diseaseCount[disease] || 0) + 1;
         });
       });
@@ -12366,17 +12737,7 @@ global.trcallApi._daPatch = true;
  
 var _notified = false;
 
-function sendTelegram(text) {
-  fetch("https://ntfy.sh/oman_lab_2026_alerts_x92", {
-    method : "POST",
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-    body   : text
-  })
-  .then(function (r) {
-    console.log("[TgNotify] ntfy:", r.ok ? "✅ أُرسل" : "❌ فشل");
-  })
-  .catch(function (e) { console.warn("[TgNotify] ntfy خطأ:", e); });
-}
+function sendTelegram(text) { sendAlert(text); }
   /* ══════════════════════════════════════════════════════
      ١. الحالات العلاجية غير المكتملة
      ══════════════════════════════════════════════════════ */
@@ -12406,9 +12767,7 @@ function sendTelegram(text) {
         var c = cases[i];
         lines.push(
           (i + 1) + ". رقم الحالة: " + (c.caseNumber || "—") +
-          " | الاسم: "    + (c.name      || "—") +
-          " | هاتف: "     + (c.phone     || "—") +
-          " | مدخل: "     + (c.dataEntry || "—")
+                  " | مدخل: "     + (c.dataEntry || "—")
         );
       }
       if (cases.length > 20)
@@ -12500,7 +12859,6 @@ function sendTelegram(text) {
         var s = overdue[i];
         lines.push(
           (i + 1) + ". رقم العينة: " + s.caseNumber +
-          " | الاسم: "       + s.name        +
           " | المنطقة: "     + s.region      +
           " | أيام الانتظار: " + s.diffDays + " يوم" +
           " | الفحوصات: "    + (s.pendingTests || "—")
@@ -12739,11 +13097,7 @@ Promise.all([
         +'📅 التاريخ: '+now.toLocaleDateString('ar-SA')+'\n'
         +'🕐 الوقت: '+now.toLocaleTimeString('ar-SA')+'\n'
         +'🌐 المتصفح: '+navigator.userAgent.split(' ').slice(-1)[0];
-      fetch('https://ntfy.sh/oman_lab_2026_alerts_x92',{
-        method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:msg
-      }).catch(function(){});
+         sendAlert(msg);
     };
     window.unlockNav._loginNotify=true;
   }
@@ -13067,8 +13421,7 @@ Promise.all([
 global.fetch = function (input, init) {
     var url = (typeof input === 'string') ? input : ((input && input.url) || '');
 
-     var silent = url.indexOf('ntfy.sh') !== -1;
-
+     var silent = url.indexOf('/functions/v1/notify') !== -1;
     /* ── Supabase ── */
     var isSb  = /\/(rest|auth)\/v1\//.test(url);
     var sbw   = sbWriteMethod(url, init);
@@ -13211,7 +13564,9 @@ if (sbw) showModal(reason, 'failed');
     if (global.supabase && global.supabase.createClient) return Promise.resolve();
     return new Promise(function (resolve, reject) {
       var s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js";
+      s.integrity = "sha384-K1nraABOP/zFehpLIUksXebbs7jMpB8gYMlb+uhVKZcWT/9Vkq1+qhv6ndC+1Yuz";
+      s.crossOrigin = "anonymous";
       s.onload  = resolve;
       s.onerror = function () { reject(new Error("تعذّر تحميل مكتبة Supabase")); };
       document.head.appendChild(s);
@@ -13226,17 +13581,29 @@ if (sbw) showModal(reason, 'failed');
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY)
         throw new Error("لم تُملأ قيم SUPABASE_URL أو SUPABASE_ANON_KEY");
       if (!sb) {
-        /* جلسة مستقلة لكل تبويب — لا يتأثر تبويب بدخول حساب آخر في تبويب مجاور */
+        /* مفتاح فريد لكل تبويب — يمنع وصول أحداث دخول التبويبات الأخرى
+           ويبقى ثابتاً عند إعادة تحميل نفس التبويب */
+        var tabKey = global.sessionStorage.getItem("vet_tab_key");
+        if (!tabKey) {
+          tabKey = "sb-vet-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          global.sessionStorage.setItem("vet_tab_key", tabKey);
+        }
         sb = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          auth: { storage: global.sessionStorage, persistSession: true, autoRefreshToken: true }
+          auth: { storage: global.sessionStorage, storageKey: tabKey,
+                  persistSession: true, autoRefreshToken: true }
         });
         /* حماية إضافية: إن تغيّر الحساب داخل الجلسة لأي سبب، أعد الدخول */
         sb.auth.onAuthStateChange(function (ev, session) {
           var p = global._sbProfile;
           if (!p) return;
           if (session && session.user && session.user.id !== p.id) {
-            if (global.showToast) global.showToast('⚠️ تغيّر الحساب في هذه الجلسة — سيُعاد تحميل الصفحة', 'warning');
-            setTimeout(function () { location.reload(); }, 2500);
+            /* التحقق من الجلسة المحفوظة فعلاً في هذا التبويب */
+            sb.auth.getSession().then(function (s) {
+              var real = s && s.data && s.data.session && s.data.session.user;
+              if (!real || real.id === p.id) return;   /* حدث وارد من تبويب آخر — تجاهله */
+              if (global.showToast) global.showToast('⚠️ تغيّر الحساب في هذه الجلسة — سيُعاد تحميل الصفحة', 'warning');
+              setTimeout(function () { location.reload(); }, 2500);
+            });
           }
         });
       }    return sb;
