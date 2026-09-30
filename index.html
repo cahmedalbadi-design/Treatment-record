@@ -1921,6 +1921,15 @@ function clinicInfoRefresh() {
   </div>
 </div>
 
+<div class="card">
+  <h3>🌐 نموذج طلبات التحصين الخارجي</h3>
+  <div class="ua-bar">
+    <span id="ua_formState" style="font-weight:bold">—</span>
+    <button class="save"   onclick="ua_setForm(true)">🟢 فتح النموذج</button>
+    <button class="delete" onclick="ua_setForm(false)">🔴 إغلاق النموذج</button>
+  </div>
+</div>
+
 <script>
 var ua_users = [], ua_clinics = [];
 
@@ -2111,7 +2120,7 @@ async function ua_init() {
       ua_clinics.map(function (c) {
         return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
       }).join('');
-    await Promise.all([ua_load(), ua_loadCampaign()]);
+    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -2311,6 +2320,21 @@ function ua_edit(id) {
     m.remove();
     ua_load();
   };
+}
+
+/* ── النموذج الخارجي ── */
+async function ua_loadFormState() {
+  var el = document.getElementById('ua_formState');
+  var r = await ua_rpc('public_form_info');
+  if (r.error) { el.textContent = '❌ ' + r.error.message; return; }
+  el.textContent = r.data.open ? '🟢 مفتوح — يستقبل الطلبات' : '🔴 مغلق';
+  el.style.color = r.data.open ? '#2e7d32' : '#c0392b';
+}
+async function ua_setForm(open) {
+  var r = await ua_rpc('admin_set_form_open', { p_open: open });
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  showToast(open ? '✅ تم فتح النموذج' : '✅ تم إغلاق النموذج', 'success');
+  ua_loadFormState();
 }
 
 /* ── الحملة الوطنية ── */
