@@ -8106,6 +8106,13 @@ async function vr_saveToBreeder(r) {
         }
       } catch (e) { console.warn('[VR] تعذّر ربط الطلب بالمربي:', e.message || e); }
       vr_render();            // إعادة رسم الجدول لتحديث الحالة
+
+      /* تحديث قوائم الهاتف في (المربي / العلاج / التحصين / العينات) ليظهر الرقم الجديد */
+      if (typeof bd_refreshDropdowns === 'function') {
+        bd_refreshDropdowns().catch(function (e) {
+          console.warn('[VR] تعذّر تحديث القوائم:', e && e.message);
+        });
+      }
     } else {
       showToast('❌ ' + (res.message || 'فشل الحفظ'), 'error');
     }
@@ -14198,12 +14205,20 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
         row.created_by  = me.id;
         row.is_complete = meds.length > 0;
 
+        function attempt(n) {
         return sb.rpc("next_case_no", { p_table: "treatment_cases", p_wilayat: me.wilayat_id })
           .then(function (r) {
  if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
             row.case_no = r.data;
             return sb.from("treatment_cases").insert(row).select("id, case_no").single();
           })
+          .then(function (r) {
+            if (r.error && r.error.code === "23505" && /case_no/.test(r.error.message || "") && n < 5)
+              return attempt(n + 1);
+            return r;
+          });
+        }
+        return attempt(1)
           .then(function (r) {
             if (r.error) throw r.error;
             var id = r.data.id;
@@ -14863,6 +14878,7 @@ function names(table, col, filterWilayat) {
       return Promise.resolve({ success: false, message: "يجب تعبئة مربع واحد على الأقل" });
 
     return breederId(d).then(function (bid) {
+      function attempt(n) {
       return sb.rpc("next_case_no", { p_table: "vaccination_records", p_wilayat: me.wilayat_id })
         .then(function (r) {
          if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
@@ -14877,8 +14893,15 @@ function names(table, col, filterWilayat) {
             created_by:    me.id,
             created_at:    now,
             updated_at:    now
-          }).select("id, case_no").single();
+              }).select("id, case_no").single();
         })
+        .then(function (r) {
+          if (r.error && r.error.code === "23505" && /case_no/.test(r.error.message || "") && n < 5)
+            return attempt(n + 1);
+          return r;
+        });
+      }
+      return attempt(1)
         .then(function (r) {
           if (r.error) throw r.error;
           var id = r.data.id;
