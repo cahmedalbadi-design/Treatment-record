@@ -13514,7 +13514,10 @@ global.fetch = function (input, init) {
       if (sbKey) delete _inflight[sbKey];
     }
     var t0 = now();
-    var limit = sbw ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
+    var limit = sbw     var limit = sbw ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
+    /* منع المتصفح من إعادة ردّ قراءة مخزَّن لطلبات Supabase */
+    if (isSb && !sbw) init = Object.assign({}, init || {}, { cache: 'no-store' });
+  CFG.writeTimeoutMs : CFG.readTimeoutMs;
     return fetchTimed(input, init, limit).then(function (r) {
       release();
       var ms = now() - t0;
