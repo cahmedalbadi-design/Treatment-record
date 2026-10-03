@@ -2405,6 +2405,7 @@ function ua_saveCampaign() {
     <label>من:</label><input type="date" id="ac_from">
     <label>إلى:</label><input type="date" id="ac_to">
     <span style="font-size:11px;color:#777">اتركهما فارغين لاعتماد مدى حملة كل عيادة</span>
+    <button class="bp" style="background:#95a5a6" onclick="ac_clearDates()">🗑️ مسح التاريخ</button>
     <button class="bp" id="ac_btn" onclick="ac_load()">🔄 تحميل</button>
     <button class="bp" style="background:#6c5ce7" onclick="rpt_printTab('ac_wrap')">🖨️ طباعة</button>
     <button class="bp exp-xls" onclick="expTable('#ac_table','التقرير المجمع للعيادات','xlsx')">📗 Excel</button>
@@ -2445,9 +2446,15 @@ async function ac_clinic(pf, pt) {
   if (ended) dayNow = days;
   var target = Number(c.target) || 0;
   var rate   = (days > 0 && target > 0) ? Math.ceil(target / days) : 0;
-  var cum    = (ended && target > 0) ? target : rate * dayNow;
-
-  var done = (cf && ct) ? (await vaccGetTotalVaccinated(cf, ct, '')).total : 0;
+  /* فترة الحصر — مقصوصة داخل مدى الحملة */
+  var hFrom = (pf && pf > cf) ? pf : cf;
+  var hTo   = (pt && pt < ct) ? pt : ct;
+  var hasP  = !!(cf && ct && (hFrom !== cf || hTo !== ct));
+  var hEnd  = rptCamp_d(hTo);
+  var cum   = hasP
+    ? Math.min(rate * rptCamp_workDays(rptCamp_d(hFrom), today < hEnd ? today : hEnd), target)
+    : ((ended && target > 0) ? target : rate * dayNow);
+  var done = (cf && ct) ? (await vaccGetTotalVaccinated(hFrom, hTo, '')).total : 0;
   var vacc = (from === cf && to === ct) ? done : (await vaccGetTotalVaccinated(from, to, '')).total;
 
   var rp = await rpt_callApi('getReportData', { dateFrom: from, dateTo: to });
@@ -2482,11 +2489,16 @@ function ac_row(name, r, cls) {
     '<td>' + rptCamp_num(r.doses) + '</td>' +
     '<td>' + rptCamp_num(r.vacc) + '</td></tr>';
 }
-
+function ac_clearDates() {
+  if (window._bootRunning) { showToast('⏳ انتظر اكتمال التحميل الحالي', 'warning'); return; }
+  document.getElementById('ac_from').value = '';
+  document.getElementById('ac_to').value   = '';
+  ac_load();
+}
 async function ac_load() {
   var me = window._sbProfile;
   if (!me || !(me.is_admin || me.is_supervisor)) { showToast('⛔ هذه الصفحة للمشرفين والمدير فقط', 'error'); return; }
-  if (window._bootRunning) { showToast('⏳ انتظر اكتمال التحميل الحالي', 'info'); return; }
+  if (window._bootRunning) { showToast('⏳ انتظر اكتمال التحميل الحالي', 'warning'); return; }
   var pf = document.getElementById('ac_from').value, pt = document.getElementById('ac_to').value;
   if (pf && pt && pf > pt) { showToast('⚠️ تاريخ البداية أكبر من تاريخ النهاية', 'warning'); return; }
 
@@ -10470,6 +10482,7 @@ async function dp_loadAll() {
     <span style="font-weight:bold;color:#00b8d9">📅 الفترة:</span>
     <label style="font-weight:bold">من:<input type="date" id="rpt_dateFrom" style="margin-right:4px;padding:4px 8px;border:2px solid #00b8d9;border-radius:4px;font-size:13px" onchange="rpt_saveDates()"></label>
     <label style="font-weight:bold">إلى:<input type="date" id="rpt_dateTo" style="margin-right:4px;padding:4px 8px;border:2px solid #00b8d9;border-radius:4px;font-size:13px" onchange="rpt_saveDates()"></label>
+    <button onclick="rpt_clearDates()" style="background:#95a5a6;color:#fff;padding:5px 12px;font-size:12px">🗑️ مسح التاريخ</button>
     <span id="rpt_dateStatus" style="font-size:12px;color:#2e7d32"></span>
   </div>
 </div>
@@ -10526,7 +10539,6 @@ async function dp_loadAll() {
 
   <div class="card"><h3>لوحة متابعة المشروع الوطني للتحصين</h3>
     <div class="fb">
-      <button class="bp" onclick="rptCamp_load(true)">🔄 تحديث البيانات</button>
       <button class="bp" style="background:#6c5ce7" onclick="rpt_printTab('tab-campaign')">🖨️ طباعة</button>
       <span id="rptCamp_status" style="display:none;font-size:12px;font-weight:bold;"></span>
     </div>
@@ -10811,7 +10823,16 @@ if (!days || days <= 0)
   var rate = (days > 0 && target > 0) ? Math.ceil(target / days) : 0;
 
   /* عند انتهاء الحملة: المستهدف التراكمي = المستهدف الكلي بالضبط */
-  var cumTarget = (state === 'منتهية' && target > 0) ? target : rate * dayNow;
+  /* فترة التقرير المحددة — مقصوصة داخل مدى الحملة */
+  var rgP   = rpt_range();
+  var pFrom = (rgP.dateFrom && rgP.dateFrom > c.dateFrom) ? rptCamp_d(rgP.dateFrom) : dFrom;
+  var pTo   = (rgP.dateTo   && rgP.dateTo   < c.dateTo)   ? rptCamp_d(rgP.dateTo)   : dTo;
+  var hasPeriod = !!(dFrom && dTo && (pFrom > dFrom || pTo < dTo));
+  var pDays = hasPeriod ? rptCamp_workDays(pFrom, pTo) : 0;
+  var pNow  = hasPeriod ? rptCamp_workDays(pFrom, today < pTo ? today : pTo) : 0;
+
+  var cumTarget = hasPeriod ? Math.min(rate * pNow, target)
+                : ((state === 'منتهية' && target > 0) ? target : rate * dayNow);
   if (!isFinite(cumTarget) || cumTarget < 0) cumTarget = 0;
 
   rptCamp_set('rptCamp_from',      c.dateFrom);
@@ -10829,10 +10850,14 @@ if (!days || days <= 0)
   var done = 0;
   if (typeof vaccGetTotalVaccinated === 'function') {
     try {
-      var r = await vaccGetTotalVaccinated(c.dateFrom, c.dateTo, '');
+      /* تاريخ الحصر = فترة التقرير إن حُدِّدت، مقصوصة داخل مدى الحملة */
+      var rg    = rpt_range();
+      var hFrom = (rg.dateFrom && rg.dateFrom > c.dateFrom) ? rg.dateFrom : c.dateFrom;
+      var hTo   = (rg.dateTo   && rg.dateTo   < c.dateTo)   ? rg.dateTo   : c.dateTo;
+      var r = await vaccGetTotalVaccinated(hFrom, hTo, '');
       done = r.total || 0;
       window._vaccTotalAnimals = done;
-      status('✅ آخر تحديث: ' + new Date().toLocaleTimeString('ar-SA'), '#2bb673');
+      status('✅ الحصر: ' + hFrom + ' → ' + hTo + ' | آخر تحديث: ' + new Date().toLocaleTimeString('ar-SA'), '#2bb673');
     } catch (e) {
       status('⚠️ تعذّر جلب عدد الحيوانات المحصنة', '#e65050');
     }
@@ -10890,7 +10915,13 @@ if (!days || days <= 0)
   }
 
   /* ٧) المخططات البيانية — نفس ترقيم أيام العمل المستخدم في البطاقات */
-  rptCamp_drawCharts(c, rate, dFrom, days, dayNow);
+  if (hasPeriod) {
+    rptCamp_drawCharts(
+      { dateFrom: rptCamp_ymd(pFrom), dateTo: rptCamp_ymd(pTo), target: rate * pDays },
+      rate, pFrom, pDays, pNow);
+  } else {
+    rptCamp_drawCharts(c, rate, dFrom, days, dayNow);
+  }
 }
 
 /* ============================================================
@@ -11170,8 +11201,8 @@ async function rpt_refreshData() {
   try {
     rpt_D = await rpt_fetchData();
     rpt_buildAll();
-    refreshBtn.textContent = '✅ تم';
-    
+    if (document.getElementById('tab-campaign').classList.contains('active')) rptCamp_load(true);
+    refreshBtn.textContent = '✅ تم';    
     refreshBtn.style.background = '#c8e6c9';
     showToast('✅ تم تحديث الجداول بنجاح', 'success');
     setTimeout(function() {
@@ -11184,6 +11215,12 @@ async function rpt_refreshData() {
     refreshBtn.disabled = false;
     showToast('❌ فشل التحديث: ' + err.message, 'error');
   }
+}
+async function rpt_clearDates() {
+  document.getElementById('rpt_dateFrom').value = '';
+  document.getElementById('rpt_dateTo').value   = '';
+  document.getElementById('rpt_dateStatus').textContent = '';
+  await rpt_refreshData();
 }
 
 async function rpt_saveDates() {
@@ -11202,8 +11239,8 @@ async function rpt_saveDates() {
   try {
     rpt_D = await rpt_fetchData();
     rpt_buildAll();
-    status.textContent = '✅ تم تطبيق الفترة';
-    status.style.color = '#2e7d32';
+    if (document.getElementById('tab-campaign').classList.contains('active')) rptCamp_load();
+    status.textContent = '✅ تم تطبيق الفترة';    status.style.color = '#2e7d32';
     setTimeout(function() { status.textContent = ''; }, 3000);
     showToast('✅ تم تحديث الجداول بنجاح', 'success');
   } catch (err) {
