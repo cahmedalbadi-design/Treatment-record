@@ -12336,11 +12336,7 @@ function syncWrapOne(name, cfg) {
   if (typeof fn !== "function" || fn._sw) return;
   var wrapped = async function (action, payload) {
     var res = await fn.apply(this, arguments);
-    if (res && res.success && cfg.actions.indexOf(action) !== -1) {
-      syncBroadcast(cfg.topic, action);
-      /* إعادة جلب مؤجلة — القراءة الفورية بعد الكتابة قد تسبق ظهور السجل */
-      if (cfg.topic === "treatment" && typeof trloadData === "function") setTimeout(trloadData, 1500);
-    }
+     if (res && res.success && cfg.actions.indexOf(action) !== -1) syncBroadcast(cfg.topic, action);
     return res;
   };
   Object.keys(fn).forEach(function (k) { wrapped[k] = fn[k]; });
