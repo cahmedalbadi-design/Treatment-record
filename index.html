@@ -7591,11 +7591,9 @@ async function vaccInit() {
       <span class="stat-box stat-vacc">المحصنون: <span id="vr_statVacc">0</span></span>
       <span class="stat-box stat-not">غير المحصنين: <span id="vr_statNot">0</span></span>
       <span class="stat-box" style="background:#8e44ad">رفض التحصين: <span id="vr_statRefused">0</span></span>
-      <label style="display:flex;align-items:center;gap:5px;color:#1b5e20;">🐄 إجمالي الحيوانات:
-        <input type="text" id="vr_totalAnimals" readonly value="0"
-          style="width:110px;text-align:center;font-weight:bold;color:#1b5e20;background:#eafaf1;border:2px solid #2bb673;border-radius:5px;cursor:default;">
-      </label>
-    </div>    <div id="vr_searchResultsContainer" style="max-height:70vh; overflow:auto; position:relative;">
+      <span class="stat-box" style="background:#e67e22">🐄 إجمالي الحيوانات: <span id="vr_totalAnimals">0</span></span>
+      </div> 
+      <div id="vr_searchResultsContainer" style="max-height:70vh; overflow:auto; position:relative;">
       <div class="no-results" id="vr_loadingMsg" style="display:none;"></div>
       <table id="vr_searchResultsTable" style="display:none; width:100%; border-collapse:collapse; font-size:12px; background:#fff; position:relative;">
         
@@ -7926,7 +7924,7 @@ if (sortBy === "date") {
   /* إجمالي الحيوانات — من الصفوف المعروضة بعد البحث والفلترة */
   var vrAnimals = 0;
   rows.forEach(function (r) { vrAnimals += vr_animalTotal(r); });
-  document.getElementById("vr_totalAnimals").value = vrAnimals.toLocaleString('en-US');
+  document.getElementById("vr_totalAnimals").textContent = vrAnimals.toLocaleString('en-US');
   // رسم الجدول
   var tbody = document.getElementById("vr_searchResultsBody");
   tbody.innerHTML = "";
@@ -8149,6 +8147,7 @@ async function vr_saveToBreeder(r) {
   var vacc  = document.getElementById('vr_statVacc').textContent;
   var notV    = document.getElementById('vr_statNot').textContent;
   var refused = document.getElementById('vr_statRefused').textContent;
+  var animals = document.getElementById('vr_totalAnimals').textContent;
 
   var tbody = document.getElementById('vr_searchResultsBody');
   if (!tbody || !tbody.innerHTML.trim()) {
@@ -8192,6 +8191,7 @@ async function vr_saveToBreeder(r) {
   <span class="stat s-vacc">المحصنون: ${vacc}</span>
   <span class="stat s-not">غير المحصنين: ${notV}</span>
   <span class="stat" style="background:#8e44ad">رفض التحصين: ${refused}</span>
+  <span class="stat" style="background:#e67e22">🐄 إجمالي الحيوانات: ${animals}</span>
 </div>
 <table>
   <thead>
