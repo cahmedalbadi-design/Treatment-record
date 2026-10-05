@@ -7590,8 +7590,16 @@ async function vaccInit() {
       <span class="stat-box stat-total">الإجمالي: <span id="vr_statTotal">0</span></span>
       <span class="stat-box stat-vacc">المحصنون: <span id="vr_statVacc">0</span></span>
       <span class="stat-box stat-not">غير المحصنين: <span id="vr_statNot">0</span></span>
-      <span class="stat-box" style="background:#8e44ad">رفض التحصين: <span id="vr_statRefused">0</span></span>    </div>
-
+      <span class="stat-box" style="background:#8e44ad">رفض التحصين: <span id="vr_statRefused">0</span></span>
+      <label style="display:flex;align-items:center;gap:5px;color:#004e66;">👥 إجمالي المستفيدين:
+        <input type="text" id="vr_totalBeneficiaries" readonly value="0"
+          style="width:90px;text-align:center;font-weight:bold;color:#004e66;background:#e0f7fc;border:2px solid #00b8d9;border-radius:5px;cursor:default;">
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;color:#1b5e20;">🐄 إجمالي الحيوانات:
+        <input type="text" id="vr_totalAnimals" readonly value="0"
+          style="width:110px;text-align:center;font-weight:bold;color:#1b5e20;background:#eafaf1;border:2px solid #2bb673;border-radius:5px;cursor:default;">
+      </label>
+    </div>
     <div id="vr_searchResultsContainer" style="max-height:70vh; overflow:auto; position:relative;">
       <div class="no-results" id="vr_loadingMsg" style="display:none;"></div>
       <table id="vr_searchResultsTable" style="display:none; width:100%; border-collapse:collapse; font-size:12px; background:#fff; position:relative;">
@@ -7920,7 +7928,14 @@ if (sortBy === "date") {
   document.getElementById("vr_statVacc").textContent    = vacc;
   document.getElementById("vr_statNot").textContent     = total - vacc - refused;
   document.getElementById("vr_statRefused").textContent = refused;
-
+  /* الإجماليان — يُحسبان من الصفوف المعروضة بعد البحث والفلترة */
+  var vrPhones = {}, vrAnimals = 0;
+  rows.forEach(function (r) {
+    vrPhones[String(r.phone || '').trim()] = 1;
+    vrAnimals += vr_animalTotal(r);
+  });
+  document.getElementById("vr_totalBeneficiaries").value = Object.keys(vrPhones).length.toLocaleString('en-US');
+  document.getElementById("vr_totalAnimals").value = vrAnimals.toLocaleString('en-US');
   // رسم الجدول
   var tbody = document.getElementById("vr_searchResultsBody");
   tbody.innerHTML = "";
