@@ -7679,6 +7679,12 @@ async function vaccInit() {
         <option value="status">حسب الحالة</option>
         <option value="date">حسب تاريخ الإدخال</option>
       </select>
+      <span id="vr_countRange" style="display:none;align-items:center;gap:4px;">
+        <label>من:</label>
+        <input type="number" id="vr_countMin" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_render()">
+        <label>إلى:</label>
+        <input type="number" id="vr_countMax" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_render()">
+      </span>
       <button onclick="vr_loadData()" style="background:#00b8d9;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🔄 تحديث</button>
       <button onclick="vr_printTable()" style="background:#8e44ad;color:#fff;padding:6px 18px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🖨️ طباعة</button>
     </div>
@@ -7971,6 +7977,17 @@ function vr_render() {
     rows = rows.filter(function(r) { return !r.vaccinated && !vr_isRefused(r); });
   } else if (status === "refused") {
     rows = rows.filter(function(r) { return vr_isRefused(r); });
+  }
+  // مدى عدد الحيوانات — يظهر مع الفرز حسب أكبر عدد فقط
+  var vrRange = document.getElementById("vr_countRange");
+  if (vrRange) vrRange.style.display = (sortBy === "count") ? "inline-flex" : "none";
+  if (sortBy === "count") {
+    var vrMin = parseFloat(document.getElementById("vr_countMin").value);
+    var vrMax = parseFloat(document.getElementById("vr_countMax").value);
+    rows = rows.filter(function(r) {
+      var t = vr_animalTotal(r);
+      return (isNaN(vrMin) || t >= vrMin) && (isNaN(vrMax) || t <= vrMax);
+    });
   }
   // الترتيب
   rows.sort(function(a, b) {
