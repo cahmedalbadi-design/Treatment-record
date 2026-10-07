@@ -1037,6 +1037,16 @@ function showPage(pageId) {
     showToast('⏳ جاري تحميل بيانات النظام، انتظر قليلاً', 'info');
     return;
   }
+
+  if (pageId === 'userAdmin' && !(window._sbProfile && window._sbProfile.is_admin)) {
+    showToast('⛔ هذه الصفحة لمدير النظام فقط', 'error');
+    return;
+  }
+  if (pageId === 'allClinics' && !(window._sbProfile && (window._sbProfile.is_admin || window._sbProfile.is_supervisor))) {
+    showToast('⛔ هذه الصفحة للمشرفين والمدير فقط', 'error');
+    return;
+  }
+
   // التحقق من الصلاحيات
   if (window._isLoggedIn && window._userAllowedPages && publicPages.indexOf(pageId) === -1) {
     if (window._userAllowedPages.indexOf(pageId.toLowerCase()) === -1 && pageId !== 'home' && pageId !== 'userAdmin' && pageId !== 'allClinics') {
@@ -1929,7 +1939,28 @@ function clinicInfoRefresh() {
     <button class="delete" onclick="ua_setForm(false)">🔴 إغلاق النموذج</button>
   </div>
 </div>
-
+<div class="card">
+  <h3>🗑️ سجل المحذوفات</h3>
+  <div class="ua-bar">
+    <input id="ua_dq" placeholder="بحث بالاسم أو الهاتف أو الرقم أو الحاذف..." oninput="ua_renderDeleted()" style="width:280px">
+    <select id="ua_dTable" onchange="ua_renderDeleted()">
+      <option value="">كل السجلات</option>
+      <option value="treatment_cases">سجل العلاج</option>
+      <option value="vaccination_records">سجل التحصين</option>
+      <option value="samples">العينات</option>
+      <option value="breeders">سجل المربي</option>
+      <option value="vaccination_requests">طلبات التحصين</option>
+    </select>
+    <button class="update" onclick="ua_loadDeleted()">🔄 تحديث</button>
+    <span id="ua_dCount" style="font-weight:bold;color:#004e66"></span>
+  </div>
+  <div class="table-container" style="max-height:50vh">
+    <table><thead><tr>
+      <th>وقت الحذف</th><th>السجل</th><th>العيادة</th><th>الرقم</th>
+      <th>المربي</th><th>الهاتف</th><th>القائم بالحذف</th><th></th>
+    </tr></thead><tbody id="ua_dTb"></tbody></table>
+  </div>
+</div>
 <script>
 var ua_users = [], ua_clinics = [];
 
@@ -2120,7 +2151,7 @@ async function ua_init() {
       ua_clinics.map(function (c) {
         return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
       }).join('');
-    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState()]);
+    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -2321,7 +2352,68 @@ function ua_edit(id) {
     ua_load();
   };
 }
+/* ── سجل المحذوفات ── */
+var ua_deleted = [];
+var UA_DEL_TABLES = {
+  treatment_cases: 'سجل العلاج', vaccination_records: 'سجل التحصين',
+  samples: 'العينات', breeders: 'سجل المربي', vaccination_requests: 'طلبات التحصين'
+};
 
+async function ua_loadDeleted() {
+  var tb = document.getElementById('ua_dTb');
+  tb.innerHTML = '<tr><td colspan="8">⏳ جاري التحميل...</td></tr>';
+  var r = await ua_rpc('admin_list_deleted', { p_limit: 1000 });
+  if (r.error) {
+    tb.innerHTML = '<tr><td colspan="8" style="color:red">' + ua_esc(r.error.message) + '</td></tr>';
+    return;
+  }
+  ua_deleted = r.data || [];
+  ua_renderDeleted();
+}
+
+function ua_renderDeleted() {
+  var q  = (document.getElementById('ua_dq').value || '').trim().toLowerCase();
+  var ft = document.getElementById('ua_dTable').value;
+  var rows = ua_deleted.filter(function (d) {
+    if (ft && d.table_name !== ft) return false;
+    if (!q) return true;
+    return [d.record_no, d.breeder_name, d.breeder_phone, d.deleted_by_name, d.wilayat_name]
+      .join(' ').toLowerCase().indexOf(q) !== -1;
+  });
+  document.getElementById('ua_dCount').textContent = rows.length + ' سجل محذوف';
+  document.getElementById('ua_dTb').innerHTML = rows.length ? rows.map(function (d) {
+    return '<tr>' +
+      '<td>' + ua_fmt(d.deleted_at) + '</td>' +
+      '<td>' + ua_esc(UA_DEL_TABLES[d.table_name] || d.table_name) + '</td>' +
+      '<td>' + ua_esc(d.wilayat_name || '—') + '</td>' +
+      '<td><b>' + ua_esc(d.record_no || '—') + '</b></td>' +
+      '<td class="nc">' + ua_esc(d.breeder_name || '—') + '</td>' +
+      '<td>' + ua_esc(d.breeder_phone || '—') + '</td>' +
+      '<td style="font-weight:bold;color:#c0392b">' + ua_esc(d.deleted_by_name || 'غير معروف') + '</td>' +
+      '<td><button class="update" style="padding:4px 12px" onclick="ua_showDeleted(' + Number(d.id) + ')">📄 التفاصيل</button></td>' +
+      '</tr>';
+  }).join('') : '<tr><td colspan="8" class="no-results">لا توجد سجلات محذوفة</td></tr>';
+}
+
+function ua_showDeleted(id) {
+  var d = ua_deleted.filter(function (x) { return Number(x.id) === id; })[0];
+  if (!d) return;
+  var m = document.createElement('div');
+  m.className = 'custom-modal ua-modal';
+  m.innerHTML =
+    '<div class="modal-box">' +
+      '<h3>🗑️ ' + ua_esc(UA_DEL_TABLES[d.table_name] || d.table_name) + ' — رقم ' + ua_esc(d.record_no || '—') + '</h3>' +
+      '<div style="font-size:13px;line-height:2">حذفه: <b>' + ua_esc(d.deleted_by_name || 'غير معروف') +
+        '</b> — ' + ua_fmt(d.deleted_at) + '</div>' +
+      '<pre style="direction:ltr;text-align:left;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;' +
+        'padding:10px;max-height:55vh;overflow:auto;font-size:12px;white-space:pre-wrap">' +
+        ua_esc(JSON.stringify(d.data, null, 2)) + '</pre>' +
+      '<div class="modal-buttons" style="margin-top:12px"><button class="cancel-btn">إغلاق</button></div>' +
+    '</div>';
+  document.body.appendChild(m);
+  m.querySelector('.cancel-btn').onclick = function () { m.remove(); };
+  m.onclick = function (e) { if (e.target === m) m.remove(); };
+}
 /* ── النموذج الخارجي ── */
 async function ua_loadFormState() {
   var el = document.getElementById('ua_formState');
@@ -5548,8 +5640,7 @@ async function trSelectIncompleteCase(caseNumber) {
         var n = parseInt(cells[3].textContent.trim(), 10);
         if (!isNaN(n) && n > maxReceipt) maxReceipt = n;
       });
-      if (maxReceipt === 0) return;   // لا يوجد إيصال صالح — لا نغيّر القيمة الحالية
-
+      if (maxReceipt === 0) { _tableReceipt = 0; return; }
       _tableReceipt = maxReceipt + 1;
 
       // حدّث الحقل فقط إذا لم يكن هناك حالة محملة حالياً
@@ -5860,8 +5951,14 @@ function bd_validateCommon() {
   if (!bd_getValue("bd_nameInput")) {
     bd_showMessage("اسم المربي مطلوب", true); return false;
   }
+  if (bd_getValue("bd_nameInput").split(/\s+/).filter(function (w) {
+        return w && ["بن", "ابن", "بنت", "إبنة", "ابنة"].indexOf(w) === -1;
+      }).length < 4) {    bd_showMessage("الاسم :يلزم إدخال الاسم الثلاثي", true);
+    document.getElementById("bd_nameInput").focus();
+    return false;
+  }
   if (!bd_getValue("bd_regionInput")) {
-    bd_showMessage("المنطقة مطلوبة", true);
+    bd_showMessage("المنطقة مطلوبة", true);   bd_showMessage("المنطقة مطلوبة", true);
     document.getElementById("bd_regionInput").focus();
     return false;
   }
@@ -8330,9 +8427,11 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
     <button id="closeSearchCardBtn" style="background:#fff;color:#00b8d9;border:none;padding:5px 15px;border-radius:4px;cursor:pointer;font-weight:bold">رجوع</button>
   </div>
   <div class="search-filters">
-    <div class="top-group"><label>رقم الهاتف:</label><input type="text" id="searchPhoneInput" placeholder="رقم الهاتف"></div>
-    <div class="top-group"><label>رقم العينة:</label><input type="text" id="searchCaseInput" placeholder="رقم العينة"></div>
-    <button class="search" id="performSearchBtn">بحث</button>
+    <div class="top-group"><label>رقم الهاتف او العينة:</label><input type="text" id="searchPhoneInput" placeholder="رقم الهاتف"></div>
+    <div class="top-group"><label>نوع العينة:</label><input type="text" id="searchTypeInput" list="sampleTypeList" placeholder="نوع العينة">
+    <span id="searchTypeCount" style="display:none;background:#9c27b0;color:#fff;padding:4px 12px;border-radius:20px;font-weight:bold;font-size:12px;white-space:nowrap;"></span></div>
+    <div class="top-group"><label>من:</label><input type="date" id="searchDateFrom"></div>
+    <div class="top-group"><label>إلى:</label><input type="date" id="searchDateTo"></div>    <button class="search" id="performSearchBtn">بحث</button>
     <button class="clear" id="clearSearchBtn">مسح</button>
     <button class="update" id="refreshSearchBtn">🔄 تحديث</button>
     <label class="toggle-checkbox"><input type="checkbox" id="hideColsCheckbox"><span>عرض الفحوصات ونتائجها</span></label>
@@ -8592,14 +8691,17 @@ function focloseSearchCard(){var card=document.getElementById('searchResultsCard
 
 async function foperformSamplesSearch(showAll) {
   var phone = fogetValue('searchPhoneInput'), cn = fogetValue('searchCaseInput');
-  if (!showAll && !phone && !cn) { foshowMessage('أدخل معيار بحث', true); return; }
+  var st = fogetValue('searchTypeInput'), df = fogetValue('searchDateFrom'), dt = fogetValue('searchDateTo');
+  if (!showAll && !phone && !cn && !st && !df && !dt) { foshowMessage('أدخل معيار بحث', true); return; }
+  if (df && dt && df > dt) { foshowMessage('⚠️ تاريخ البداية يجب أن يسبق تاريخ النهاية', true); return; }
 
   foshowMessage('⏳ جاري جلب البيانات...', false, 'info');
 
   try {
-    var res = await focallApi("fosearchSamplesData", { phone: phone, caseNumber: cn, showAll: !!showAll, limit: 200 });
-    if (res.success) {
+    var res = await focallApi("fosearchSamplesData", { phone: phone, caseNumber: cn, sampleType: st, dateFrom: df, dateTo: dt, showAll: !!showAll, limit: 200 });
+       if (res.success) {
       fodisplaySearchResults(res.data);
+      foSetSearchCount(res.count);
       if (showAll) {
         foshowMessage('✅ تم تحميل البيانات بنجاح (' + res.count + ' نتيجة)', false);
       } else if (res.count > 0) {
@@ -8615,6 +8717,13 @@ async function foperformSamplesSearch(showAll) {
   } catch(err) {
     foshowMessage("خطأ: " + err.message, true);
   }
+}
+  function foSetSearchCount(n) {
+  var el = document.getElementById('searchTypeCount');
+  if (!el) return;
+  if (n === null || n === undefined) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.textContent = 'عدد النتائج: ' + n;
+  el.style.display = 'inline-block';
 }
 function fodisplaySearchResults(data) {
   var container=document.getElementById('searchResultsContainer');
@@ -8642,13 +8751,16 @@ function fodisplaySearchResults(data) {
 
 function fotoggleColumnsVisibility(){var cb=document.getElementById('hideColsCheckbox'),tbl=document.getElementById('resultsTable');if(!tbl)return;tbl.querySelectorAll('.col-e-s').forEach(function(c){c.style.display=cb.checked?'none':'';});}
 
-function fochearSearchResults(){fosafeSet('searchPhoneInput','');fosafeSet('searchCaseInput','');document.getElementById('searchResultsContainer').innerHTML='<p style="text-align:center;color:#666;padding:20px">أدخل معيار بحث</p>';document.getElementById('hideColsCheckbox').checked=false;document.getElementById('searchPhoneInput').focus();}
+function fochearSearchResults(){fosafeSet('searchPhoneInput','');fosafeSet('searchCaseInput','');fosafeSet('searchTypeInput','');fosafeSet('searchDateFrom','');fosafeSet('searchDateTo','');foSetSearchCount(null);fosafeSet('searchTypeInput','');fosafeSet('searchDateFrom','');
+ fosafeSet('searchDateTo','');document.getElementById('searchResultsContainer').innerHTML='<p style="text-align:center;color:#666;padding:20px">أدخل معيار بحث</p>';document.getElementById('hideColsCheckbox').checked=false;document.getElementById('searchPhoneInput').focus();}
 
 async function forefreshSearchResults(){
   var btn=document.getElementById('refreshSearchBtn'),orig=btn.textContent;
   btn.textContent='⏳';btn.disabled=true;
-  var phone=fogetValue('searchPhoneInput'),cn=fogetValue('searchCaseInput'),showAll=(!phone&&!cn);
-  try{var res=await focallApi("fosearchSamplesData",{phone:phone,caseNumber:cn,showAll:showAll});if(res.success){fodisplaySearchResults(res.data);foshowMessage('تم التحديث ('+res.count+')',false);}else foshowMessage(res.message,true);}
+  var phone=fogetValue('searchPhoneInput'),cn=fogetValue('searchCaseInput');
+  var st=fogetValue('searchTypeInput'),df=fogetValue('searchDateFrom'),dt=fogetValue('searchDateTo');
+  var showAll=(!phone&&!cn&&!st&&!df&&!dt);
+  try{var res=await focallApi("fosearchSamplesData",{phone:phone,caseNumber:cn,sampleType:st,dateFrom:df,dateTo:dt,showAll:showAll});if(res.success){fodisplaySearchResults(res.data);foSetSearchCount(res.count);foshowMessage('تم التحديث ('+res.count+')',false);}else foshowMessage(res.message,true);}
   catch(err){foshowMessage("خطأ: "+err.message,true);}
   finally{btn.textContent=orig;btn.disabled=false;}
 }
@@ -11654,6 +11766,8 @@ function foDismissOverdueAlert() {
    * هل الصفحة مسموحة للمستخدم الحالي؟
    */
   function isPageAllowed(pageId) {
+    if (String(pageId).toLowerCase() === "useradmin")
+      return !!(global._sbProfile && global._sbProfile.is_admin);
     if (String(pageId).toLowerCase() === "allclinics")
       return !!(global._sbProfile && (global._sbProfile.is_admin || global._sbProfile.is_supervisor));
     if (pageId === "login" || pageId === "home") return true;
@@ -12382,7 +12496,7 @@ setInterval(syncWrapApiCalls, 2000);
         '<div style="background:#f0fbff;border:1px solid #b3e5fc;border-radius:8px;' +
         'padding:14px 18px;text-align:right;direction:rtl;font-size:14px;line-height:2.2;">' +
           '<div>👤 <strong>الاسم:</strong> أحمد بن علي بن سيف البادي</div>' +
-          '<div>🛠️ <strong>الوظيفة:</strong> فني حقل</div>' +
+          '<div>🛠️ <strong>الوظيفة:</strong> فني حقول</div>' +
           '<div>🏢 <strong>جهة العمل:</strong> دائرة الثروة الحيوانية</div>' +
         '</div>' +
         '<div class="modal-buttons" style="margin-top:18px;">' +
@@ -13288,8 +13402,35 @@ Promise.all([
     /* قناة المزامنة مرتبطة بالعيادة */
     if (typeof remoteSyncStop === 'function') { remoteSyncStop(); remoteSyncStart(); }
 
+    /* تفريغ ما لا يشمله resetAllPagesData */
+    ['tr_searchTable','tr_animalsReportTable','vacc_searchRecordResults','vacc_allTotalResults',
+     'vacc_maxAnimalsResults','vacc_srResultCount','vacc_atResultCount','vacc_maResultCount',
+     'testsResultsContainer','testsResultCount','dim_searchResultsFoot',
+     'dtr_searchResultsFoot','ani_searchResultsFoot'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.innerHTML = '';
+    });
+    ['bd_lastEditedPhone','vacc_lastEditedCase'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.value = '';
+    });
+    ['bd_inactiveModal','bd_holdModal'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.remove();
+    });
+    if (typeof clearAllData === 'function') clearAllData();
+    var dbc = document.getElementById('db_clearBtn'); if (dbc) dbc.click();
+    if (typeof rptCamp_reset === 'function') rptCamp_reset();
+
+    var back = (document.querySelector('.page.active') || {}).id;
+
     showToast('🏥 جاري الانتقال إلى ' + c.name, 'info');
-    if (typeof bootLoadAll === 'function') bootLoadAll();
+    if (typeof bootLoadAll === 'function') await bootLoadAll();
+
+    setTimeout(function () {
+      if (back && back !== 'login' && back !== 'treatment') showPage(back);
+      var ct = document.getElementById('tab-campaign');
+      if (ct && ct.classList.contains('active') && typeof rptCamp_load === 'function') rptCamp_load(true);
+      if (back === 'doctorPerformance' && typeof dp_loadAll === 'function') dp_loadAll();
+      else if (typeof dp_apply === 'function') dp_apply();
+    }, 300);
   }
 
   g.ClinicPicker = { pick: pick, switchClinic: switchClinic, refreshBadge: refreshBadge };
@@ -13520,10 +13661,9 @@ global.fetch = function (input, init) {
       if (sbKey) delete _inflight[sbKey];
     }
     var t0 = now();
-    var limit = sbw     var limit = sbw ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
+    var limit = sbw ? CFG.writeTimeoutMs : CFG.readTimeoutMs;
     /* منع المتصفح من إعادة ردّ قراءة مخزَّن لطلبات Supabase */
     if (isSb && !sbw) init = Object.assign({}, init || {}, { cache: 'no-store' });
-  CFG.writeTimeoutMs : CFG.readTimeoutMs;
     return fetchTimed(input, init, limit).then(function (r) {
       release();
       var ms = now() - t0;
@@ -16277,11 +16417,17 @@ function childRows(sampleId, d, tm, sm, keep) {
     return pageAll(function () {
       var q = sb.from("samples").select(sampleCols(!!phone)).eq("wilayat_id", me.wilayat_id)
                 .order("sample_no", { ascending: false });
-      if (phone) q = q.ilike("breeders.phone", "%" + phone + "%");
       if (no)    q = q.eq("sample_no", no);
+      if (toISO(p.dateFrom)) q = q.gte("sent_on", toISO(p.dateFrom));
+      if (toISO(p.dateTo))   q = q.lte("sent_on", toISO(p.dateTo));
       return q;
     }).then(function (rows) {
-      var data = rows.map(toApp), count = data.length;
+      var data = rows.map(toApp), st = txt(p.sampleType);
+      if (phone) data = data.filter(function (x) {
+        return x.phone === phone || String(x.caseNumberrt) === phone;
+      });
+      if (st) data = data.filter(function (x) { return x.sampleType === st; });
+      var count = data.length;
       if (limit > 0) data = data.slice(0, limit);
       return { success: true, data: data, count: count };
     });
