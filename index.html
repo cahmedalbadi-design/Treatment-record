@@ -4151,6 +4151,7 @@ function dim_printTable() {
       <label>إلى تاريخ:</label><input type="date" id="tr_searchEndDate">
       <button id="tr_clearSearchDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح التواريخ</button>
       <button id="tr_backToMainBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
+      <span id="tr_searchCount" style="display:inline-block;background:#9b59b6;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:bold;">0 حالة</span>
       <button class="exp-xls" onclick="expTable('#tr_searchTable','سجل العلاج','xlsx')">📗 Excel</button>
       <button class="exp-pdf" onclick="expTable('#tr_searchTable','سجل العلاج','pdf',true)">📕 PDF</button>
     </div>
@@ -5128,8 +5129,10 @@ async function trperformSearch() {
   const sd = trgetValue("tr_searchStartDate");
   const ed = trgetValue("tr_searchEndDate");
 
-  if (!kw && !sd && !ed) {
+   if (!kw && !sd && !ed) {
     document.getElementById("tr_searchTable").innerHTML = "";
+    var trSCnt0 = document.getElementById("tr_searchCount");
+    if (trSCnt0) trSCnt0.textContent = "0 حالة";
     return;
   }
 
@@ -5170,6 +5173,8 @@ var res = await trcallApi("trsearchInTreatmentSheet", {
     trunblockButtons();
      const statusEl = document.getElementById("tr_searchStatus");
     if (statusEl) { statusEl.style.display = "none"; }
+    var trSCnt = document.getElementById("tr_searchCount");
+    if (trSCnt) trSCnt.textContent = document.querySelectorAll("#tr_searchTable tbody tr td:nth-child(2)").length + " حالة";
   }
 }
 
