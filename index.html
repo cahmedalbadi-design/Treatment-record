@@ -4144,8 +4144,7 @@ function dim_printTable() {
     <div style="display:none"><input id="tr_quickNotesInput" readonly><input id="tr_specialNotesInput" readonly></div>
   </div>
   <input type="hidden" id="tr_mirrorCaseNumber">
-  <div class="card full-width"><h3>⬇️ السجل اليومي</h3><div class="table-container"><table id="tr_dataTable"></table></div></div>
-  <div class="card full-width" id="tr_searchCard" style="display:none;">
+<div class="card full-width"><h3>⬇️ السجل اليومي <span id="tr_dailyCount" style="display:inline-block;background:#fff;color:#00b8d9;border-radius:12px;padding:1px 12px;font-size:13px;margin-right:8px;">0 حالة</span></h3><div class="table-container"><table id="tr_dataTable"></table></div></div>  <div class="card full-width" id="tr_searchCard" style="display:none;">
     <h3>البحث في سجل العلاج</h3>
     <div style="display:flex;justify-content:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <label>من تاريخ:</label><input type="date" id="tr_searchStartDate">
@@ -5075,8 +5074,10 @@ async function trloadData() {
     tbl.innerHTML = html;
   } catch (err) {
     trshowMessage("خطأ في تحميل الجدول: " + err.message, true);
-  } finally {
+    } finally {
     trunblockButtons();
+    var trCntEl = document.getElementById("tr_dailyCount");
+    if (trCntEl) trCntEl.textContent = document.querySelectorAll("#tr_dataTable tbody tr td:nth-child(2)").length + " حالة";
     if (typeof trloadIncompleteCount === "function") trloadIncompleteCount();
   }
 }
