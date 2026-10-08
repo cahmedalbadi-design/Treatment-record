@@ -1875,6 +1875,13 @@ function clinicInfoRefresh() {
   /* طباعة نماذج العينات — المحافظة / الولاية / العيادة */
   var dbGov = document.getElementById('db_governorate');
   if (dbGov) dbGov.value = clinicName;
+
+  /* رقم هاتف العيادة — شهادة التحصين + نماذج العينات */
+  var clinicPhone = (p && p.wilayat && p.wilayat.phone) ? String(p.wilayat.phone).trim() : '';
+  ['set_clinicPhone', 'db_clinicPhone'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.value = clinicPhone;
+  });
 }
 </script>
   </div><!-- نهاية صفحة الإعدادات -->
@@ -3169,7 +3176,7 @@ if (!u || !p) {
       .select('id, username, full_name, job_title, wilayat_id, role, ' +
               'is_supervisor, is_admin, is_active, suspended_until, ' +
               'allowed_pages, allowed_actions, ' +
-              'wilayat:wilayat_id ( name, is_central )')
+              'wilayat:wilayat_id ( name, is_central, phone )')
       .eq('id', au.data.user.id).single();
     if (pr.error || !pr.data) throw new Error('لا يوجد ملف شخصي لهذا الحساب');
 
@@ -3199,7 +3206,7 @@ if (!u || !p) {
         throw new Error('لم يتم اختيار عيادة');
       }
       me.wilayat_id = clinic.id;
-      me.wilayat    = { name: clinic.name, is_central: false };
+      me.wilayat    = { name: clinic.name, is_central: false, phone: clinic.phone || '' };
     }
 
     lCU                 = me;
@@ -3591,7 +3598,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
     document.getElementById("db_caseNumberis").value = "";
     ["db_ownerName","db_sampleNo","db_species","db_ageSex","db_contactAnimals","db_sickAnimals",
      "db_deadAnimals","db_specimen","db_specimenNo","db_dateTaken","db_dateSent","db_caseHistory",
-     "db_postmortem","db_requestedTests","db_vetName","db_vetPhone","db_clinicPhone","db_note"
+     "db_postmortem","db_requestedTests","db_vetName","db_vetPhone","db_note"
     ].forEach(function(id){ document.getElementById(id).value=""; });
     document.querySelectorAll("input[name='db_acceptance']").forEach(function(r){ r.checked=false; });
     document.getElementById("db_caseNumberis").focus();
@@ -3916,7 +3923,7 @@ var dose1El = document.getElementById('set_dose1Date');
   
 function clearAllData() {
   document.getElementById('searchPhone').value=''; document.getElementById('searchStatus').innerHTML='';
-  document.getElementById('set_clinicPhone').value=''; document.getElementById('serialNum').value='';
+  document.getElementById('serialNum').value='';
   document.getElementById('set_ownerName').value=''; document.getElementById('ownerPhone').value='';
   document.getElementById('village').value=''; document.getElementById('set_notes').value='';
   document.getElementById('set_dose1Date').value=''; document.getElementById('set_dose2Date').value='';
@@ -13328,7 +13335,7 @@ Promise.all([
 
   function load(sb) {
     if (list) return Promise.resolve(list);
-    return sb.from('wilayat').select('id, name, is_central').order('name')
+    return sb.from('wilayat').select('id, name, is_central, phone').order('name')
       .then(function (r) {
         if (r.error) throw r.error;
         list = (r.data || []).filter(function (w) { return !w.is_central; });
@@ -13364,7 +13371,7 @@ Promise.all([
             'padding:14px 10px;border:2px solid #00b8d9;border-radius:10px;font-family:inherit;' +
             'font-size:14px;font-weight:bold;cursor:pointer;' +
             'background:' + (on ? '#00b8d9' : '#f8ffff') + ';color:' + (on ? '#fff' : '#004e66') + ';';
-          b.onclick = function () { ov.remove(); resolve({ id: w.id, name: w.name }); };
+    b.onclick = function () { ov.remove(); resolve({ id: w.id, name: w.name, phone: w.phone || '' }); };
           grid.appendChild(b);
         });
         ov.querySelector('#cp_cancel').onclick = function () { ov.remove(); resolve(null); };
@@ -13405,8 +13412,8 @@ Promise.all([
 
     /* تعديل نفس الكائن — كل الجسور تشير إليه */
     me.wilayat_id = c.id;
-    me.wilayat    = { name: c.name, is_central: false };
-
+    me.wilayat    = { name: c.name, is_central: false, phone: c.phone || '' };
+    
     /* إعادة ضبط الصفحات لتُهيَّأ من جديد للعيادة الجديدة */
     g._treatmentInitialized   = false;
     g._vaccinationInitialized = false;
