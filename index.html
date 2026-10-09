@@ -624,7 +624,7 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 .info-field  { display: flex; align-items: baseline; gap: 6px; }
 .info-field input { border: none; border-bottom: 1px solid #333; font-family: inherit; font-size: 12pt; font-weight: 600; width: 160px; text-align: center; background: transparent; padding: 2px 5px; }
 .info-field input:focus { outline: none; border-bottom: 2px solid #8B0000; background: rgba(139,0,0,.03); }
-
+#settings input[readonly] { background: transparent !important; cursor: default; }
 .data-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10pt; background: #fff; }
 .data-table th, .data-table td { border: 1.5px solid #222; padding: 5px 3px; text-align: center; vertical-align: middle; }
 .data-table th { background: #f5f5f5; color: #222; font-weight: 700; font-size: 9pt; position: static; }
@@ -1588,6 +1588,28 @@ function unlockNav() {
 // تأمين التنقل عند التحميل
 window._isLoggedIn = false;
 lockNav();
+
+// بيانات المربي في العلاج والتحصين والعينات: للقراءة فقط، تُعبَّأ بالجلب حصراً
+document.addEventListener('DOMContentLoaded', function () {
+  ['tr_nameInput','tr_possessionInput','tr_regionInput','tr_civilInput',
+   'vacc_nameInput','vacc_possessionInput','vacc_regionInput','vacc_civilInput',
+   'nameInput','possessionInput','regionInput','civilInput',
+   'set_clinicWilayat','set_ownerName','ownerPhone','village'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.readOnly = true;
+    el.tabIndex = -1;
+    el.title = 'يُعبَّأ تلقائياً من سجل المربي';
+  });
+
+  // شهادة التحصين: كل الحقول للقراءة فقط عدا البحث، هاتف العيادة، الملاحظات، التوقيعين
+  document.querySelectorAll('#settings .paper-container input').forEach(function (el) {
+    if (el.id === 'searchPhone' || el.id === 'set_clinicPhone' || el.id === 'set_notes') return;
+    if (el.closest('.signature-line')) return;
+    el.readOnly = true;
+    el.tabIndex = -1;
+  });
+});
 </script>
 
 <!-- الصفحات -->
@@ -5058,7 +5080,7 @@ async function trloadData() {
     tbl.innerHTML = "";
 
     if (!res.success || !res.data || res.data.length <= 1) {
-      tbl.innerHTML = "<tr><td colspan='7'>لا توجد بيانات لليوم</td></tr>";
+      tbl.innerHTML = "<tr style='cursor:default;pointer-events:none;'><td colspan='8' style='padding:14px;color:#888;'>لا توجد بيانات لليوم</td></tr>";
       return;
     }
 
@@ -5310,8 +5332,8 @@ function trbindEvents() {
     if (!row) return;
     const cell = row.cells[0];
     if (!cell) return;
-    const cn = cell.textContent.trim();
-    if (!cn) return;
+     const cn = cell.textContent.trim();
+    if (!cn || !/^\d+$/.test(cn)) return;
 
     trblockButtons();
     trclearFormExcept(null);
@@ -5979,6 +6001,17 @@ function bd_validateCommon() {
   if (civil && !/^[0-9]{1,15}$/.test(civil)) {
     bd_showMessage("الرقم المدني يجب أن يكون أرقاماً فقط", true); return false;
   }
+  if (civil && /^0+$/.test(civil)) {
+    bd_showMessage("الرقم المدني لا يمكن أن يكون 0 — اتركه فارغاً إن لم يتوفر", true);
+    document.getElementById("bd_civilInput").focus();
+    return false;
+  }
+   var poss = bd_getValue("bd_possessionInput");
+  if (poss && !/^(0*[1-9]\d*|\d{2}\/0*[1-9]\d*)$/.test(poss)) {
+    bd_showMessage("رقم الحيازة غير صحيح\nالمقبول: رقم أكبر من الصفر (مثل 1234)\nأو رقمان / أرقام بدون مسافات (مثل 12/3456)", true);
+    document.getElementById("bd_possessionInput").focus();
+    return false;
+  }
 
   var badCount = ["bd_animal_goat","bd_animal_sheep","bd_animal_cow","bd_animal_camel",
                   "bd_animal_horse","bd_animal_cat","bd_animal_dog","bd_animal_poultry"]
@@ -6153,6 +6186,7 @@ async function bd_updatePossession() {
   var phone = bd_getValue("bd_phoneInput"), possession = bd_getValue("bd_possessionInput");
   if (!phone) { bd_showMessage("الرجاء اختيار رقم الهاتف", true); return; }
   if (!possession) { bd_showMessage("رقم الحيازة فارغ", true); return; }
+  if (!/^(0*[1-9]\d*|\d{2}\/0*[1-9]\d*)$/.test(possession)) { bd_showMessage("رقم الحيازة غير صحيح — رقم أكبر من الصفر أو رقمان / أرقام بدون مسافات", true); return; }
   bd_showConfirm("هل تريد تحديث رقم الحيازة في جميع سجلات العلاج للرقم: " + phone + "؟", async function () {
     var btn = document.getElementById("bd_updatePossessionBtn");
     btn.disabled = true;
@@ -14322,7 +14356,8 @@ function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, fal
 
     return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
-        if (r.data) return r.data.id;
+         if (r.data) return r.data.id;
+        throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
         return regionId(d.region).then(function (rid) {
           return sb.from("breeders").insert({
             wilayat_id:    me.wilayat_id,
@@ -15056,7 +15091,8 @@ function names(table, col, filterWilayat) {
     return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
-        if (r.data) return r.data.id;
+            if (r.data) return r.data.id;
+        throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
         return sb.from("breeders").insert({
           wilayat_id: me.wilayat_id,
           phone:      phone,
@@ -16222,6 +16258,7 @@ function idsFor(key, table, names) {
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
     return lookupBreeder(phone).then(function (id) {
       if (id) return id;
+      throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
       return regionId(d.region).then(function (rid) {
         return sb.from("breeders").insert({
           wilayat_id: me.wilayat_id, phone: phone,
