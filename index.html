@@ -674,7 +674,11 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 .pa-value { flex: 1; font-size: 10pt; min-height: 14pt; word-break: break-word; }
 .pa-multiline { min-height: 30pt; border-bottom: 1pt dotted #999; padding-bottom: 3pt; margin-bottom: 6pt; }
 .pa-multiline .pa-label { display: block; margin-bottom: 3pt; }
-.pa-multiline .pa-value { display: block; font-size: 10pt; white-space: pre-wrap; }
+.pa-multiline .pa-value { display: block; font-size: 10pt; white-space: pre-wrap; text-align: center; }
+#db_printArea .pa-row[style*="space-between"] > span:first-child,
+#db_printArea .pa-row[style*="space-between"] > span:last-child { flex: 1 1 0 !important; min-width: 0 !important; }
+#db_printArea .pa-row[style*="space-between"] > span:last-child { text-align: left; }
+#db_printArea .pa-row[style*="space-between"] > .pa-value { flex: 0 1 auto !important; }
 .pa-acceptance { margin: 8pt 0 6pt 0; display: flex; align-items: center; gap: 20pt; }
 .pa-radio-item { display: flex; align-items: center; gap: 4pt; font-size: 10pt; }
 .pa-radio-box { width: 10pt; height: 10pt; border: 1pt solid #000; display: inline-flex; align-items: center; justify-content: center; font-size: 9pt; }
@@ -778,6 +782,31 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 }
 input, select, textarea {
   font-size: inherit !important;
+}
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="datetime-local"]::-webkit-datetime-edit-day-field,
+input[type="datetime-local"]::-webkit-datetime-edit-month-field,
+input[type="datetime-local"]::-webkit-datetime-edit-year-field,
+input[type="datetime-local"]::-webkit-datetime-edit-hour-field,
+input[type="datetime-local"]::-webkit-datetime-edit-minute-field,
+input[type="datetime-local"]::-webkit-datetime-edit-ampm-field,
+input[type="datetime-local"]::-webkit-datetime-edit-text {
+  unicode-bidi: isolate !important;
+}
+input[type="date"] { position: relative; }
+input[type="date"]:invalid:not(:focus)::-webkit-datetime-edit { opacity: 0; }
+input[type="date"]:invalid:not(:focus)::before {
+  content: "يوم/شهر/سنة";
+  color: #888;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  white-space: nowrap;
 }
 /* ===== Overdue Alert Modal ===== */
 .overdue-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:5000;opacity:0;transition:opacity .3s ease;pointer-events:none}
@@ -1588,6 +1617,9 @@ function unlockNav() {
 // تأمين التنقل عند التحميل
 window._isLoggedIn = false;
 lockNav();
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('input[type="date"]').forEach(function (el) { el.required = true; });
+});
 
 // بيانات المربي في العلاج والتحصين والعينات: للقراءة فقط، تُعبَّأ بالجلب حصراً
 document.addEventListener('DOMContentLoaded', function () {
@@ -3402,20 +3434,20 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
           </div>
           <div class="field"><label>اسم صاحب الحيوان <span class="en">Name of Animal Owner</span></label><input type="text" id="db_ownerName"></div>
           <div class="field"><label>رقم العينة في العيادة <span class="en">Sample Number</span></label><input type="text" id="db_sampleNo"></div>
-          <div class="field"><label>نوع الحيوان والسلالة <span class="en">Species & Breed</span></label><input type="text" id="db_species"></div>
-          <div class="field"><label>العمر / الجنس <span class="en">Age / Sex</span></label><input type="text" id="db_ageSex"></div>
+          <div class="field"><label>نوع الحيوان/الجنس/العدد<span class="en">Species & Breed</span></label><input type="text" id="db_species"></div>
+          <div class="field"><label>العمر<span class="en">Age / Sex</span></label><input type="text" id="db_ageSex"></div>
           <div class="field"><label>عدد الحيوانات المخالطة <span class="en">No. in Contact</span></label><input type="number" id="db_contactAnimals" min="0"></div>
           <div class="field"><label>عدد الحيوانات المريضة <span class="en">No. Sick</span></label><input type="number" id="db_sickAnimals" min="0"></div>
           <div class="field"><label>عدد الحيوانات النافقة <span class="en">No. Dead</span></label><input type="number" id="db_deadAnimals" min="0"></div>
           <div class="field"><label>نوع العينات <span class="en">Specimen</span></label><input type="text" id="db_specimen"></div>
           <div class="field"><label>عدد العينات <span class="en">No. of Specimen</span></label><input type="text" id="db_specimenNo"></div>
-          <div class="field"><label>تاريخ أخذ العينات <span class="en">Date Taken</span></label><input type="text" id="db_dateTaken" placeholder="يوم/شهر/سنة" dir="ltr"></div>
-          <div class="field"><label>تاريخ إرسال العينات <span class="en">Date Sent</span></label><input type="text" id="db_dateSent" placeholder="يوم/شهر/سنة" dir="ltr"></div>
+          <div class="field"><label>تاريخ أخذ العينات <span class="en">Date Taken</span></label><input type="text" id="db_dateTaken" placeholder="يوم/شهر/سنة" dir="ltr" style="text-align:right;"></div>
+          <div class="field"><label>تاريخ إرسال العينات <span class="en">Date Sent</span></label><input type="text" id="db_dateSent" placeholder="يوم/شهر/سنة" dir="ltr" style="text-align:right;"></div>
           <div class="field full"><label>توصيف الحالة المرضية <span class="en">Case History</span></label><textarea id="db_caseHistory"></textarea></div>
           <div class="field full"><label>الصفة التشريحية <span class="en">Postmortem Findings</span></label><textarea id="db_postmortem"></textarea></div>
           <div class="field full"><label>الفحوصات المطلوبة <span class="en">Requested Tests</span></label><textarea id="db_requestedTests"></textarea></div>
           <div class="field"><label>اسم الطبيب البيطري <span class="en">Vet Name</span></label><input type="text" id="db_vetName"></div>
-          <div class="field"><label>رقم الهاتف <span class="en">Phone</span></label><input type="text" id="db_vetPhone"></div>
+          <div class="field"><label>رقم هاتف الطبيب البيطري<span class="en">Vet Phone</span></label><input type="text" id="db_vetPhone"></div>
           <div class="field"><label>رقم هاتف العيادة <span class="en">Clinic Phone</span></label><input type="text" id="db_clinicPhone"></div>
           <div class="acceptance-row">
             <label>قبول العينة:</label>
@@ -3477,12 +3509,12 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
       <span style="font-size:9pt;color:#333;white-space:nowrap;">Sample Number in the Clinic</span>
     </div>
     <div class="pa-row" style="justify-content:space-between;">
-      <span class="pa-label" style="min-width:auto;">نوع الحيوان والسلالة</span>
+      <span class="pa-label" style="min-width:auto;">نوع الحيوان/الجنس/العدد</span>
       <span class="pa-value" id="p_species" style="text-align:center;flex:1;"></span>
       <span style="font-size:9pt;color:#333;white-space:nowrap;">Animal Species &amp; Breed</span>
     </div>
     <div class="pa-row" style="justify-content:space-between;">
-      <span class="pa-label" style="min-width:auto;">العمر / الجنس</span>
+      <span class="pa-label" style="min-width:auto;">العمر</span>
       <span class="pa-value" id="p_ageSex" style="text-align:center;flex:1;"></span>
       <span style="font-size:9pt;color:#333;white-space:nowrap;">Age / Sex</span>
     </div>
@@ -3652,6 +3684,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
         document.getElementById("db_sickAnimals").value    = data.sickAnimals || "";
         document.getElementById("db_deadAnimals").value    = data.deadAnimals || "";
         document.getElementById("db_specimen").value       = data.specimen || "";
+        document.getElementById("db_specimenNo").value     = data.specimenNo || "";
         document.getElementById("db_dateTaken").value      = data.dateTaken || "";
         document.getElementById("db_dateSent").value       = data.dateSent || "";
         document.getElementById("db_caseHistory").value    = data.caseHistory || "";
@@ -5982,6 +6015,11 @@ function bd_validateCommon() {
     bd_showMessage("رقم الهاتف يجب أن يتكون من أرقام فقط (8 خانات على الأقل)", true);
     return false;
   }
+  if (!/^[97]/.test(phone)) {
+    bd_showMessage("رقم الهاتف يجب أن يبدأ بـ 9 أو 7 فقط", true);
+    document.getElementById("bd_caseNumber").focus();
+    return false;
+  }
   if (!bd_getValue("bd_nameInput")) {
     bd_showMessage("اسم المربي مطلوب", true); return false;
   }
@@ -6047,6 +6085,11 @@ function bd_validateUpdate() {
   var np = bd_getValue("bd_newPhoneInput");
   if (np && !/^[0-9]{8,15}$/.test(np)) {
     bd_showMessage("الرقم الجديد يجب أن يتكون من أرقام فقط (8 خانات على الأقل)", true); return false;
+  }
+  if (np && !/^[97]/.test(np)) {
+    bd_showMessage("الرقم الجديد يجب أن يبدأ بـ 9 أو 7 فقط", true);
+    document.getElementById("bd_newPhoneInput").focus();
+    return false;
   }
   return bd_validateCommon();
 }
@@ -8420,8 +8463,14 @@ async function vr_saveToBreeder(r) {
       </div>
       <div class="card">
         <h3>بيانات العينة</h3>
-        <div class="row"><label>النوع</label><select id="animalType"><option value=""></option><option>ماعز</option><option>أغنام</option><option>أبقار</option><option>جمال</option><option>خيول</option></select></div>
-        <div class="row"><label>الجنس</label><select id="gender"><option value=""></option><option>ذكر</option><option>أنثى</option></select></div>
+<div class="row"><label>النوع / الجنس</label>
+<div style="flex:1;position:relative;">
+<div id="fo_atDisplay" onclick="fo_atToggle()" style="cursor:pointer;border:2px solid #ddd;border-radius:3px;padding:4px 28px 4px 6px;min-height:30px;background:#fff;font-size:13px;"></div>
+<span style="position:absolute;left:8px;top:7px;font-size:11px;color:#999;pointer-events:none;">▼</span>
+<div id="fo_atDrop" onclick="event.stopPropagation()" style="display:none;position:absolute;top:100%;right:0;left:0;background:#fff;border:2px solid #00b8d9;border-radius:3px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);padding:6px;"></div>
+<input type="hidden" id="animalType">
+<input type="hidden" id="gender">
+</div></div>
         <div class="row"><label>العمر</label><input id="age"></div>
 <div class="row"><label>نوع العينة</label>
 <div style="flex:1;position:relative;">
@@ -8435,6 +8484,14 @@ async function vr_saveToBreeder(r) {
 <datalist id="sampleTypeList"></datalist>
 </div></div>
 <script>
+var FO_AT=['ماعز','أغنام','أبقار','جمال','خيول'],FO_SX=['ذكر','أنثى'],fo_atSel={};
+function fo_atToggle(){var d=document.getElementById('fo_atDrop');if(d.style.display==='none'){fo_atBuild();d.style.display='block';setTimeout(function(){document.addEventListener('click',fo_atClose);},50);}else fo_atClose();}
+function fo_atClose(e){var d=document.getElementById('fo_atDrop');if(e&&d&&d.contains(e.target))return;if(d)d.style.display='none';document.removeEventListener('click',fo_atClose);}
+function fo_atBuild(){var h='<div style="display:flex;gap:8px;margin-bottom:4px;font-weight:bold;color:#004e66;font-size:12px;text-align:center;"><span style="width:55px;"></span><span style="flex:1;">ذكر</span><span style="flex:1;">أنثى</span></div>';h+=FO_AT.map(function(n,i){return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0;"><span style="width:55px;font-weight:bold;">'+n+'</span>'+FO_SX.map(function(s,j){return '<input type="number" min="0" placeholder="العدد" value="'+(fo_atSel[n+'|'+s]||'')+'" oninput="fo_atSet('+i+','+j+',this.value)" style="flex:1;min-width:0;text-align:center;">';}).join('')+'</div>';}).join('');document.getElementById('fo_atDrop').innerHTML=h;}
+function fo_atSet(i,j,v){var k=FO_AT[i]+'|'+FO_SX[j],c=parseInt(v,10);if(c>0)fo_atSel[k]=c;else delete fo_atSel[k];fo_atRefresh();}
+function fo_atRefresh(){var parts=[],hasM=false,hasF=false;FO_AT.forEach(function(n){FO_SX.forEach(function(s){var c=fo_atSel[n+'|'+s];if(!c)return;parts.push(n+' '+s+' '+c);if(s==='ذكر')hasM=true;else hasF=true;});});document.getElementById('animalType').value=parts.join(' - ');document.getElementById('gender').value=(hasM&&hasF)?'مختلط':(hasM?'ذكر':(hasF?'أنثى':''));var d=document.getElementById('fo_atDisplay');d.innerHTML=parts.length?parts.map(function(p){return '<span style="background:#e0f7fc;color:#004e66;border-radius:12px;padding:2px 8px;margin:2px;font-size:12px;display:inline-block;">'+p+'</span>';}).join(''):'<span style="color:#999">اختر النوع والجنس وأدخل العدد</span>';d.style.borderColor=parts.length?'#00b8d9':'#ddd';}
+function fo_atLoad(v,g){fo_atSel={};String(v||'').split(/\s*-\s*/).forEach(function(p){var m=p.trim().match(/^(\S+)(?:\s+(ذكر|أنثى))?(?:\s+(\d+))?$/);if(!m||FO_AT.indexOf(m[1])===-1)return;var s=m[2]||(g==='أنثى'?'أنثى':'ذكر');fo_atSel[m[1]+'|'+s]=parseInt(m[3],10)||1;});fo_atRefresh();}
+fo_atRefresh();
 var fo_stSel=[];
 function fo_stToggle(){var d=document.getElementById('fo_stDrop');if(d.style.display==='none'){d.style.display='block';fo_stBuild('');setTimeout(function(){document.addEventListener('click',fo_stClose);},50);}else fo_stClose();}
 function fo_stClose(e){var w=document.querySelector('#fo_stDrop');if(e&&w&&w.contains(e.target))return;var d=document.getElementById('fo_stDrop');if(d)d.style.display='none';document.removeEventListener('click',fo_stClose);}
@@ -8563,6 +8620,7 @@ function fofillFormWithData(data) {
   var fields = ['phoneInput:phone','nameInput:name','possessionInput:possession','regionInput:region','civilInput:civil','financialDate:financialDate','animalType:animalType','gender:gender','age:age','diseaseDate:diseaseDate','anatomicalFeature:anatomicalFeature','pathologyDesc:pathologyDesc','sickCount:sickCount','contactCount:contactCount','deathCount:deathCount','sampleTakenDate:sampleTakenDate','sampleSentDate:sampleSentDate','suspectedDisease:suspectedDisease','dataEntryInput:dataEntry','dataUpdaterInput:dataUpdater','notes:notes'];
   fields.forEach(function(f){var p=f.split(':');fosafeSet(p[0],data[p[1]]);});
   fo_stLoad(data.sampleType);
+  fo_atLoad(data.animalType, data.gender);
   for(var k=1;k<=5;k++){fosafeSet('test'+k,data['test'+k]);fosafeSet('result'+k,data['result'+k]);}
   foshowMessage('تم تحميل بيانات العينة '+data.caseNumberrt+' بنجاح',false);
 }
@@ -8572,6 +8630,7 @@ function fochearForm() {
   var ids = ['caseNumberrt','phoneInput','nameInput','possessionInput','regionInput','civilInput','animalType','gender','age','diseaseDate','anatomicalFeature','pathologyDesc','sickCount','contactCount','deathCount','sampleTakenDate','sampleSentDate','suspectedDisease','dataEntryInput','dataUpdaterInput','notes','test1','test2','test3','test4','test5','result1','result2','result3','result4','result5'];
   ids.forEach(function(id){fosafeSet(id,'');});
   fo_stClear();
+  fo_atLoad('');
 }
 
 function focollectFormData() {
@@ -16202,7 +16261,7 @@ function names(table, col, filterWilayat) {
     });
   }
   function speciesIdSync(name) {
-    var n = txt(name);
+    var n = txt(name).split(/\s*-\s*/)[0].replace(/\s*(ذكر|أنثى)?\s*\d*$/, "").trim();
     if (!n || !ref.species) return null;
     var code = SPECIES_ALIAS[n];
     var hit = ref.species.filter(function (s) {
@@ -16279,7 +16338,7 @@ function idsFor(key, table, names) {
      العينات
      ════════════════════════════════════════════════════════════ */
   var SAMPLE_COLS =
-    "id, sample_no, possession_no_snapshot, sex, age, disease_onset, anatomical_findings, " +
+    "id, sample_no, species_detail, possession_no_snapshot, sex, age, disease_onset, anatomical_findings, " +
     "case_history, suspected_disease, sick_count, contact_count, dead_count, taken_on, " +
     "sent_on, notes, created_at, legacy_entry, legacy_updater, " +
     "species(code, name_ar), breeders(phone, name, civil_id, regions(name)), " +
@@ -16301,7 +16360,7 @@ function idsFor(key, table, names) {
       region:            b.regions ? txt(b.regions.name) : "",
       civil:             txt(b.civil_id),
       financialDate:     toISO(s.created_at) || "",
-      animalType:        speciesLabel(s.species),
+animalType:        txt(s.species_detail) || speciesLabel(s.species),
       gender:            txt(s.sex),
       age:               txt(s.age),
       sampleType:        (s.sample_specimen_types || [])
@@ -16335,6 +16394,7 @@ function idsFor(key, table, names) {
     return {
       breeder_id:             bid,
       species_id:             spid,
+      species_detail:         txt(d.animalType) || null,
       possession_no_snapshot: strip(d.possession) || null,
       sex:                    sexOf(d.gender),
       age:                    txt(d.age) || null,
@@ -16552,6 +16612,7 @@ function childRows(sampleId, d, tm, sm, keep) {
           species: o.animalType, ageSex: [o.age, o.gender].filter(Boolean).join(" / "),
           contactAnimals: o.contactCount, sickAnimals: o.sickCount, deadAnimals: o.deathCount,
           specimen: o.sampleType, dateTaken: dmy(o.sampleTakenDate), dateSent: dmy(o.sampleSentDate),
+          specimenNo: (String(o.animalType).match(/\d+/g) || []).reduce(function (s, x) { return s + Number(x); }, 0) || "",
           caseHistory: o.pathologyDesc, postmortem: o.anatomicalFeature,
           vetName: o.dataEntry, requestedTests: tests.join("، ")
         };
@@ -16758,6 +16819,126 @@ function route(name, routes, soft) {
   patch();
 
 })(window);
+</script>
+<script>
+/* ═══ قائمة اقتراحات بديلة عن datalist — تبحث من أول حرف ═══ */
+(function () {
+  "use strict";
+  var box = document.createElement('div');
+  box.id = 'acBox';
+  box.style.cssText = 'position:fixed;display:none;z-index:100002;background:#fff;' +
+    'border:2px solid #00b8d9;border-radius:4px;overflow-y:auto;direction:rtl;' +
+    'box-shadow:0 6px 18px rgba(0,0,0,.25);font-family:Tahoma,Arial;font-size:13px;';
+  document.body.appendChild(box);
+
+  var cur = null, items = [], idx = -1, picking = false;
+
+  function norm(s) {
+    return String(s || '').toLowerCase().trim()
+      .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+  }
+
+  /* تعطيل القائمة الأصلية للحقل والاحتفاظ باسمها */
+  function adopt(el) {
+    if (!el || el.tagName !== 'INPUT') return null;
+    var l = el.getAttribute('list');
+    if (l) { el.dataset.acList = l; el.removeAttribute('list'); el.autocomplete = 'off'; }
+    return el.dataset.acList || null;
+  }
+
+  function close() { box.style.display = 'none'; cur = null; items = []; idx = -1; }
+
+  function mark() {
+    Array.prototype.forEach.call(box.children, function (d, i) {
+      d.style.background = (i === idx) ? '#00b8d9' : '';
+      d.style.color      = (i === idx) ? '#fff' : '#000';
+      if (i === idx) d.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function render(el) {
+    var id = adopt(el);
+    if (!id || el.readOnly || el.disabled) return;
+    var dl = document.getElementById(id);
+    if (!dl) return;
+
+    var q = norm(el.value), starts = [], has = [];
+    Array.prototype.forEach.call(dl.options, function (o) {
+      var v = o.value, i = q ? norm(v).indexOf(q) : 0;
+      if (i === 0) starts.push(v); else if (i > 0) has.push(v);
+    });
+    var res = starts.concat(has).slice(0, 60);   /* المطابِق من البداية أولاً */
+
+    if (!res.length || (res.length === 1 && res[0] === el.value)) { close(); return; }
+
+    cur = el; items = res; idx = -1;
+    box.innerHTML = '';
+    res.forEach(function (v, i) {
+      var d = document.createElement('div');
+      d.textContent = v;
+      d.dataset.i = i;
+      d.style.cssText = 'padding:6px 10px;cursor:pointer;border-bottom:1px solid #eee;white-space:nowrap;';
+      box.appendChild(d);
+    });
+
+    var r = el.getBoundingClientRect();
+    box.style.left      = r.left + 'px';
+    box.style.top       = (r.bottom + 2) + 'px';
+    box.style.minWidth  = Math.max(r.width, 180) + 'px';
+    box.style.maxHeight = Math.max(120, Math.min(260, window.innerHeight - r.bottom - 10)) + 'px';
+    box.style.display   = 'block';
+  }
+
+  function pick(v) {
+    var el = cur;
+    close();
+    if (!el) return;
+    picking = true;
+    el.value = v;
+    el._acLast = v;
+    el.dispatchEvent(new Event('input',  { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    picking = false;
+  }
+
+  document.addEventListener('focusin', function (e) { if (adopt(e.target)) render(e.target); });
+
+  document.addEventListener('input', function (e) {
+    if (picking) return;
+    if (e.isTrusted) delete e.target._acLast;
+    if (adopt(e.target)) render(e.target);
+  });
+
+  /* منع تكرار حدث change عند الخروج من الحقل بعد الاختيار */
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (e.isTrusted && t._acLast !== undefined) {
+      if (t._acLast === t.value) e.stopImmediatePropagation();
+      delete t._acLast;
+    }
+  }, true);
+
+  document.addEventListener('keydown', function (e) {
+    if (!cur || e.target !== cur) return;
+    if (e.key === 'ArrowDown')      { idx = Math.min(idx + 1, items.length - 1); mark(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp')   { idx = Math.max(idx - 1, 0); mark(); e.preventDefault(); }
+    else if (e.key === 'Enter' && idx >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(items[idx]); }
+    else if (e.key === 'Escape')    { e.stopImmediatePropagation(); close(); }
+  }, true);
+
+  box.addEventListener('mousedown', function (e) {
+    e.preventDefault();                      /* إبقاء التركيز على الحقل */
+    var d = e.target.closest('[data-i]');
+    if (d) pick(items[+d.dataset.i]);
+  });
+
+  document.addEventListener('focusout', function (e) {
+    var t = e.target;
+    setTimeout(function () { if (cur === t) close(); }, 150);
+  });
+  window.addEventListener('scroll', function (e) { if (e.target !== box) close(); }, true);
+  window.addEventListener('resize', close);
+})();
 </script>
 </body>
 </html>
