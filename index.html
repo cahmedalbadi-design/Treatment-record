@@ -1063,7 +1063,7 @@ function showPage(pageId) {
   }
     // منع فتح أي صفحة قبل اكتمال التحميل الأولي
   if (window._bootRunning && publicPages.indexOf(pageId) === -1) {
-    showToast('⏳ جاري تحميل بيانات النظام، انتظر قليلاً', 'info');
+    showToast('⏳ جاري تحميل بيانات النظام، انتظر قليلاً', 'warning');
     return;
   }
 
@@ -3579,7 +3579,7 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
       <span class="pa-value"><span id="p_vetName"></span> &nbsp;/&nbsp; <span id="p_vetPhone"></span></span>
     </div>
     <div class="pa-row">
-      <span class="pa-label">رقم هاتف العيادة / رقم الفاكس</span>
+      <span class="pa-label">رقم هاتف العيادة</span>
       <span class="pa-value" id="p_clinicPhone"></span>
     </div>
     <div class="pa-acceptance">
@@ -8547,7 +8547,7 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
     <button id="closeSearchCardBtn" style="background:#fff;color:#00b8d9;border:none;padding:5px 15px;border-radius:4px;cursor:pointer;font-weight:bold">رجوع</button>
   </div>
   <div class="search-filters">
-    <div class="top-group"><label>رقم الهاتف او العينة:</label><input type="text" id="searchPhoneInput" placeholder="رقم الهاتف"></div>
+    <div class="top-group"><label>رقم الهاتف او العينة:</label><input type="text" id="searchPhoneInput" placeholder="رقم الهاتف او العينة"></div>
     <div class="top-group"><label>نوع العينة:</label><input type="text" id="searchTypeInput" list="sampleTypeList" placeholder="نوع العينة">
     <span id="searchTypeCount" style="display:none;background:#9c27b0;color:#fff;padding:4px 12px;border-radius:20px;font-weight:bold;font-size:12px;white-space:nowrap;"></span></div>
     <div class="top-group"><label>من:</label><input type="date" id="searchDateFrom"></div>
@@ -16552,7 +16552,12 @@ function childRows(sampleId, d, tm, sm, keep) {
       if (phone) data = data.filter(function (x) {
         return x.phone === phone || String(x.caseNumberrt) === phone;
       });
-      if (st) data = data.filter(function (x) { return x.sampleType === st; });
+         if (st) {
+        var stq = st.toLowerCase();
+        data = data.filter(function (x) {
+          return String(x.sampleType || "").toLowerCase().indexOf(stq) !== -1;
+        });
+      }
       var count = data.length;
       if (limit > 0) data = data.slice(0, limit);
       return { success: true, data: data, count: count };
