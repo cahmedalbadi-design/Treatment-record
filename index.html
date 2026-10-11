@@ -2001,6 +2001,19 @@ function clinicInfoRefresh() {
   </div>
 </div>
 <div class="card">
+  <h3>📢 رسائل منبثقة للمستخدمين</h3>
+  <div class="ua-bar">
+    <label>إلى:</label><select id="ua_mTarget"></select>
+    <label>تظهر من:</label><input type="datetime-local" id="ua_mFrom">
+    <label>حتى:</label><input type="datetime-local" id="ua_mTo">
+    <input id="ua_mTitle" placeholder="عنوان الرسالة" style="width:220px">
+  </div>
+  <textarea id="ua_mBody" placeholder="نص الرسالة..."></textarea>
+  <div class="btns"><button class="save" onclick="ua_msgSave()">📢 نشر الرسالة</button></div>
+  <table><thead><tr><th>العنوان</th><th>موجَّهة إلى</th><th>من</th><th>حتى</th><th></th></tr></thead>
+    <tbody id="ua_mTb"></tbody></table>
+</div>
+<div class="card">
   <h3>🗑️ سجل المحذوفات</h3>
   <div class="ua-bar">
     <input id="ua_dq" placeholder="بحث بالاسم أو الهاتف أو الرقم أو الحاذف..." oninput="ua_renderDeleted()" style="width:280px">
@@ -2212,7 +2225,7 @@ async function ua_init() {
       ua_clinics.map(function (c) {
         return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
       }).join('');
-    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted()]);
+    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -2475,6 +2488,82 @@ function ua_showDeleted(id) {
   m.querySelector('.cancel-btn').onclick = function () { m.remove(); };
   m.onclick = function (e) { if (e.target === m) m.remove(); };
 }
+/* ── الرسائل المنبثقة: إدارة (للمدير) ── */
+async function ua_msgLoad() {
+  document.getElementById('ua_mTarget').innerHTML =
+    '<option value="all">كل المستخدمين</option><option value="sup">المشرفون فقط</option>' +
+    ua_clinics.map(function (c) { return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>'; }).join('');
+  var sb = await ua_sb();
+  var r = await sb.from('announcements').select('id, title, wilayat_id, sup_only, show_from, show_until')
+    .order('show_from', { ascending: false }).limit(50);
+  var tb = document.getElementById('ua_mTb');
+  if (r.error) { tb.innerHTML = '<tr><td colspan="5" style="color:red">' + ua_esc(r.error.message) + '</td></tr>'; return; }
+  tb.innerHTML = (r.data || []).map(function (m) {
+    var c = ua_clinics.filter(function (x) { return String(x.id) === String(m.wilayat_id); })[0];
+    var to = m.sup_only ? 'المشرفون' : (m.wilayat_id ? (c ? c.name : m.wilayat_id) : 'الكل');
+    return '<tr><td class="nc">' + ua_esc(m.title) + '</td><td>' + ua_esc(to) + '</td><td>' + ua_fmt(m.show_from) +
+      '</td><td>' + ua_fmt(m.show_until) + '</td><td><button class="delete" style="padding:4px 12px" onclick="ua_msgDel(' +
+      Number(m.id) + ')">🗑️ حذف</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="no-results">لا توجد رسائل</td></tr>';
+}
+
+async function ua_msgSave() {
+  var v = function (id) { return document.getElementById(id).value.trim(); };
+  var t = v('ua_mTarget'), f = v('ua_mFrom'), u = v('ua_mTo'), title = v('ua_mTitle'), body = v('ua_mBody');
+  if (!title || !body) { showToast('⚠️ العنوان ونص الرسالة مطلوبان', 'warning'); return; }
+  if (!f || !u || new Date(f) >= new Date(u)) { showToast('⚠️ حدّد وقت البداية والنهاية بشكل صحيح', 'warning'); return; }
+  var sb = await ua_sb();
+  var r = await sb.from('announcements').insert({
+    title: title, body: body, sup_only: t === 'sup',
+    wilayat_id: (t === 'all' || t === 'sup') ? null : Number(t),
+    show_from: new Date(f).toISOString(), show_until: new Date(u).toISOString()
+  });
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  showToast('✅ تم نشر الرسالة', 'success');
+  document.getElementById('ua_mTitle').value = ''; document.getElementById('ua_mBody').value = '';
+  ua_msgLoad();
+}
+
+async function ua_msgDel(id) {
+  var sb = await ua_sb();
+  var r = await sb.from('announcements').delete().eq('id', id);
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  showToast('✅ تم حذف الرسالة', 'success');
+  ua_msgLoad();
+}
+
+/* ── الرسائل المنبثقة: العرض (لكل المستخدمين) ── */
+var _annNext = 0;
+async function annCheck() {
+  var me = window._sbProfile;
+  if (!window._isLoggedIn || window._bootRunning || !me || Date.now() < _annNext ||
+      document.getElementById('annModal')) return;
+  _annNext = Date.now() + 300000;                       /* فحص كل 5 دقائق */
+  try {
+    var sb = await window.SBAuth.client();
+    var r = await sb.from('announcements').select('id, title, body, show_from, show_until').order('show_from');
+    if (r.error) return;
+    var key = 'ann_seen_' + me.id, seen = [], now = new Date();
+    try { seen = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+    var a = (r.data || []).filter(function (x) {
+      return seen.indexOf(x.id) === -1 && new Date(x.show_from) <= now && new Date(x.show_until) >= now;
+    })[0];
+    if (!a) return;
+    var m = document.createElement('div');
+    m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
+    m.innerHTML = '<div class="modal-box" style="max-width:480px"><div style="font-size:42px">📢</div>' +
+      '<h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p>' +
+      '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button></div></div>';
+    document.body.appendChild(m);
+    m.querySelector('.confirm-btn').onclick = function () {
+      seen.push(a.id);
+      try { localStorage.setItem(key, JSON.stringify(seen.slice(-200))); } catch (e) {}
+      m.remove();
+      _annNext = 0;                                     /* عرض الرسالة التالية إن وُجدت */
+    };
+  } catch (e) {}
+}
+setInterval(annCheck, 20000);
 /* ── النموذج الخارجي ── */
 async function ua_loadFormState() {
   var el = document.getElementById('ua_formState');
