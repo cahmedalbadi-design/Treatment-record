@@ -2662,6 +2662,19 @@ function ua_saveCampaign() {
   </div>
 </div>
 
+<div class="card" id="ac_dailyWrap">
+  <h3>📋 حالات السجل اليومي في العيادات</h3>
+  <div class="fb">
+    <button class="bp" onclick="ac_loadDaily()">🔄 تحديث</button>
+    <span id="ac_dStatus" style="font-weight:bold;color:#00b8d9"></span>
+  </div>
+  <div class="table-container" style="max-height:none">
+    <table id="ac_dTable"><thead><tr>
+      <th>العيادة</th><th>عدد الحالات اليومية</th>
+    </tr></thead><tbody id="ac_dTb"></tbody><tfoot id="ac_dTf"></tfoot></table>
+  </div>
+</div>
+
 <script>
 /* حالة الأداء — نفس منطق لوحة متابعة التحصين */
 function ac_perf(dayNow, cum, gap) {
@@ -2731,6 +2744,45 @@ function ac_row(name, r, cls) {
     '<td>' + rptCamp_num(r.doses) + '</td>' +
     '<td>' + rptCamp_num(r.vacc) + '</td></tr>';
 }
+  /* عدد حالات السجل اليومي لكل عيادة — اليوم الحالي */
+async function ac_loadDaily() {
+  var me = window._sbProfile;
+  if (!me || !(me.is_admin || me.is_supervisor)) return;
+  var tb = document.getElementById('ac_dTb'), tf = document.getElementById('ac_dTf');
+  var st = document.getElementById('ac_dStatus');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="2">⏳ جاري التحميل...</td></tr>';
+  tf.innerHTML = '';
+  try {
+    var sb = await window.SBAuth.client();
+    var w  = await sb.from('wilayat').select('id, name, is_central').order('name');
+    if (w.error) throw w.error;
+    var clinics = (w.data || []).filter(function (x) { return !x.is_central; });
+    var now  = new Date();
+    var day  = now.toLocaleDateString('en-CA');
+    var time = now.toLocaleTimeString('ar-OM', { hour: '2-digit', minute: '2-digit' });
+
+    var counts = await Promise.all(clinics.map(function (c) {
+      return sb.from('treatment_cases').select('id', { count: 'exact', head: true })
+        .eq('wilayat_id', c.id).eq('treated_on', day)
+        .then(function (r) { return r.error ? null : (r.count || 0); });
+    }));
+
+    var total = 0;
+    tb.innerHTML = clinics.map(function (c, i) {
+      var n = counts[i], cell;
+      if (n === null) cell = '<td style="color:#e67e22">⚠️ تعذّر الجلب</td>';
+      else if (n > 0) { total += n; cell = '<td style="font-weight:bold;color:#1b5e20;font-size:15px">' + n + '</td>'; }
+      else cell = '<td style="color:#c62828;font-weight:bold">لم يتم تسجيل أي حالة إلى الساعة ' + time + '</td>';
+      return '<tr><td class="nc">' + escHtml(c.name) + '</td>' + cell + '</tr>';
+    }).join('') || '<tr><td colspan="2" class="no-results">لا توجد عيادات</td></tr>';
+
+    tf.innerHTML = '<tr class="tot"><td class="nc">الإجمالي</td><td>' + total + '</td></tr>';
+    st.textContent = '📅 ' + day + ' — آخر تحديث ' + time;
+  } catch (e) {
+    tb.innerHTML = '<tr><td colspan="2" style="color:#c62828">❌ ' + escHtml(e.message || e) + '</td></tr>';
+  }
+}
 function ac_clearDates() {
   if (window._bootRunning) { showToast('⏳ انتظر اكتمال التحميل الحالي', 'warning'); return; }
   document.getElementById('ac_from').value = '';
@@ -2755,6 +2807,7 @@ async function ac_load() {
   var orig = { id: me.wilayat_id, wilayat: me.wilayat };
   var T = { cum: 0, done: 0, dayNow: 0, trt: 0, vb: 0, animals: 0, doses: 0, vacc: 0 };
   var html = '';
+  ac_loadDaily();
   window._bootRunning = true; btn.disabled = true;
   tb.innerHTML = ''; tf.innerHTML = '';
 
