@@ -1955,7 +1955,15 @@ function clinicInfoRefresh() {
 .ua-modal select,.ua-modal input[type=datetime-local]{padding:6px 8px;border:2px solid #ddd;border-radius:4px;font-family:inherit}
 @media(max-width:650px){.ua-grid{grid-template-columns:1fr 1fr}}
 </style>
-
+<div class="card">
+  <h3>🔁 نقل مربٍّ إلى ولاية أخرى</h3>
+  <div class="ua-bar">
+    <label>رقم الهاتف:</label><input id="ua_mvPhone" placeholder="رقم هاتف المربي" style="width:180px">
+    <label>إلى عيادة:</label><select id="ua_mvTo"></select>
+    <button class="update" onclick="ua_moveBreeder()">🔁 نقل</button>
+  </div>
+  <div style="font-size:11px;color:#777">ينتقل سجل المربي وطلبات التحصين الخاصة به، وتبقى سجلات العلاج والتحصين والعينات السابقة في العيادة التي نفّذتها.</div>
+</div>
 <div class="card">
   <h3>🛡️ إدارة المستخدمين</h3>
   <div class="ua-bar">
@@ -2225,6 +2233,8 @@ async function ua_init() {
       ua_clinics.map(function (c) {
         return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
       }).join('');
+        document.getElementById('ua_mvTo').innerHTML = '<option value="">— اختر العيادة —</option>' +
+      ua_clinics.map(function (c) { return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>'; }).join('');
     await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
@@ -2578,7 +2588,29 @@ async function ua_setForm(open) {
   showToast(open ? '✅ تم فتح النموذج' : '✅ تم إغلاق النموذج', 'success');
   ua_loadFormState();
 }
+/* ── نقل مربٍّ إلى ولاية أخرى ── */
+async function ua_moveBreeder() {
+  var phone = document.getElementById('ua_mvPhone').value.trim();
+  var sel   = document.getElementById('ua_mvTo');
+  var to    = Number(sel.value);
+  if (!phone) { showToast('⚠️ أدخل رقم هاتف المربي', 'warning'); return; }
+  if (!to)    { showToast('⚠️ اختر العيادة المنقول إليها', 'warning'); return; }
 
+  var ok = await ua_dialog({
+    title: '🔁 نقل مربٍّ',
+    msg: 'سيُنقل المربي <b>' + ua_esc(phone) + '</b> إلى <b>' +
+         ua_esc(sel.options[sel.selectedIndex].text) + '</b>.<br>هل تريد المتابعة؟',
+    ok: 'نعم، انقل'
+  });
+  if (!ok) return;
+
+  showToast('⏳ جاري النقل...', 'info');
+  var r = await ua_rpc('admin_move_breeder', { p_phone: phone, p_wilayat: to });
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  showToast('✅ تم النقل: ' + r.data, 'success');
+  document.getElementById('ua_mvPhone').value = '';
+  if (typeof bd_refreshDropdowns === 'function') bd_refreshDropdowns().catch(function () {});
+}
 /* ── الحملة الوطنية ── */
 function ua_calcDays() {
   var f = document.getElementById('ua_cFrom').value, t = document.getElementById('ua_cTo').value;
