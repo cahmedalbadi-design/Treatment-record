@@ -47,7 +47,8 @@ body,
 #treatment > .top-bar::before,
 #breeder > .bd-top::before,
 #vaccination > #vacc_topBarMain::before,
-#samples > #topBarMain::before {
+#samples > #topBarMain::before,
+#dashboard > .top-bar::before {
   background-color: transparent !important;
   background-image: var(--app-bg-img) !important;
   background-size: cover !important;
@@ -58,8 +59,8 @@ body,
 #treatment > .top-bar        { box-shadow: 0 4px 14px rgba(0,78,102,.25) !important; }
 #breeder > .bd-top           { box-shadow: 0 4px 14px rgba(0,78,102,.25) !important; }
 #vaccination > #vacc_topBarMain { box-shadow: 0 4px 14px rgba(91,44,111,.25) !important; }
-#samples > #topBarMain       { box-shadow: 0 4px 14px rgba(122,62,0,.25) !important; }
-/* ============================================================
+#dashboard > .top-bar        { box-shadow: 0 4px 14px rgba(31,45,107,.25) !important; }
+  /* ============================================================
    ٣. NAV
    ============================================================ */
 nav {
@@ -6388,8 +6389,8 @@ async function trSelectIncompleteCase(caseNumber) {
 #breeder{--bd-line:#dcebf0}
 #breeder > .bd-top{position:sticky;top:60px;z-index:40;max-width:1400px;margin:0 auto 14px;border:0;border-radius:12px;
   padding:10px 16px;background:linear-gradient(135deg,#1e5631,#4c9a2a);
-  box-shadow:0 4px 14px rgba(30,86,49,.28),0 -12px 0 var(--tr-mask,#d9d9d9)}}
-#breeder > .bd-top::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;height:72px;
+  box-shadow:0 4px 14px rgba(30,86,49,.28),0 -12px 0 var(--tr-mask,#d9d9d9)}
+  #breeder > .bd-top::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;height:72px;
   background:var(--tr-mask,#d9d9d9);pointer-events:none}
 #breeder > .bd-top label{color:#fff;font-weight:bold}
 #breeder > .bd-top input{width:220px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;font-size:15px !important;text-align:center}
