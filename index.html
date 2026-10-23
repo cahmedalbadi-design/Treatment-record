@@ -38,7 +38,27 @@ body {
   min-height: 100vh;
   font-size: 13px;
 }
-
+:root {
+  --app-bg-img:
+    linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.55)),
+    url("https://dlivsidtmmtvrqhtxmlu.supabase.co/storage/v1/object/public/assets/artsa.png");
+}
+body,
+#treatment > .top-bar::before,
+#breeder > .bd-top::before,
+#vaccination > #vacc_topBarMain::before,
+#samples > #topBarMain::before {
+  background-color: transparent !important;
+  background-image: var(--app-bg-img) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-attachment: fixed !important;
+}
+/* إزالة الشريط الملوّن فوق الشريط العلوي مع الإبقاء على ظله */
+#treatment > .top-bar        { box-shadow: 0 4px 14px rgba(0,78,102,.25) !important; }
+#breeder > .bd-top           { box-shadow: 0 4px 14px rgba(0,78,102,.25) !important; }
+#vaccination > #vacc_topBarMain { box-shadow: 0 4px 14px rgba(91,44,111,.25) !important; }
+#samples > #topBarMain       { box-shadow: 0 4px 14px rgba(122,62,0,.25) !important; }
 /* ============================================================
    ٣. NAV
    ============================================================ */
@@ -2880,7 +2900,7 @@ async function ac_load() {
 #login .login-wrap {
   min-height: calc(100vh - 50px);
   display: flex; align-items: center; justify-content: center;
-  background: #f0f4f9; padding: 20px;
+    background: transparent; padding: 20px;
 }
 #login .lcard {
   background: #fff; border-radius: 20px;
@@ -3572,7 +3592,44 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
      صفحة طباعة نماذج العينات (dashboard) — محدّثة
      ===================================================== -->
 <div id="dashboard" class="page">
+<style>
+/* ═══════════ تصميم صفحة طباعة نماذج العينات (للشاشة فقط) ═══════════ */
+@media screen{
+  #dashboard{--db-line:#dfe3f3}
+  #dashboard > .top-bar{position:sticky;top:60px;z-index:40;border:0;border-radius:12px;padding:10px 16px;margin-bottom:14px;
+    background:linear-gradient(135deg,#1f2d6b,#3f5bd8);box-shadow:0 4px 14px rgba(31,45,107,.25),0 -12px 0 var(--tr-mask,#d9d9d9)}
+  #dashboard > .top-bar::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;height:72px;
+    background:var(--tr-mask,#d9d9d9);pointer-events:none}
+  #dashboard > .top-bar label{color:#fff;font-weight:bold}
+  #dashboard > .top-bar label::before{content:"🔍 "}
+  #dashboard > .top-bar input{width:220px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;font-size:15px !important;text-align:center}
 
+  #dashboard .main-container .card{background:#fff;border:1px solid var(--db-line);border-top:4px solid #3f5bd8;
+    border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(31,45,107,.07)}
+  #dashboard .main-container .card::before{content:"🧪 استمارة العينات — Animal Specimen Submission Form";display:block;
+    color:#1f2d6b;font-weight:bold;font-size:15px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px dashed var(--db-line)}
+  #dashboard .form-grid{gap:12px 14px}
+  #dashboard .field label{color:#2c3a7a;font-size:12px}
+  #dashboard .field input,#dashboard .field textarea{border:1.5px solid #d9def0;border-radius:7px;background:#fbfcff;padding:7px 9px}
+  #dashboard .field input:focus,#dashboard .field textarea:focus{border-color:#3f5bd8;box-shadow:0 0 0 3px rgba(63,91,216,.15);background:#fff}
+  #dashboard .field.full textarea{min-height:60px}
+  #dashboard #db_governorate{background:#eef1fb !important;color:#1f2d6b !important}
+  #dashboard .acceptance-row{background:#f3f5fd;border:1px dashed #3f5bd8;border-radius:10px;padding:10px 12px}
+
+  #dashboard #db_clearBtn::before{content:"🧹 "}
+  #dashboard #db_searchBtn::before{content:"🔍 "}
+  #dashboard #db_searchBtn{background:#3f5bd8;color:#fff}
+  #dashboard #db_printBtn{background:#1f2d6b;color:#fff}
+}
+@media screen and (min-width:701px){
+  #dashboard > .top-bar,#dashboard .main-container{margin-right:215px}
+  #dashboard .right-panel > .top-bar{position:fixed;top:72px;right:12px;width:195px;z-index:50;flex-direction:column;
+    flex-wrap:nowrap;align-items:stretch;margin:0;padding:12px;background:#f3f5fd !important;border:1px solid var(--db-line);
+    border-top:4px solid #3f5bd8;border-radius:12px;box-shadow:0 6px 20px rgba(31,45,107,.18)}
+  #dashboard .right-panel > .top-bar button{width:100%;margin:0;padding:9px 12px;border-radius:8px;
+    text-align:center;white-space:normal;-webkit-text-stroke:.3px currentColor}
+}
+</style>
   <!-- Loading Modal -->
   <div id="db_loadingModal" style="position:fixed;inset:0;background:rgba(255,255,255,.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
     <div style="width:50px;height:50px;border:4px solid #e0e0e0;border-top:4px solid #00b8d9;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:15px;"></div>
@@ -4308,106 +4365,362 @@ function dim_printTable() {
   ⚠️ <span id="tr_incompleteCountText">0 حالة غير مكتملة</span>
 </button>
 </div>
-<div class="main-container"><div class="right-panel">
-  <div class="card"><h3>بيانات المربي</h3>
-    <div class="row"><label>رقم هاتف</label><input list="tr_phoneList" id="tr_phoneInput" style="width:265px;" placeholder="اختر أو اكتب رقم الهاتف"><datalist id="tr_phoneList"></datalist></div>
-    <div class="row"><label>الاسم الثلاثي</label><input id="tr_nameInput" style="width:250px;"></div>
-    <div class="row"><label>رقم الحيازة</label><input id="tr_possessionInput" style="width:250px;"></div>
-    <div class="row"><label>المنطقة</label><input id="tr_regionInput" style="width:250px;"></div>
-    <div class="row"><label>الرقم المدني</label><input id="tr_civilInput" style="width:250px;"></div>
+<style>
+/* ═══════════ تصميم صفحة سجل العلاج ═══════════ */
+#treatment{--tr-ink:#004e66;--tr-line:#dcebf0}
+#treatment > .top-bar{max-width:1400px;margin:0 auto 14px;border:0;border-radius:12px;padding:10px 16px;
+  background:linear-gradient(135deg,#004e66,#0097b8);box-shadow:0 4px 14px rgba(0,78,102,.25)}
+#treatment > .top-bar label{color:#fff}
+#treatment > .top-bar input{width:200px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;
+  font-size:15px !important;text-align:center}
+#treatment .main-container.tr-layout{max-width:1400px;margin:0 auto}
+#treatment .tr-layout .right-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;
+  grid-template-areas:"breeder visit animals" "diag diag drugs" "fin fin fin" "actions actions actions" "daily daily daily"}
+#treatment .tr-c-breeder{grid-area:breeder;--trc:#00b8d9}
+#treatment .tr-c-visit  {grid-area:visit;  --trc:#6c5ce7}
+#treatment .tr-c-animals{grid-area:animals;--trc:#2bb673}
+#treatment .tr-c-diag   {grid-area:diag;   --trc:#e65050}
+#treatment .tr-c-drugs  {grid-area:drugs;  --trc:#e67e22}
+#treatment .tr-c-fin    {grid-area:fin;    --trc:#1d6f42}
+#treatment .tr-c-actions{grid-area:actions;--trc:#004e66}
+#treatment .tr-c-daily  {grid-area:daily;  --trc:#004e66}
+
+/* البطاقات */
+#treatment .tr-card{background:#fff;border:1px solid var(--tr-line);border-top:4px solid var(--trc,#00b8d9);
+  border-radius:12px;padding:14px 16px;margin:0;box-shadow:0 2px 10px rgba(0,78,102,.07)}
+#treatment .tr-card > h3{background:none;color:var(--tr-ink);margin:0 0 12px;padding:0 0 10px;border-radius:0;
+  border-bottom:1px dashed var(--tr-line);text-align:right;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#treatment .tr-step{width:24px;height:24px;border-radius:50%;background:var(--trc,#00b8d9);color:#fff;font-size:12px;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* الحقول */
+#treatment .tr-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-width:0}
+#treatment .tr-field > label{font-size:12px;font-weight:bold;color:#3d6370}
+#treatment .tr-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#treatment .tr-card input:not([type=hidden]),#treatment .tr-card textarea{width:100% !important;margin:0 !important;
+  padding:7px 9px;border:1.5px solid #d5e3e8;border-radius:7px;background:#fbfeff;transition:border-color .15s,box-shadow .15s}
+#treatment .tr-card input:focus,#treatment .tr-card textarea:focus{border-color:var(--trc,#00b8d9);
+  box-shadow:0 0 0 3px rgba(0,184,217,.15);background:#fff}
+#treatment .tr-card input[readonly]{background:#f1f6f8;color:#2b4a55}
+#treatment .tr-phone input{border-color:#00b8d9;font-weight:bold;letter-spacing:.5px}
+#treatment .tr-card textarea{min-height:68px;height:auto}
+#treatment .tr-hint{display:block;font-size:11px;color:#7a959e;margin-top:2px}
+
+/* التشخيص والأدوية */
+#treatment .diagnosis-row,#treatment .tr-head-diag{display:grid;grid-template-columns:24px minmax(0,2.2fr) minmax(0,1.3fr) 72px;
+  gap:6px;align-items:center;margin:0 0 7px}
+#treatment .drug-row,#treatment .tr-head-drug{display:grid;grid-template-columns:24px minmax(0,1fr) 84px;
+  gap:6px;align-items:center;margin:0 0 7px}
+#treatment .tr-head{font-size:11px;font-weight:bold;color:#7a959e;margin-bottom:4px}
+#treatment .tr-num{width:22px;height:22px;border-radius:50%;background:#f4f4f4;color:var(--trc);font-size:11px;
+  font-weight:bold;display:flex;align-items:center;justify-content:center}
+#treatment .diagnosis-row input[type=number],#treatment .drug-row input[type=number]{text-align:center}
+
+/* الحيوانات */
+#treatment .tr-animals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#treatment .tr-animal{display:flex;align-items:center;justify-content:space-between;gap:6px;background:#f6fbf8;
+  border:1px solid #d9efe2;border-radius:8px;padding:5px 8px;cursor:text;font-weight:bold;font-size:12.5px;color:#2b5a3d}
+#treatment .tr-animal input{width:64px !important;text-align:center;padding:5px !important}
+
+/* المالية */
+#treatment .tr-fin{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr);gap:12px}
+#treatment .tr-fin .tr-field{margin:0}
+#treatment #tr_amount{font-weight:bold;color:#1d6f42}
+
+/* الأزرار */
+#treatment .tr-c-actions{background:#f4fafc;padding:12px}
+#treatment .tr-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+#treatment .tr-agroup{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px;border-left:1px solid var(--tr-line)}
+#treatment .tr-agroup:last-child{border-left:0}
+#treatment .tr-b{padding:9px 16px;border-radius:8px;color:#fff;white-space:nowrap}
+#treatment .tr-b-save  {background:#2bb673}
+#treatment .tr-b-update{background:#2196f3}
+#treatment .tr-b-temp  {background:#f39c12}
+#treatment .tr-b-temp2 {background:#e67e22}
+#treatment .tr-b-util  {background:#607d8b}
+#treatment .tr-b-clear {background:#ffb347;color:#000}
+#treatment .tr-b-del   {background:#e65050}
+#treatment .tr-b-nav   {background:#7f6000}
+#treatment .tr-b-nav2  {background:#9b59b6}
+
+/* السجل اليومي */
+#treatment .tr-count{background:#00b8d9;color:#fff;border-radius:20px;padding:2px 12px;font-size:12px}
+#treatment .tr-legend{margin-right:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:#5d7a84;font-weight:normal}
+#treatment .tr-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+#treatment .tr-legend i.ok {background:#e3f8ea;border:1px solid #2bb673}
+#treatment .tr-legend i.bad{background:#fde8e8;border:1px solid #e65050}
+#treatment .tr-c-daily .table-container{max-height:380px;border:1px solid var(--tr-line);border-radius:8px}
+#treatment #tr_dataTable tbody tr[style*="00ff00"]{background:#e3f8ea !important}
+#treatment #tr_dataTable tbody tr.data-missing{background:#fde8e8 !important;color:#7a0000 !important}
+#treatment #tr_dataTable tbody tr:hover td{background:#fff3b0 !important}
+#treatment #tr_searchCard,#treatment #tr_animalsReportCard{border-width:1px;border-top-width:4px;border-radius:12px}
+
+/* الشاشات الأصغر */
+@media (max-width:1100px){
+  #treatment .tr-layout .right-panel{grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-areas:"breeder visit" "diag diag" "drugs animals" "fin fin" "actions actions" "daily daily"}
+}
+@media (max-width:700px){
+  #treatment .tr-layout .right-panel{grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"breeder" "visit" "animals" "diag" "drugs" "fin" "actions" "daily"}
+  #treatment .tr-fin{grid-template-columns:1fr}
+  #treatment .tr-agroup{border-left:0;padding:0;width:100%;justify-content:center}
+  #treatment .tr-b{flex:1}
+  #treatment > .top-bar input{width:100%}
+}
+
+/* ═══ الأزرار: عمود طولي ثابت على اليمين ═══ */
+@media (min-width:701px){
+  #treatment.page{padding-right:215px}
+  #treatment .tr-c-actions{position:fixed;top:72px;right:12px;width:195px;z-index:50;
+    max-height:calc(100vh - 140px);overflow-y:auto;box-shadow:0 6px 20px rgba(0,78,102,.18)}
+  #treatment .tr-actions{flex-direction:column;align-items:stretch;gap:10px}
+  #treatment .tr-agroup{flex-direction:column;border-left:0;padding:0 0 10px;border-bottom:1px solid var(--tr-line)}
+  #treatment .tr-agroup:last-child{border-bottom:0;padding-bottom:0}
+    #treatment .tr-b{width:100%;text-align:center;white-space:normal;-webkit-text-stroke:.3px currentColor}
+  #treatment .tr-layout .right-panel{
+    grid-template-areas:"breeder visit animals" "diag diag drugs" "fin fin fin" "daily daily daily"}
+}
+@media (min-width:701px) and (max-width:1100px){
+  #treatment .tr-layout .right-panel{
+    grid-template-areas:"breeder visit" "diag diag" "drugs animals" "fin fin" "daily daily"}
+}
+
+/* ═══ تثبيت الشريط العلوي (رقم الحالة العلاجية) ═══ */
+#treatment > .top-bar{position:sticky;top:60px;z-index:40}
+
+/* غطاء يخفي المحتوى عند مروره فوق الشريط */
+#treatment > .top-bar::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;
+  height:72px;background:var(--tr-mask,#d9d9d9);pointer-events:none}
+/* إخفاء ما يظهر من الزوايا المستديرة للشريط */
+#treatment > .top-bar{box-shadow:0 4px 14px rgba(0,78,102,.25),0 -12px 0 var(--tr-mask,#d9d9d9)}
+
+/* ═══ نافذة إجمالي الحيوانات المنبثقة ═══ */
+#treatment .tr-pop{position:fixed;z-index:60;width:340px;max-width:calc(100vw - 20px);background:#fff;
+  border:1px solid var(--tr-line);border-top:4px solid #7f6000;border-radius:12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.25);animation:trPopIn .18s ease-out}
+#treatment .tr-pop-side{transform-origin:right center}
+#treatment .tr-pop:not(.tr-pop-side){transform-origin:top center}
+@keyframes trPopIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+#treatment .tr-pop::after{content:"";position:absolute;width:12px;height:12px;background:#fff;
+  border:1px solid var(--tr-line);transform:rotate(45deg)}
+#treatment .tr-pop-side::after{right:-7px;top:var(--ay,30px);margin-top:-6px;border-left:0;border-bottom:0}
+#treatment .tr-pop:not(.tr-pop-side)::after{top:-9px;left:var(--ax,50%);margin-left:-6px;
+  border-right:0;border-bottom:0;background:#7f6000;border-color:#7f6000}
+#treatment .tr-pop-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  font-weight:bold;color:#5a4400;border-bottom:1px dashed var(--tr-line)}
+#treatment .tr-pop-x{background:#f1f1f1;color:#555;border-radius:50%;width:28px;height:28px;padding:0}
+#treatment .tr-pop-dates{display:flex;gap:6px;align-items:flex-end;padding:10px 14px}
+#treatment .tr-pop-dates label{flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px;
+  font-weight:bold;color:#3d6370;min-width:0}
+#treatment .tr-pop-dates input{width:100%;padding:5px;border:1.5px solid #d5e3e8;border-radius:6px}
+#treatment .tr-pop-clr{background:#95a5a6;color:#fff;padding:6px 10px;border-radius:6px}
+#treatment .tr-pop-body{padding:0 14px;max-height:calc(100vh - 300px);overflow:auto}
+#treatment #tr_animalsReportTable td{padding:6px 10px}
+#treatment #tr_animalsReportTable td:last-child{font-weight:bold;color:#004e66}
+#treatment #tr_animalsReportTable tr.tr-zero td{color:#aab4b8;font-weight:normal}
+#treatment #tr_animalsReportTable tfoot td{background:#fffbe6;font-weight:bold;color:#5a4400}
+#treatment .tr-pop-foot{display:flex;gap:6px;justify-content:center;padding:10px 14px}
+#treatment .tr-pop-foot button{padding:6px 14px;border-radius:6px}
+
+/* ═══ بطاقة البحث في سجل العلاج ═══ */
+#treatment .tr-c-search{grid-column:1/-1;--trc:#9b59b6}
+#treatment .tr-sbar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;background:#f8f4fb;
+  border:1px solid #eadcf2;border-radius:10px;padding:10px;margin-bottom:10px}
+#treatment .tr-skw{flex:1 1 260px;display:flex;align-items:center;gap:6px;background:#fff;
+  border:1.5px solid #d9c4e6;border-radius:8px;padding:0 10px}
+#treatment .tr-skw input{border:0 !important;background:transparent !important;box-shadow:none !important;padding:8px 0}
+#treatment .tr-sbar label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:bold;color:#6a4a7d;width:150px}
+#treatment .tr-sstatus{color:#9b59b6;font-weight:bold;margin:0 4px 6px}
+#treatment .tr-c-search .table-container{max-height:65vh;border:1px solid var(--tr-line);border-radius:8px}
+#treatment #tr_searchTable th{background:#9b59b6}
+
+/* أزرار البحث: عمود ثابت على اليمين */
+#treatment .tr-sactions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+#treatment .tr-sactions .tr-b{flex:1}
+@media (min-width:701px){
+  #treatment .tr-sactions{position:fixed;top:72px;right:12px;width:195px;z-index:50;flex-direction:column;
+    margin:0;padding:12px;background:#faf6fc;border:1px solid var(--tr-line);border-top:4px solid #9b59b6;
+    border-radius:12px;box-shadow:0 6px 20px rgba(91,44,111,.18)}
+  #treatment .tr-sactions .tr-b{flex:none}
+}
+</style>
+<script>
+/* مطابقة لون الغطاء مع لون خلفية الصفحة (ومنها اللون المختار من صفحة الإعدادات) */
+(function () {
+  function sync() {
+    document.documentElement.style.setProperty('--tr-mask', getComputedStyle(document.body).backgroundColor);
+  }
+  sync();
+  new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['style'] });
+})();
+</script>
+<div class="main-container tr-layout"><div class="right-panel">
+
+  <!-- ١) بيانات المربي -->
+  <div class="card tr-card tr-c-breeder">
+    <h3><span class="tr-step">1</span>👨‍🌾 بيانات المربي</h3>
+    <div class="tr-field tr-phone">
+      <label for="tr_phoneInput">رقم الهاتف</label>
+      <input list="tr_phoneList" id="tr_phoneInput" placeholder="اختر أو اكتب رقم الهاتف" inputmode="numeric">
+      <datalist id="tr_phoneList"></datalist>
+    </div>
+    <div class="tr-field"><label for="tr_nameInput">الاسم الثلاثي</label><input id="tr_nameInput"></div>
+    <div class="tr-2col">
+      <div class="tr-field"><label for="tr_possessionInput">رقم الحيازة</label><input id="tr_possessionInput"></div>
+      <div class="tr-field"><label for="tr_civilInput">الرقم المدني</label><input id="tr_civilInput"></div>
+    </div>
+    <div class="tr-field"><label for="tr_regionInput">المنطقة</label><input id="tr_regionInput"></div>
   </div>
-  <div class="card"><h3>تشخيص المرض</h3>
-    <datalist id="tr_diseaseList"></datalist>
-    <datalist id="tr_typeListFixed"><option>ماعز</option><option>أغنام</option><option>أبقار</option><option>جمال</option><option>خيول</option><option>قطط</option><option>كلاب</option><option>دواجن</option></datalist>
-    <div class="diagnosis-row"><input list="tr_diseaseList" id="tr_diseaseInput" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" placeholder="العدد"></div>
-    <div class="diagnosis-row"><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" placeholder="العدد"></div>
-    <div class="diagnosis-row"><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" placeholder="العدد"></div>
-    <div class="diagnosis-row"><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" placeholder="العدد"></div>
-    <div class="diagnosis-row"><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" placeholder="العدد"></div>
-  </div>
-  <div class="card"><h3>الأدوية</h3>
-    <datalist id="tr_drugList"></datalist>
-    <div class="drug-row"><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
-    <div class="drug-row"><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
-    <div class="drug-row"><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
-    <div class="drug-row"><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
-    <div class="drug-row"><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
-  </div>
-  <div class="card">
-    <h3>مكان العلاج</h3>
-    <input list="tr_treatmentPlaceList" id="tr_treatmentPlace" placeholder="اختر مكان العلاج" style="margin-bottom:20px;display:block;width:100%;">
-    <datalist id="tr_treatmentPlaceList"><option>في العيادة</option><option>خارج العيادة</option><option>وصف علاج</option><option>متنقلة</option></datalist>
-    <h3>التاريخ</h3>
-    <div class="row"><input type="date" id="tr_financialDate"></div>
-    <h3>مدخل البيانات</h3>
-    <input list="tr_dataEntryList" id="tr_dataEntryInput" placeholder="اختر مدخل البيانات" style="margin-top:3px;margin-bottom:20px;display:block;width:100%;"><datalist id="tr_dataEntryList"></datalist>
-  </div>
-  <div class="card">
-    <h3>مدخل البيانات (التحديث)</h3>
-    <input list="tr_dataUpdaterList" id="tr_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث" style="margin-top:3px;margin-bottom:20px;display:block;width:100%;"><datalist id="tr_dataUpdaterList"></datalist>
-    <h3>عدد الحيوانات</h3>
-    <div class="animals-grid">
-      <div class="animal-item"><label>ماعز</label><input type="number" id="tr_animal_goat"></div>
-      <div class="animal-item"><label>أغنام</label><input type="number" id="tr_animal_sheep"></div>
-      <div class="animal-item"><label>أبقار</label><input type="number" id="tr_animal_cow"></div>
-      <div class="animal-item"><label>جمال</label><input type="number" id="tr_animal_camel"></div>
-      <div class="animal-item"><label>خيول</label><input type="number" id="tr_animal_horse"></div>
-      <div class="animal-item"><label>قطط</label><input type="number" id="tr_animal_cat"></div>
-      <div class="animal-item"><label>كلاب</label><input type="number" id="tr_animal_dog"></div>
-      <div class="animal-item"><label>دواجن</label><input type="number" id="tr_animal_poultry"></div>
+
+  <!-- ٢) بيانات الزيارة -->
+  <div class="card tr-card tr-c-visit">
+    <h3><span class="tr-step">2</span>🗓️ بيانات الزيارة</h3>
+    <div class="tr-2col">
+      <div class="tr-field"><label for="tr_financialDate">التاريخ</label><input type="date" id="tr_financialDate"></div>
+      <div class="tr-field"><label for="tr_treatmentPlace">مكان العلاج</label>
+        <input list="tr_treatmentPlaceList" id="tr_treatmentPlace" placeholder="اختر مكان العلاج">
+        <datalist id="tr_treatmentPlaceList"><option>في العيادة</option><option>خارج العيادة</option><option>وصف علاج</option><option>متنقلة</option></datalist>
+      </div>
+    </div>
+    <div class="tr-field"><label for="tr_dataEntryInput">مدخل البيانات</label>
+      <input list="tr_dataEntryList" id="tr_dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="tr_dataEntryList"></datalist>
+    </div>
+    <div class="tr-field"><label for="tr_dataUpdaterInput">مدخل البيانات (التحديث)</label>
+      <input list="tr_dataUpdaterList" id="tr_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="tr_dataUpdaterList"></datalist>
     </div>
   </div>
-  <div class="card">
-    <h3>البيانات المالية</h3>
-    <div class="row" style="justify-content:center"><label style="width:auto;margin-left:10px">الإيصال</label><input type="number" id="tr_receipt" style="width:auto;min-width:150px" step="1"></div>
-    <div class="row" style="justify-content:center"><label style="width:auto;margin-left:10px">المبلغ</label><input type="number" step="0.1" id="tr_amount" style="width:auto;min-width:150px;margin-bottom:18px;"></div>
-    <h3>الملاحظات</h3>
-    <textarea id="tr_notes" placeholder="ملاحظات إضافية..." style="display:block;margin:12px auto;width:90%"></textarea>
+
+  <!-- ٣) عدد الحيوانات -->
+  <div class="card tr-card tr-c-animals">
+    <h3><span class="tr-step">3</span>🐄 عدد الحيوانات المعالجة</h3>
+    <div class="tr-animals">
+      <label class="tr-animal"><span>🐐 ماعز</span><input type="number" min="0" id="tr_animal_goat"></label>
+      <label class="tr-animal"><span>🐑 أغنام</span><input type="number" min="0" id="tr_animal_sheep"></label>
+      <label class="tr-animal"><span>🐄 أبقار</span><input type="number" min="0" id="tr_animal_cow"></label>
+      <label class="tr-animal"><span>🐪 جمال</span><input type="number" min="0" id="tr_animal_camel"></label>
+      <label class="tr-animal"><span>🐎 خيول</span><input type="number" min="0" id="tr_animal_horse"></label>
+      <label class="tr-animal"><span>🐈 قطط</span><input type="number" min="0" id="tr_animal_cat"></label>
+      <label class="tr-animal"><span>🐕 كلاب</span><input type="number" min="0" id="tr_animal_dog"></label>
+      <label class="tr-animal"><span>🐔 دواجن</span><input type="number" min="0" id="tr_animal_poultry"></label>
+    </div>
+    <span class="tr-hint" style="margin-top:8px">💡 المبلغ يُحسب تلقائياً من هذه الأعداد (عدا الدواجن)</span>
   </div>
-  <div class="card full-width">
-    <div class="btns">
-      <button id="tr_tempSaveBtn" style="background:#f39c12;color:#fff">💾 حفظ مؤقت</button>
-      <button id="tr_tempUpdateBtn" style="background:#e67e22;color:#fff">🔄 تحديث مؤقت</button>
-      <button class="save" id="tr_saveBtn">حفظ</button>
-      <button id="tr_updateBtn" style="background:#3498db;color:#fff">تحديث</button>
-      <button class="clear" id="tr_clearBtn">مسح</button>
-      <button id="tr_deleteBtn" style="background:#e65050;color:#fff">حذف البيانات</button>
-      <button id="tr_searchBtn" style="background:#bf84e9;color:#fff">بحث</button>
-      <button id="tr_refreshBtn" style="background:#607d8b;color:#fff" onclick="trinit()">🔄 تحديث الصفحة</button>
-      <button id="tr_mainMenuBtn" style="background:#7f6000;color:#fff">إجمالي الحيوانات المعالجة</button>
-      <button id="tr_searchRecordBtn" style="background:#9b59b6;color:#fff">البحث في سجل العلاج</button>
+
+  <!-- ٤) تشخيص المرض -->
+  <div class="card tr-card tr-c-diag">
+    <h3><span class="tr-step">4</span>🩺 تشخيص المرض</h3>
+    <datalist id="tr_diseaseList"></datalist>
+    <datalist id="tr_typeListFixed"><option>ماعز</option><option>أغنام</option><option>أبقار</option><option>جمال</option><option>خيول</option><option>قطط</option><option>كلاب</option><option>دواجن</option></datalist>
+    <div class="tr-head tr-head-diag"><span>#</span><span>المرض</span><span>نوع الحيوان</span><span>العدد</span></div>
+    <div class="diagnosis-row"><span class="tr-num">1</span><input list="tr_diseaseList" id="tr_diseaseInput" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" min="0" placeholder="العدد"></div>
+    <div class="diagnosis-row"><span class="tr-num">2</span><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" min="0" placeholder="العدد"></div>
+    <div class="diagnosis-row"><span class="tr-num">3</span><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" min="0" placeholder="العدد"></div>
+    <div class="diagnosis-row"><span class="tr-num">4</span><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" min="0" placeholder="العدد"></div>
+    <div class="diagnosis-row"><span class="tr-num">5</span><input list="tr_diseaseList" placeholder="المرض"><input list="tr_typeListFixed" placeholder="نوع الحيوان"><input type="number" min="0" placeholder="العدد"></div>
+  </div>
+
+  <!-- ٥) الأدوية -->
+  <div class="card tr-card tr-c-drugs">
+    <h3><span class="tr-step">5</span>💊 الأدوية المصروفة</h3>
+    <datalist id="tr_drugList"></datalist>
+    <div class="tr-head tr-head-drug"><span>#</span><span>الدواء</span><span>الكمية</span></div>
+    <div class="drug-row"><span class="tr-num">1</span><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
+    <div class="drug-row"><span class="tr-num">2</span><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
+    <div class="drug-row"><span class="tr-num">3</span><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
+    <div class="drug-row"><span class="tr-num">4</span><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
+    <div class="drug-row"><span class="tr-num">5</span><input list="tr_drugList" class="tr_drug-input" placeholder="دواء"><input type="number" class="tr_drug-qty" placeholder="الكمية"></div>
+  </div>
+
+  <!-- ٦) البيانات المالية والملاحظات -->
+  <div class="card tr-card tr-c-fin">
+    <h3><span class="tr-step">6</span>💰 البيانات المالية والملاحظات</h3>
+    <div class="tr-fin">
+      <div class="tr-field"><label for="tr_receipt">رقم الإيصال</label>
+        <input type="number" id="tr_receipt" step="1">
+        <small class="tr-hint">يُقترح تلقائياً بعد آخر إيصال في السجل اليومي</small>
+      </div>
+      <div class="tr-field"><label for="tr_amount">المبلغ (ريال)</label>
+        <input type="number" step="0.1" id="tr_amount">
+        <small class="tr-hint">عدد الحيوانات × 0.100 — ويمكن تعديله يدوياً</small>
+      </div>
+      <div class="tr-field"><label for="tr_notes">الملاحظات</label>
+        <textarea id="tr_notes" placeholder="ملاحظات إضافية..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- أزرار التحكم -->
+  <div class="card tr-card tr-c-actions">
+    <div class="tr-actions">
+      <div class="tr-agroup">
+        <button class="tr-b tr-b-save" id="tr_saveBtn">💾 حفظ</button>
+        <button class="tr-b tr-b-update" id="tr_updateBtn">✏️ تحديث</button>
+      </div>
+      <div class="tr-agroup">
+        <button class="tr-b tr-b-temp" id="tr_tempSaveBtn">🕒 حفظ مؤقت</button>
+        <button class="tr-b tr-b-temp2" id="tr_tempUpdateBtn">🔄 تحديث مؤقت</button>
+      </div>
+      <div class="tr-agroup">
+        <button class="tr-b tr-b-util" id="tr_searchBtn">🔍 بحث</button>
+        <button class="tr-b tr-b-clear" id="tr_clearBtn">🧹 مسح</button>
+        <button class="tr-b tr-b-util" id="tr_refreshBtn" onclick="trinit()">♻️ تحديث الصفحة</button>
+        <button class="tr-b tr-b-del" id="tr_deleteBtn">🗑️ حذف</button>
+      </div>
+      <div class="tr-agroup">
+        <button class="tr-b tr-b-nav" id="tr_mainMenuBtn">📊 الحيوانات المعالجة</button>
+        <button class="tr-b tr-b-nav2" id="tr_searchRecordBtn">🗂️ البحث في السجل</button>
+      </div>
     </div>
     <div style="display:none"><input id="tr_quickNotesInput" readonly><input id="tr_specialNotesInput" readonly></div>
   </div>
+
   <input type="hidden" id="tr_mirrorCaseNumber">
-<div class="card full-width"><h3>⬇️ السجل اليومي <span id="tr_dailyCount" style="display:inline-block;background:#fff;color:#00b8d9;border-radius:12px;padding:1px 12px;font-size:13px;margin-right:8px;">0 حالة</span></h3><div class="table-container"><table id="tr_dataTable"></table></div></div>  <div class="card full-width" id="tr_searchCard" style="display:none;">
-    <h3>البحث في سجل العلاج</h3>
-    <div style="display:flex;justify-content:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <label>من تاريخ:</label><input type="date" id="tr_searchStartDate">
-      <label>إلى تاريخ:</label><input type="date" id="tr_searchEndDate">
-      <button id="tr_clearSearchDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح التواريخ</button>
-      <button id="tr_backToMainBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
-      <span id="tr_searchCount" style="display:inline-block;background:#9b59b6;color:#fff;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:bold;">0 حالة</span>
-      <button class="exp-xls" onclick="expTable('#tr_searchTable','سجل العلاج','xlsx')">📗 Excel</button>
+
+  <!-- السجل اليومي -->
+  <div class="card tr-card tr-c-daily">
+    <h3>📋 السجل اليومي <span id="tr_dailyCount" class="tr-count">0 حالة</span>
+      <span class="tr-legend"><i class="ok"></i>مكتملة <i class="bad"></i>غير مكتملة</span>
+    </h3>
+    <div class="table-container"><table id="tr_dataTable"></table></div>
+  </div>
+
+  <!-- البحث في سجل العلاج -->
+  <div class="card tr-card tr-c-search" id="tr_searchCard" style="display:none;">
+    <h3>🗂️ البحث في سجل العلاج
+      <span id="tr_searchCount" class="tr-count" style="background:#9b59b6">0 حالة</span>
+    </h3>
+    <div class="tr-sactions">
+      <button type="button" id="tr_backToMainBtn" class="tr-b tr-b-temp2" onclick="trshowAllCards()">⬅️ رجوع</button>
+      <button type="button" id="tr_clearSearchDatesBtn" class="tr-b tr-b-util">🧹 مسح</button>
+      <button type="button" class="tr-b exp-xls" onclick="expTable('#tr_searchTable','سجل العلاج','xlsx')">📗 Excel</button>
     </div>
-<div style="text-align:center;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:10px">
-  <input type="text" id="tr_searchKeyword" placeholder="اكتب كلمة البحث..." style="width:250px">
-  <span id="tr_searchStatus" style="font-size:13px;font-weight:bold;color:#9b59b6;display:none;">⏳ جاري البحث...</span>
-</div>
+    <div class="tr-sbar">
+      <div class="tr-skw">🔍<input type="text" id="tr_searchKeyword" placeholder="اسم المربي، الهاتف، المرض، رقم الحالة..."></div>
+      <label>من تاريخ<input type="date" id="tr_searchStartDate"></label>
+      <label>إلى تاريخ<input type="date" id="tr_searchEndDate"></label>
+    </div>
+    <span id="tr_searchStatus" class="tr-sstatus" style="display:none;">⏳ جاري البحث...</span>
     <div class="table-container"><table id="tr_searchTable"></table></div>
   </div>
-  <div class="card full-width" id="tr_animalsReportCard" style="display:none;">
-    <h3>📊 إجمالي الحيوانات المعالجة</h3>
-<div style="text-align:center;margin-bottom:10px"><button id="tr_backFromAnimalsBtn" style="background:#e67e22;color:#fff">⬅️ رجوع</button>
-  <button class="exp-xls" onclick="expTable('#tr_animalsReportTable','إجمالي الحيوانات المعالجة','xlsx')">📗 Excel</button>
-  <button class="exp-pdf" onclick="expTable('#tr_animalsReportTable','إجمالي الحيوانات المعالجة','pdf')">📕 PDF</button>
-</div>    <div style="display:flex;justify-content:center;gap:15px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-      <label>من تاريخ:</label><input type="date" id="tr_animalsStartDate">
-      <label>إلى تاريخ:</label><input type="date" id="tr_animalsEndDate">
-      <button id="tr_clearAnimalsDatesBtn" style="background:#95a5a6;color:#fff">🧹 مسح</button>
+  <!-- إجمالي الحيوانات المعالجة (نافذة منبثقة) -->
+  <div id="tr_animalsReportCard" class="tr-pop" style="display:none;">
+    <div class="tr-pop-head">
+      <span>📊 إجمالي الحيوانات المعالجة</span>
+      <button type="button" id="tr_backFromAnimalsBtn" class="tr-pop-x" title="إغلاق">✕</button>
     </div>
-    <div class="table-container"><table id="tr_animalsReportTable"></table></div>
+    <div class="tr-pop-dates">
+      <label>من تاريخ<input type="date" id="tr_animalsStartDate"></label>
+      <label>إلى تاريخ<input type="date" id="tr_animalsEndDate"></label>
+      <button type="button" id="tr_clearAnimalsDatesBtn" class="tr-pop-clr" title="مسح التاريخ">🧹</button>
+    </div>
+    <div class="tr-pop-body"><table id="tr_animalsReportTable"></table></div>
+    <div class="tr-pop-foot">
+      <button class="exp-xls" onclick="expTable('#tr_animalsReportTable','إجمالي الحيوانات المعالجة','xlsx')">📗 Excel</button>
+      <button class="exp-pdf" onclick="expTable('#tr_animalsReportTable','إجمالي الحيوانات المعالجة','pdf')">📕 PDF</button>
+    </div>
   </div>
+
 </div></div>
 <script>
 "use strict";
@@ -5437,12 +5750,18 @@ async function trloadAnimalsReport() {
       return;
     }
 
-    let html = "<thead><tr>";
-    res.data[0].forEach(h => { html += "<th>" + h + "</th>"; });
-    html += "</tr></thead><tbody><tr>";
-    res.data[1].forEach(v => { html += "<td>" + v + "</td>"; });
-    html += "</tr></tbody>";
-    tbl.innerHTML = html;
+     const tH = res.data[0], tV = res.data[1];
+    let body = "", foot = "";
+    tH.forEach((h, i) => {
+      const n = Number(tV[i]) || 0;
+      const isTot = (h === "الإجمالي" || h === "عدد الحالات");
+      const row = "<tr" + (!isTot && !n ? " class='tr-zero'" : "") + "><td class='nc'>" + escHtml(h) +
+                  "</td><td>" + n.toLocaleString("en-US") + "</td></tr>";
+      if (isTot) foot += row; else body += row;
+    });
+    tbl.innerHTML = "<thead><tr><th>نوع الحيوان</th><th>العدد</th></tr></thead><tbody>" +
+                    body + "</tbody><tfoot>" + foot + "</tfoot>";
+    if (window.trplacePop) window.trplacePop();
 
     trshowMessage("✅ تم تحميل بيانات الحيوانات بنجاح", false);
 
@@ -5565,12 +5884,47 @@ function trbindEvents() {
 
   // --- التنقل بين الشاشات ---
   document.getElementById("tr_searchRecordBtn").onclick = () => trshowOnlyCard("tr_searchCard");
-  document.getElementById("tr_backToMainBtn").onclick   = trshowAllCards;
-  document.getElementById("tr_mainMenuBtn").onclick     = () => {
-    trshowOnlyCard("tr_animalsReportCard");
+   /* ── نافذة إجمالي الحيوانات المنبثقة من الزر ── */
+  var trPop    = document.getElementById("tr_animalsReportCard");
+  var trPopBtn = document.getElementById("tr_mainMenuBtn");
+  function trPopOpen()  { return trPop.style.display !== "none"; }
+  function trclosePop() { trPop.style.display = "none"; }
+
+  window.trplacePop = function () {
+    if (!trPopOpen()) return;
+    var r = trPopBtn.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+    if (!r.width || r.bottom < 0 || r.top > H) { trclosePop(); return; }
+    var pw = trPop.offsetWidth, ph = trPop.offsetHeight;
+    var side = W > 700 && r.left > pw + 24;          /* بجانب الزر إن توفرت مساحة، وإلا أسفله */
+    trPop.classList.toggle("tr-pop-side", side);
+    var cx = r.left + r.width / 2, cy = r.top + r.height / 2, left, top;
+    if (side) {
+      left = r.left - pw - 12;
+      top  = Math.max(70, Math.min(cy - 40, H - ph - 10));
+      trPop.style.setProperty("--ay", Math.max(18, Math.min(cy - top, ph - 18)) + "px");
+    } else {
+      left = Math.max(10, Math.min(cx - pw / 2, W - pw - 10));
+      top  = Math.max(10, Math.min(r.bottom + 10, H - ph - 10));
+      trPop.style.setProperty("--ax", Math.max(18, Math.min(cx - left, pw - 18)) + "px");
+    }
+    trPop.style.left = left + "px";
+    trPop.style.top  = top + "px";
+  };
+
+  trPopBtn.onclick = function (e) {
+    e.stopPropagation();
+    if (trPopOpen()) { trclosePop(); return; }
+    trPop.style.display = "block";
+    window.trplacePop();
     trloadAnimalsReport();
   };
-  document.getElementById("tr_backFromAnimalsBtn").onclick = trshowAllCards;
+  document.getElementById("tr_backFromAnimalsBtn").onclick = trclosePop;
+  document.addEventListener("click", function (e) {
+    if (trPopOpen() && !trPop.contains(e.target) && !trPopBtn.contains(e.target)) trclosePop();
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && trPopOpen()) trclosePop(); });
+  window.addEventListener("resize", window.trplacePop);
+  window.addEventListener("scroll", window.trplacePop, true);
 
   // --- البحث المتقدم (مع تأخير للكتابة) ---
   let searchTimeout;
@@ -6029,59 +6383,182 @@ async function trSelectIncompleteCase(caseNumber) {
   <div class="loading-subtext">يرجى الانتظار<span class="loading-dots"></span></div>
 </div>
 
-<div class="top-bar">
-  <div class="row"><label>📞أختر الرقم</label>
-    <input list="bd_phoneList" id="bd_phoneInput" style="width:265px" placeholder="اختر أو اكتب رقم الهاتف"><datalist id="bd_phoneList"></datalist>
+<style>
+/* ═══════════ تصميم صفحة سجل المربي ═══════════ */
+#breeder{--bd-line:#dcebf0}
+#breeder > .bd-top{position:sticky;top:60px;z-index:40;max-width:1400px;margin:0 auto 14px;border:0;border-radius:12px;
+  padding:10px 16px;background:linear-gradient(135deg,#1e5631,#4c9a2a);
+  box-shadow:0 4px 14px rgba(30,86,49,.28),0 -12px 0 var(--tr-mask,#d9d9d9)}}
+#breeder > .bd-top::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;height:72px;
+  background:var(--tr-mask,#d9d9d9);pointer-events:none}
+#breeder > .bd-top label{color:#fff;font-weight:bold}
+#breeder > .bd-top input{width:220px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;font-size:15px !important;text-align:center}
+#breeder > .bd-top #bd_lastEditedPhone{width:160px;background:rgba(255,255,255,.2);color:#fff}
+
+#breeder .bd-layout{max-width:1400px;margin:0 auto}
+#breeder .bd-layout .right-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;
+  grid-template-areas:"info hold animals" "search search search"}
+#breeder .bd-c-info   {grid-area:info;   --c:#00b8d9}
+#breeder .bd-c-hold   {grid-area:hold;   --c:#6c5ce7}
+#breeder .bd-c-animals{grid-area:animals;--c:#2bb673}
+#breeder .bd-c-search {grid-area:search; --c:#004e66}
+#breeder .bd-c-actions{grid-area:actions;--c:#004e66;background:#f4fafc;padding:12px}
+
+#breeder .bd-card{background:#fff;border:1px solid var(--bd-line);border-top:4px solid var(--c);border-radius:12px;
+  padding:14px 16px;margin:0;box-shadow:0 2px 10px rgba(0,78,102,.07)}
+#breeder .bd-card > h3{background:none;color:#004e66;margin:0 0 12px;padding:0 0 10px;border-radius:0;
+  border-bottom:1px dashed var(--bd-line);text-align:right;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#breeder .bd-step{width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;font-size:12px;
+  display:inline-flex;align-items:center;justify-content:center}
+#breeder .bd-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-width:0}
+#breeder .bd-field > label{font-size:12px;font-weight:bold;color:#3d6370}
+#breeder .bd-field small{font-weight:normal;color:#8aa}
+#breeder .bd-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#breeder .bd-card input:not([type=hidden]),#breeder .bd-card textarea{width:100% !important;margin:0 !important;
+  padding:7px 9px;border:1.5px solid #d5e3e8;border-radius:7px;background:#fbfeff}
+#breeder .bd-card input:focus,#breeder .bd-card textarea:focus{border-color:var(--c);box-shadow:0 0 0 3px rgba(0,184,217,.15);background:#fff}
+#breeder .bd-card textarea{min-height:64px;height:auto}
+#breeder .bd-newphone input{border-style:dashed;background:#fffdf3}
+#breeder .bd-hint{display:block;font-size:11px;color:#7a959e;margin-top:8px}
+
+#breeder .bd-animals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#breeder .bd-animal{display:flex;align-items:center;justify-content:space-between;gap:6px;background:#f6fbf8;
+  border:1px solid #d9efe2;border-radius:8px;padding:5px 8px;font-weight:bold;font-size:12.5px;color:#2b5a3d;cursor:text}
+#breeder .bd-animal input{width:64px !important;text-align:center;padding:5px !important}
+
+#breeder .bd-sbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f2fafc;
+  border:1px solid var(--bd-line);border-radius:10px;padding:10px;margin-bottom:10px}
+#breeder .bd-skw{flex:1 1 260px;display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #bfe3ec;border-radius:8px;padding:0 10px}
+#breeder .bd-skw input{border:0 !important;background:transparent !important;box-shadow:none !important;padding:8px 0}
+#breeder .bd-count{background:#2bb673;color:#fff;border-radius:20px;padding:2px 12px;font-size:12px}
+#breeder #bd_searchResultsContainer{border:1px solid var(--bd-line);border-radius:8px}
+
+#breeder .bd-b{padding:8px 14px;border-radius:8px;color:#fff;white-space:nowrap}
+#breeder .bd-b-save{background:#2bb673}   #breeder .bd-b-update{background:#2196f3}
+#breeder .bd-b-clear{background:#ffb347;color:#000}   #breeder .bd-b-red{background:#e65050}
+#breeder .bd-b-purple{background:#8e44ad} #breeder .bd-b-green{background:#27ae60}
+#breeder .bd-b-orange{background:#e67e22} #breeder .bd-b-darkred{background:#c0392b}
+#breeder .bd-b-blue{background:#00b8d9}
+#breeder .bd-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+#breeder .bd-agroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#breeder .bd-glabel{font-size:11px;font-weight:bold;color:#7a959e}
+
+@media (min-width:701px){
+  #breeder.page{padding-right:215px}
+  #breeder .bd-c-actions{position:fixed;top:72px;right:12px;width:195px;z-index:50;
+    max-height:calc(100vh - 140px);overflow-y:auto;box-shadow:0 6px 20px rgba(0,78,102,.18)}
+  #breeder .bd-actions{flex-direction:column;align-items:stretch}
+  #breeder .bd-agroup{flex-direction:column;align-items:stretch;padding-bottom:10px;border-bottom:1px solid var(--bd-line)}
+  #breeder .bd-agroup:last-child{border-bottom:0;padding-bottom:0}
+  #breeder .bd-glabel{text-align:center}
+  #breeder .bd-c-actions .bd-b{width:100%;text-align:center;white-space:normal;-webkit-text-stroke:.3px currentColor}
+}
+@media (min-width:701px) and (max-width:1100px){
+  #breeder .bd-layout .right-panel{grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-areas:"info hold" "animals animals" "search search"}
+}
+@media (max-width:700px){
+  #breeder .bd-layout .right-panel{grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"info" "hold" "animals" "actions" "search"}
+  #breeder > .bd-top input{width:100% !important}
+  #breeder .bd-b{flex:1}
+}
+</style>
+
+<div class="top-bar bd-top">
+  <div class="top-group"><label for="bd_phoneInput">📞 اختر الرقم</label>
+    <input list="bd_phoneList" id="bd_phoneInput" placeholder="اختر أو اكتب رقم الهاتف"><datalist id="bd_phoneList"></datalist>
   </div>
-  <div class="row"><label>آخر رقم تم التعديل عليه</label>
-    <input type="text" id="bd_lastEditedPhone" readonly style="width:180px;background:#f0f0f0;color:#004e66;font-weight:bold;cursor:default;">
+  <div class="top-group"><label for="bd_lastEditedPhone">آخر رقم تم التعديل عليه</label>
+    <input type="text" id="bd_lastEditedPhone" readonly placeholder="—">
   </div>
 </div>
-<div class="main-container">
+
+<div class="main-container bd-layout">
   <div class="right-panel">
-    <div class="card">
-      <h3>بيانات المربي</h3>
-      <div class="row"><label>رقم الهاتف</label><input id="bd_caseNumber" style="width:250px"></div>
-      <div class="row"><label>الاسم الثلاثي</label><input id="bd_nameInput" style="width:250px"></div>
-      <div class="row"><label>رقم الحيازة</label><input id="bd_possessionInput" style="width:250px"></div>
-      <div class="row"><label>المنطقة</label><input list="bd_regionList" id="bd_regionInput" style="width:250px" placeholder="اختر أو اكتب المنطقة"><datalist id="bd_regionList"></datalist></div>
-      <div class="row"><label>الرقم المدني</label><input id="bd_civilInput" style="width:250px"></div>
-      <div class="row"><label>رقم جديد</label><input id="bd_newPhoneInput" style="width:250px" placeholder="اتركه فارغاً إن لم تغيره"></div>
-    </div>
-    <div class="card">
-      <h3>عدد الحيوانات</h3>
-      <div class="animals-grid">
-        <div class="animal-item"><label>ماعز</label><input type="number" id="bd_animal_goat"></div>
-        <div class="animal-item"><label>أغنام</label><input type="number" id="bd_animal_sheep"></div>
-        <div class="animal-item"><label>أبقار</label><input type="number" id="bd_animal_cow"></div>
-        <div class="animal-item"><label>جمال</label><input type="number" id="bd_animal_camel"></div>
-        <div class="animal-item"><label>خيول</label><input type="number" id="bd_animal_horse"></div>
-        <div class="animal-item"><label>قطط</label><input type="number" id="bd_animal_cat"></div>
-        <div class="animal-item"><label>كلاب</label><input type="number" id="bd_animal_dog"></div>
-        <div class="animal-item"><label>دواجن</label><input type="number" id="bd_animal_poultry"></div>
+
+    <!-- ١) بيانات المربي -->
+    <div class="card bd-card bd-c-info">
+      <h3><span class="bd-step">1</span>👨‍🌾 بيانات المربي</h3>
+      <div class="bd-2col">
+        <div class="bd-field"><label for="bd_caseNumber">رقم الهاتف</label><input id="bd_caseNumber" inputmode="numeric" placeholder="يبدأ بـ 9 أو 7"></div>
+        <div class="bd-field"><label for="bd_civilInput">الرقم المدني</label><input id="bd_civilInput" inputmode="numeric"></div>
       </div>
-      <textarea id="bd_notes" placeholder="ملاحظات إضافية..." style="display:block;margin:12px auto;width:90%"></textarea>
-    </div>
-    <div class="card">
-      <h3>مدخل البيانات</h3>
-      <input list="bd_dataEntryList" id="bd_dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="bd_dataEntryList"></datalist>
-      <h3>تاريخ إنتهاء الحيازة</h3>
-      <input type="date" id="bd_financialDate" dir="ltr">
-      <h3>مدخل البيانات (التحديث)</h3>
-      <input list="bd_dataUpdaterList" id="bd_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="bd_dataUpdaterList"></datalist>
+      <div class="bd-field"><label for="bd_nameInput">الاسم الثلاثي</label><input id="bd_nameInput" placeholder="الاسم الثلاثي مع القبيلة"></div>
+      <div class="bd-2col">
+        <div class="bd-field"><label for="bd_possessionInput">رقم الحيازة</label><input id="bd_possessionInput" placeholder="1234 أو 12/3456"></div>
+        <div class="bd-field"><label for="bd_regionInput">المنطقة</label>
+          <input list="bd_regionList" id="bd_regionInput" placeholder="اختر أو اكتب المنطقة"><datalist id="bd_regionList"></datalist>
+        </div>
+      </div>
+      <div class="bd-field bd-newphone"><label for="bd_newPhoneInput">🔁 رقم هاتف جديد <small>(عند التحديث فقط)</small></label>
+        <input id="bd_newPhoneInput" inputmode="numeric" placeholder="اتركه فارغاً إن لم يتغير">
+      </div>
     </div>
 
-    <div class="card merged-empty-card" style="grid-column:span 3">
-      <h3>البحث في بيانات المربين</h3>
-      <div style="display:flex;gap:8px;justify-content:center;margin:12px 0">
-        <input type="text" id="bd_globalSearchInput" placeholder="اكتب للبحث..." style="width:250px;padding:5px">
-<button onclick="bd_fetchAll()" style="background:#00b8d9;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;">⬇️ جلب الكل</button>
-<span id="bd_fetchAllCount" style="display:none;background:#2bb673;color:#fff;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:bold;margin-right:6px;"></span>
-<button class="exp-xls" onclick="expTable('#bd_searchResultsTable','سجل المربين','xlsx')">📗 Excel</button>
-<button class="exp-pdf" onclick="expTable('#bd_searchResultsTable','سجل المربين','pdf',true)">📕 PDF</button>
-<button onclick="bd_analyzeInactive()" style="background:#e67e22;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📊 تصنيف نشاط المربين</button>
-<button onclick="bd_expiredHoldings()" style="background:#e65050;color:#fff;padding:5px 14px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:inherit;margin-right:6px;">📅 حالة الحيازات</button>      </div>
-      <div id="bd_searchResultsContainer" style="display:none;max-height:300px;overflow:auto">
+    <!-- ٢) الحيازة والإدخال -->
+    <div class="card bd-card bd-c-hold">
+      <h3><span class="bd-step">2</span>📅 الحيازة والإدخال</h3>
+      <div class="bd-field"><label for="bd_financialDate">تاريخ انتهاء الحيازة</label><input type="date" id="bd_financialDate" dir="ltr"></div>
+      <div class="bd-field"><label for="bd_dataEntryInput">مدخل البيانات</label>
+        <input list="bd_dataEntryList" id="bd_dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="bd_dataEntryList"></datalist>
+      </div>
+      <div class="bd-field"><label for="bd_dataUpdaterInput">مدخل البيانات (التحديث)</label>
+        <input list="bd_dataUpdaterList" id="bd_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="bd_dataUpdaterList"></datalist>
+      </div>
+      <div class="bd-field"><label for="bd_notes">الملاحظات</label><textarea id="bd_notes" placeholder="ملاحظات إضافية..."></textarea></div>
+    </div>
+
+    <!-- ٣) عدد الحيوانات -->
+    <div class="card bd-card bd-c-animals">
+      <h3><span class="bd-step">3</span>🐄 عدد الحيوانات</h3>
+      <div class="bd-animals">
+        <label class="bd-animal"><span>🐐 ماعز</span><input type="number" min="0" id="bd_animal_goat"></label>
+        <label class="bd-animal"><span>🐑 أغنام</span><input type="number" min="0" id="bd_animal_sheep"></label>
+        <label class="bd-animal"><span>🐄 أبقار</span><input type="number" min="0" id="bd_animal_cow"></label>
+        <label class="bd-animal"><span>🐪 جمال</span><input type="number" min="0" id="bd_animal_camel"></label>
+        <label class="bd-animal"><span>🐎 خيول</span><input type="number" min="0" id="bd_animal_horse"></label>
+        <label class="bd-animal"><span>🐈 قطط</span><input type="number" min="0" id="bd_animal_cat"></label>
+        <label class="bd-animal"><span>🐕 كلاب</span><input type="number" min="0" id="bd_animal_dog"></label>
+        <label class="bd-animal"><span>🐔 دواجن</span><input type="number" min="0" id="bd_animal_poultry"></label>
+      </div>
+      <span class="bd-hint">💡 أعداد الماعز والأغنام والأبقار تُستخدم أيضاً عند حفظ طلب التحصين</span>
+    </div>
+
+    <!-- أزرار التحكم -->
+    <div class="card bd-card bd-c-actions">
+      <div class="bd-actions">
+        <div class="bd-agroup"><span class="bd-glabel">سجل المربي</span>
+          <button type="button" class="bd-b bd-b-save"   id="bd_saveBtn">💾 حفظ</button>
+          <button type="button" class="bd-b bd-b-update" id="bd_updateBtn">✏️ تحديث</button>
+          <button type="button" class="bd-b bd-b-clear"  id="bd_clearBtn">🧹 مسح</button>
+          <button type="button" class="bd-b bd-b-red"    id="bd_deleteBtn">🗑️ حذف</button>
+        </div>
+        <div class="bd-agroup"><span class="bd-glabel">الحيازة</span>
+          <button type="button" class="bd-b bd-b-purple" id="bd_updatePossessionBtn">🔗 تحديث الحيازة في العلاج</button>
+        </div>
+        <div class="bd-agroup"><span class="bd-glabel">طلبات التحصين</span>
+          <button type="button" class="bd-b bd-b-green"   id="bd_saveVaccinationBtn">💉 حفظ الطلب</button>
+          <button type="button" class="bd-b bd-b-orange"  id="bd_updateVaccinationBtn">✏️ تحديث الطلب</button>
+          <button type="button" class="bd-b bd-b-darkred" id="bd_deleteVaccinationBtn">🗑️ حذف الطلب</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- البحث في بيانات المربين -->
+    <div class="card bd-card bd-c-search">
+      <h3><span class="bd-step">🔍</span>البحث في بيانات المربين
+        <span id="bd_fetchAllCount" class="bd-count" style="display:none;"></span>
+      </h3>
+      <div class="bd-sbar">
+        <div class="bd-skw">🔍<input type="text" id="bd_globalSearchInput" placeholder="الاسم، الهاتف، الرقم المدني، الحيازة، المنطقة..."></div>
+        <button type="button" class="bd-b bd-b-blue"   onclick="bd_fetchAll()">⬇️ جلب الكل</button>
+        <button type="button" class="bd-b exp-xls"     onclick="expTable('#bd_searchResultsTable','سجل المربين','xlsx')">📗 Excel</button>
+        <button type="button" class="bd-b exp-pdf"     onclick="expTable('#bd_searchResultsTable','سجل المربين','pdf',true)">📕 PDF</button>
+        <button type="button" class="bd-b bd-b-orange" onclick="bd_analyzeInactive()">📊 تصنيف النشاط</button>
+        <button type="button" class="bd-b bd-b-red"    onclick="bd_expiredHoldings()">📅 حالة الحيازات</button>
+      </div>
+      <div id="bd_searchResultsContainer" style="display:none;max-height:60vh;overflow:auto">
         <table id="bd_searchResultsTable" style="width:100%;border-collapse:collapse">
           <thead id="bd_searchResultsHeader"></thead>
           <tbody id="bd_searchResultsBody"></tbody>
@@ -6089,22 +6566,9 @@ async function trSelectIncompleteCase(caseNumber) {
       </div>
     </div>
 
-    <div class="card full-width">
-      <div class="btns">
-        <button class="save" id="bd_saveBtn">حفظ</button>
-        <button class="update" id="bd_updateBtn">تحديث</button>
-        <button class="clear" id="bd_clearBtn">مسح</button>
-        <button class="delete" id="bd_deleteBtn">حذف البيانات</button>
-        <button id="bd_updatePossessionBtn" style="background:#8e44ad;color:#fff">تحديث الحيازة في العلاج</button>
-        <button id="bd_saveVaccinationBtn" style="background:#27ae60;color:#fff">💉 حفظ طلبات التحصين</button>
-        <button id="bd_updateVaccinationBtn" style="background:#e67e22;color:#fff">✏️ تحديث طلبات التحصين</button>
-        <button id="bd_deleteVaccinationBtn" style="background:#c0392b;color:#fff">🗑️ حذف طلبات التحصين</button>
-      </div>
-    </div>
     <input type="hidden" id="bd_private">
   </div>
 </div>
-
 <script>
 "use strict";
 
@@ -7088,141 +7552,299 @@ function bd_printHoldList() {
   <div class="loading-subtext">يرجى الانتظار، جاري تحميل البيانات والقوائم<span class="loading-dots"></span></div>
 </div>
 
+<style>
+/* ═══════════ تصميم صفحة سجل التحصين ═══════════ */
+#vaccination{--vc-line:#e6dcec}
+#vaccination > #vacc_topBarMain{position:sticky;top:60px;z-index:40;border:0;border-radius:12px;padding:10px 16px;margin-bottom:14px;
+  background:linear-gradient(135deg,#5b2c6f,#8e44ad);box-shadow:0 4px 14px rgba(91,44,111,.25),0 -12px 0 var(--tr-mask,#d9d9d9)}
+#vaccination > #vacc_topBarMain::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;height:72px;
+  background:var(--tr-mask,#d9d9d9);pointer-events:none}
+#vaccination > #vacc_topBarMain label{color:#fff;font-weight:bold}
+#vaccination > #vacc_topBarMain input{width:200px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;font-size:15px !important;text-align:center}
+#vaccination > #vacc_topBarMain #vacc_lastEditedCase{width:140px;background:rgba(255,255,255,.2);color:#fff}
+#vaccination #vacc_topBarMessage{color:#fff;font-weight:bold}
+
+#vaccination .vc-layout .right-panel{display:flex;flex-direction:column;gap:14px}
+#vaccination #vacc_firstRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr);gap:14px}
+#vaccination #vacc_otherCards{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:14px}
+#vaccination .vc-c-breeder{--c:#00b8d9}  #vaccination .vc-c-vacc{--c:#8e44ad}
+#vaccination .vc-c-entry{--c:#6c5ce7}    #vaccination .vc-c-hist{--c:#5b2c6f}
+#vaccination .vc-c-actions{--c:#5b2c6f;background:#faf6fc;padding:12px}
+
+#vaccination .vc-card{background:#fff;border:1px solid var(--vc-line);border-top:4px solid var(--c);border-radius:12px;
+  padding:14px 16px;margin:0;box-shadow:0 2px 10px rgba(91,44,111,.07)}
+#vaccination .vc-card > h3{background:none;color:#4a2a5a;margin:0 0 12px;padding:0 0 10px;border-radius:0;
+  border-bottom:1px dashed var(--vc-line);text-align:right;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#vaccination .vc-step{width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;font-size:12px;
+  display:inline-flex;align-items:center;justify-content:center}
+#vaccination .vc-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-width:0}
+#vaccination .vc-field > label{font-size:12px;font-weight:bold;color:#5a4566}
+#vaccination .vc-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#vaccination .vc-card input:not([type=hidden]),#vaccination .vc-card textarea{width:100% !important;margin:0 !important;
+  padding:7px 9px;border:1.5px solid #ddd3e3;border-radius:7px;background:#fdfbfe}
+#vaccination .vc-card input:focus,#vaccination .vc-card textarea:focus{border-color:var(--c);box-shadow:0 0 0 3px rgba(142,68,173,.15);background:#fff}
+#vaccination .vc-card input[readonly]{background:#f4f1f6}
+#vaccination .vc-phone input{border-color:#00b8d9;font-weight:bold;letter-spacing:.5px}
+#vaccination .vc-card textarea{min-height:64px;height:auto}
+#vaccination .vc-hint{display:block;font-size:11px;color:#8a7a94;margin-top:8px;font-weight:normal}
+
+#vaccination .vc-vtable{width:100%;margin:0;border-collapse:separate;border-spacing:0;border:1px solid var(--vc-line);border-radius:8px;overflow:hidden}
+#vaccination .vc-vtable td{padding:5px;border:0;border-bottom:1px solid #f1ebf4}
+#vaccination .vc-vtable tbody tr:last-child td{border-bottom:0}
+#vaccination .vc-vtable td:first-child{text-align:right;font-weight:bold;color:#4a2a5a;background:#faf6fc;white-space:nowrap;padding-right:10px}
+#vaccination .vc-vtable tbody tr:hover td{background:#fbf8e6 !important}
+#vaccination .vc-vtable input{text-align:center;padding:6px !important}
+#vaccination .vc-vtable input:disabled{background:repeating-linear-gradient(45deg,#f3f3f3 0 6px,#e8e8e8 6px 12px);border-style:dashed;cursor:not-allowed}
+
+#vaccination .vc-b{padding:8px 14px;border-radius:8px;color:#fff;white-space:nowrap}
+#vaccination .vc-b-save{background:#2bb673}   #vaccination .vc-b-update{background:#2196f3}
+#vaccination .vc-b-search{background:#00b8d9} #vaccination .vc-b-clear{background:#ffb347;color:#000}
+#vaccination .vc-b-del{background:#e65050}    #vaccination .vc-b-rec{background:#9b59b6}
+#vaccination .vc-b-tot{background:#27ae60}    #vaccination .vc-b-max{background:#1d6f42}
+#vaccination .vc-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+#vaccination .vc-agroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#vaccination .vc-glabel{font-size:11px;font-weight:bold;color:#8a7a94}
+
+@media (min-width:701px){
+  #vaccination #vacc_topBarMain,#vaccination #vacc_firstRow,#vaccination #vacc_otherCards{margin-right:215px}
+  #vaccination #vacc_controlBar{position:fixed;top:72px;right:12px;width:195px;z-index:50;
+    max-height:calc(100vh - 140px);overflow-y:auto;box-shadow:0 6px 20px rgba(91,44,111,.18)}
+  #vaccination .vc-actions{flex-direction:column;align-items:stretch}
+  #vaccination .vc-agroup{flex-direction:column;align-items:stretch;padding-bottom:10px;border-bottom:1px solid var(--vc-line)}
+  #vaccination .vc-agroup:last-child{border-bottom:0;padding-bottom:0}
+  #vaccination .vc-glabel{text-align:center}
+  #vaccination .vc-b{width:100%;text-align:center;white-space:normal;-webkit-text-stroke:.3px currentColor}
+}
+@media (min-width:701px) and (max-width:1100px){
+  #vaccination #vacc_firstRow,#vaccination #vacc_otherCards{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:700px){
+  #vaccination #vacc_firstRow,#vaccination #vacc_otherCards{grid-template-columns:minmax(0,1fr)}
+  #vaccination > #vacc_topBarMain input{width:100% !important}
+  #vaccination .vc-b{flex:1}
+}
+
+/* ═══ نافذة إجمالي الجرعات المنبثقة ═══ */
+#vaccination .vc-pop{position:fixed;z-index:60;width:560px;max-width:calc(100vw - 20px);background:#fff;
+  border:1px solid var(--vc-line);border-top:4px solid #27ae60;border-radius:12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.25);animation:vcPopIn .18s ease-out}
+#vaccination .vc-pop-side{transform-origin:right center}
+#vaccination .vc-pop:not(.vc-pop-side){transform-origin:top center}
+@keyframes vcPopIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+#vaccination .vc-pop::after{content:"";position:absolute;width:12px;height:12px;background:#fff;
+  border:1px solid var(--vc-line);transform:rotate(45deg)}
+#vaccination .vc-pop-side::after{right:-7px;top:var(--ay,30px);margin-top:-6px;border-left:0;border-bottom:0}
+#vaccination .vc-pop:not(.vc-pop-side)::after{top:-9px;left:var(--ax,50%);margin-left:-6px;
+  border-right:0;border-bottom:0;background:#27ae60;border-color:#27ae60}
+#vaccination .vc-pop-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  font-weight:bold;color:#1b5e20;border-bottom:1px dashed var(--vc-line)}
+#vaccination .vc-pop-x{background:#f1f1f1;color:#555;border-radius:50%;width:28px;height:28px;padding:0}
+#vaccination .vc-pop-dates{display:flex;gap:6px;align-items:flex-end;padding:10px 14px}
+#vaccination .vc-pop-dates label{flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px;
+  font-weight:bold;color:#5a4566;min-width:0}
+#vaccination .vc-pop-dates input{width:100%;padding:5px;border:1.5px solid #ddd3e3;border-radius:6px}
+#vaccination .vc-pop .vc-b{width:auto;padding:7px 16px}
+#vaccination .vc-pop-clr{background:#95a5a6;color:#fff;padding:7px 10px;border-radius:6px}
+#vaccination .vc-pop-count{text-align:center;font-size:12px;font-weight:bold;color:#27ae60;margin-bottom:6px}
+#vaccination .vc-pop-body{padding:0 14px;max-height:calc(100vh - 320px);overflow:auto}
+#vaccination #vacc_allTotalResults th{background:#27ae60}
+#vaccination #vacc_allTotalResults td{padding:6px 8px}
+#vaccination #vacc_allTotalResults td:last-child{font-weight:bold;color:#1b5e20}
+#vaccination #vacc_allTotalResults tfoot td{background:#fffbe6;font-weight:bold}
+#vaccination .vc-pop-foot{display:flex;gap:6px;justify-content:center;padding:10px 14px}
+#vaccination .vc-pop-foot button{padding:6px 14px;border-radius:6px}
+#vaccination #vacc_maxAnimalsResults th{background:#1d6f42}
+#vaccination #vacc_maxAnimalsResults td{padding:8px;font-size:14px;font-weight:bold;color:#004e66}
+#vaccination #vacc_maxAnimalsResults td:last-child{color:#1d6f42;background:#fffbe6}
+
+/* ═══ البحث في سجل التحصين ═══ */
+#vaccination .vc-c-search{--c:#9b59b6}
+#vaccination .vc-count{background:#9b59b6;color:#fff;border-radius:20px;padding:2px 12px;font-size:12px}
+#vaccination .vc-count:empty{display:none}
+#vaccination .vc-b-back{background:#e67e22}
+#vaccination .vc-b-grey{background:#607d8b}
+#vaccination .vc-sactions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+#vaccination .vc-sactions .vc-b{flex:1}
+#vaccination .vc-sgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
+  background:#faf6fc;border:1px solid var(--vc-line);border-radius:10px;padding:10px}
+#vaccination .vc-sgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:bold;color:#5a4566;min-width:0}
+#vaccination .vc-shint{font-size:11px;color:#8a7a94;margin:6px 2px 10px}
+#vaccination #vacc_searchRecordResults{overflow:auto;max-height:70vh;border:1px solid var(--vc-line);border-radius:8px;font-size:12px}
+#vaccination #vacc_searchRecordResults:empty{display:none}
+@media (min-width:701px){
+  #vaccination #vacc_searchRecordCard{margin-right:215px}
+  #vaccination .vc-sactions{position:fixed;top:72px;right:12px;width:195px;z-index:50;flex-direction:column;
+    margin:0;padding:12px;background:#faf6fc;border:1px solid var(--vc-line);border-top:4px solid #9b59b6;
+    border-radius:12px;box-shadow:0 6px 20px rgba(91,44,111,.18)}
+  #vaccination .vc-sactions .vc-b{flex:none}
+}
+#vaccination .vc-sbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:#faf6fc;
+  border:1px solid var(--vc-line);border-radius:10px;padding:10px}
+#vaccination .vc-skw{flex:1 1 300px;display:flex;align-items:center;gap:6px;background:#fff;
+  border:1.5px solid #d9c4e6;border-radius:8px;padding:0 10px}
+#vaccination .vc-skw input{border:0 !important;background:transparent !important;box-shadow:none !important;padding:9px 0 !important}
+#vaccination .vc-sbar label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:bold;color:#5a4566;width:160px}
+/* التمرير الداخلي: ارتفاع يملأ الشاشة + رأس ثابت كوحدة واحدة + لا تتحرك الصفحة */
+#vaccination #vacc_searchRecordResults{max-height:calc(100vh - 250px);overscroll-behavior:contain}
+#vaccination #vacc_searchRecordResults table{border-collapse:separate;border-spacing:0}
+#vaccination #vacc_searchRecordResults thead{position:sticky;top:0;z-index:10}
+#vaccination #vacc_searchRecordResults thead th{position:static !important}
+/* حصر التمرير العرضي داخل البطاقة */
+#vaccination .vc-layout,#vaccination .vc-layout .right-panel,#vaccination #vacc_searchRecordCard{min-width:0;max-width:100%}
+#vaccination #vacc_searchRecordResults{overflow:auto;width:100%}@media (max-width:700px){
+  #vaccination .vc-sbar label{flex:1 1 140px;width:auto}
+}
+</style>
 <div id="vacc_topBarMain" class="top-bar">
-  <div class="top-group">
-    <label>إدخل رقم حالة التحصين</label>
-    <input type="text" id="vacc_caseNumber">
-  </div>
-  <div class="top-group">
-    <label>آخر رقم تم التعديل عليه</label>
-    <input type="text" id="vacc_lastEditedCase" readonly style="width:140px;background:#f0f0f0;color:#004e66;font-weight:bold;cursor:default;">
+  <div class="top-group"><label for="vacc_caseNumber">🔍 رقم حالة التحصين</label>
+    <input type="text" id="vacc_caseNumber" placeholder="اكتب الرقم ثم Enter">
   </div>
   <div id="vacc_topBarMessage"></div>
+  <div class="top-group"><label for="vacc_lastEditedCase">آخر رقم تم التعديل عليه</label>
+    <input type="text" id="vacc_lastEditedCase" readonly placeholder="—">
+  </div>
 </div>
 
-<div class="main-container">
-  <div class="right-panel" style="flex:1;display:flex;flex-direction:column;gap:12px;">
+<div class="main-container vc-layout">
+  <div class="right-panel">
 
-    <div id="vacc_firstRow" class="first-row">
-      <div class="card">
-        <h3>بيانات المربي</h3>
-        <div class="row"><label>رقم هاتف</label>
-          <input list="vacc_phoneList" id="vacc_phoneInput" style="width:80%;" placeholder="اختر أو اكتب رقم الهاتف">
+    <div id="vacc_firstRow">
+      <!-- ١) بيانات المربي -->
+      <div class="card vc-card vc-c-breeder">
+        <h3><span class="vc-step">1</span>👨‍🌾 بيانات المربي</h3>
+        <div class="vc-field vc-phone"><label for="vacc_phoneInput">رقم الهاتف</label>
+          <input list="vacc_phoneList" id="vacc_phoneInput" inputmode="numeric" placeholder="اختر أو اكتب رقم الهاتف">
           <datalist id="vacc_phoneList"></datalist>
         </div>
-        <div class="row"><label>الاسم</label><input id="vacc_nameInput" style="width:80%;"></div>
-        <div class="row"><label>رقم الحيازة</label><input id="vacc_possessionInput" style="width:80%;"></div>
-        <div class="row"><label>المنطقة</label><input id="vacc_regionInput" style="width:80%;"></div>
-        <div class="row"><label>الرقم المدني</label><input id="vacc_civilInput" style="width:80%;"></div>
-        <div class="row"><label>التاريخ</label><input type="date" id="vacc_financialDate" style="width:80%;"></div>
+        <div class="vc-field"><label for="vacc_nameInput">الاسم</label><input id="vacc_nameInput"></div>
+        <div class="vc-2col">
+          <div class="vc-field"><label for="vacc_possessionInput">رقم الحيازة</label><input id="vacc_possessionInput"></div>
+          <div class="vc-field"><label for="vacc_civilInput">الرقم المدني</label><input id="vacc_civilInput"></div>
+        </div>
+        <div class="vc-2col">
+          <div class="vc-field"><label for="vacc_regionInput">المنطقة</label><input id="vacc_regionInput"></div>
+          <div class="vc-field"><label for="vacc_financialDate">تاريخ التحصين</label><input type="date" id="vacc_financialDate"></div>
+        </div>
       </div>
-      <div class="card">
-        <h3>الأمراض الوبائية</h3>
-        <table class="inner-table">
-          <thead><tr><th>نوع اللقاح</th><th>أغنام</th><th>ماعز</th><th>أبقار</th><th>جمل</th><th>خيول</th></tr></thead>
-          <tbody>
-            <tr><td>التسمم المعوي</td><td><input type="number" id="vacc_intox_sheep"></td><td><input type="number" id="vacc_intox_goat"></td><td><input type="number" id="vacc_intox_cow" disabled></td><td><input type="number" id="vacc_intox_camel" disabled></td><td><input type="number" id="vacc_intox_horse" disabled></td></tr>
-            <tr><td>طاعون/جدري(مركب)</td><td><input type="number" id="vacc_pock_sheep"></td><td><input type="number" id="vacc_pock_goat"></td><td><input type="number" id="vacc_pock_cow" disabled></td><td><input type="number" id="vacc_pock_camel" disabled></td><td><input type="number" id="vacc_pock_horse" disabled></td></tr>
-            <tr><td>الحمى القلاعية</td><td><input type="number" id="vacc_fmd_sheep"></td><td><input type="number" id="vacc_fmd_goat"></td><td><input type="number" id="vacc_fmd_cow"></td><td><input type="number" id="vacc_fmd_camel" disabled></td><td><input type="number" id="vacc_fmd_horse" disabled></td></tr>
-            <tr><td>التهاب الجلد العقدي</td><td><input type="number" id="vacc_lumpy_sheep" disabled></td><td><input type="number" id="vacc_lumpy_goat" disabled></td><td><input type="number" id="vacc_lumpy_cow"></td><td><input type="number" id="vacc_lumpy_camel" disabled></td><td><input type="number" id="vacc_lumpy_horse" disabled></td></tr>
-            <tr><td>السعار</td><td><input type="number" id="vacc_rabies_sheep"></td><td><input type="number" id="vacc_rabies_goat"></td><td><input type="number" id="vacc_rabies_cow"></td><td><input type="number" id="vacc_rabies_camel"></td><td><input type="number" id="vacc_rabies_horse"></td></tr>
-          </tbody>
-        </table>
+
+      <!-- ٢) الأمراض الوبائية -->
+      <div class="card vc-card vc-c-vacc">
+        <h3><span class="vc-step">2</span>💉 الأمراض الوبائية — عدد الحيوانات المحصنة</h3>
+        <div style="overflow-x:auto">
+          <table class="inner-table vc-vtable">
+            <thead><tr><th>نوع اللقاح</th><th>أغنام</th><th>ماعز</th><th>أبقار</th><th>جمال</th><th>خيول</th></tr></thead>
+            <tbody>
+              <tr><td>التسمم المعوي</td><td><input type="number" min="0" id="vacc_intox_sheep"></td><td><input type="number" min="0" id="vacc_intox_goat"></td><td><input type="number" id="vacc_intox_cow" disabled></td><td><input type="number" id="vacc_intox_camel" disabled></td><td><input type="number" id="vacc_intox_horse" disabled></td></tr>
+              <tr><td>طاعون / جدري (مركب)</td><td><input type="number" min="0" id="vacc_pock_sheep"></td><td><input type="number" min="0" id="vacc_pock_goat"></td><td><input type="number" id="vacc_pock_cow" disabled></td><td><input type="number" id="vacc_pock_camel" disabled></td><td><input type="number" id="vacc_pock_horse" disabled></td></tr>
+              <tr><td>الحمى القلاعية</td><td><input type="number" min="0" id="vacc_fmd_sheep"></td><td><input type="number" min="0" id="vacc_fmd_goat"></td><td><input type="number" min="0" id="vacc_fmd_cow"></td><td><input type="number" id="vacc_fmd_camel" disabled></td><td><input type="number" id="vacc_fmd_horse" disabled></td></tr>
+              <tr><td>التهاب الجلد العقدي</td><td><input type="number" id="vacc_lumpy_sheep" disabled></td><td><input type="number" id="vacc_lumpy_goat" disabled></td><td><input type="number" min="0" id="vacc_lumpy_cow"></td><td><input type="number" id="vacc_lumpy_camel" disabled></td><td><input type="number" id="vacc_lumpy_horse" disabled></td></tr>
+              <tr><td>السعار</td><td><input type="number" min="0" id="vacc_rabies_sheep"></td><td><input type="number" min="0" id="vacc_rabies_goat"></td><td><input type="number" min="0" id="vacc_rabies_cow"></td><td><input type="number" min="0" id="vacc_rabies_camel"></td><td><input type="number" min="0" id="vacc_rabies_horse"></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <span class="vc-hint">الخانات المظللة غير متاحة لهذا اللقاح</span>
       </div>
     </div>
 
-    <div id="vacc_otherCards" class="other-cards">
-      <div class="card">
-        <h3>مدخل البيانات</h3>
-        <input list="vacc_dataEntryList" id="vacc_dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="vacc_dataEntryList"></datalist>
-        <h3>مدخل البيانات (التحديث)</h3>
-        <input list="vacc_dataUpdaterList" id="vacc_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="vacc_dataUpdaterList"></datalist>
-        <h3>الملاحظات</h3>
-        <textarea id="vacc_notes" placeholder="أضف ملاحظات إضافية هنا..."></textarea>
+    <div id="vacc_otherCards">
+      <!-- ٣) الإدخال والملاحظات -->
+      <div class="card vc-card vc-c-entry">
+        <h3><span class="vc-step">3</span>✍️ مدخل البيانات والملاحظات</h3>
+        <div class="vc-field"><label for="vacc_dataEntryInput">مدخل البيانات</label>
+          <input list="vacc_dataEntryList" id="vacc_dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="vacc_dataEntryList"></datalist>
+        </div>
+        <div class="vc-field"><label for="vacc_dataUpdaterInput">مدخل البيانات (التحديث)</label>
+          <input list="vacc_dataUpdaterList" id="vacc_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="vacc_dataUpdaterList"></datalist>
+        </div>
+        <div class="vc-field"><label for="vacc_notes">الملاحظات</label><textarea id="vacc_notes" placeholder="أضف ملاحظات إضافية هنا..."></textarea></div>
       </div>
-      <div class="card" style="grid-column:span 2;">
-        <h3>بيانات التحصين</h3>
-        <div id="vacc_vaccinationDataDisplay" style="overflow-x:auto; max-height:200px; margin-top:8px;"></div>
+
+      <!-- سجل تحصينات المربي -->
+      <div class="card vc-card vc-c-hist">
+        <h3><span class="vc-step">📜</span>سجل تحصينات المربي <span class="vc-hint" style="margin:0">— انقر على أي صف لتحميله</span></h3>
+        <div id="vacc_vaccinationDataDisplay" style="overflow-x:auto;max-height:260px;"></div>
       </div>
     </div>
 
-    <div id="vacc_controlBar" class="top-bar" style="justify-content:center; gap:12px; background:#eef7ff;">
-          <button class="save" id="vacc_saveBtn">حفظ</button>
-      <button class="update" id="vacc_updateBtn">تحديث</button>
-      <button class="clear" id="vacc_clearBtn">مسح</button>
-      <button class="delete" id="vacc_deleteBtn">حذف البيانات</button>
-      <button class="search" id="vacc_searchBtn">بحث</button>
-      <button class="search-record" id="vacc_searchRecordBtn">البحث في سجل التحصين</button>
-      <button class="all-total-btn" id="vacc_allTotalBtn">إجمالي عدد الجرعات</button>
-      <button class="all-total-btn" id="vacc_maxAnimalsBtn">إجمالي عدد الحيوانات المحصنة</button>
+    <!-- أزرار التحكم -->
+    <div id="vacc_controlBar" class="card vc-card vc-c-actions">
+      <div class="vc-actions">
+        <div class="vc-agroup"><span class="vc-glabel">حالة التحصين</span>
+          <button type="button" class="vc-b vc-b-save"   id="vacc_saveBtn">💾 حفظ</button>
+          <button type="button" class="vc-b vc-b-update" id="vacc_updateBtn">✏️ تحديث</button>
+          <button type="button" class="vc-b vc-b-search" id="vacc_searchBtn">🔍 بحث</button>
+          <button type="button" class="vc-b vc-b-clear"  id="vacc_clearBtn">🧹 مسح</button>
+          <button type="button" class="vc-b vc-b-del"    id="vacc_deleteBtn">🗑️ حذف</button>
+        </div>
+        <div class="vc-agroup"><span class="vc-glabel">التقارير</span>
+          <button type="button" class="vc-b vc-b-rec" id="vacc_searchRecordBtn">🗂️ البحث في السجل</button>
+ <button type="button" class="vc-b vc-b-max" id="vacc_maxAnimalsBtn">🐄الحيوانات المحصنة</button>
+          <button type="button" class="vc-b vc-b-tot" id="vacc_allTotalBtn">💉 عدد الجرعات</button>
+         
+        </div>
+      </div>
     </div>
 
     <input type="hidden" id="vacc_copyingdata">
 
-    <!-- بطاقة البحث -->
-    <div id="vacc_searchRecordCard" style="display:none; border-radius:4px; padding:8px; margin-top:4px; background:#f8ffff; border:4px solid #9b59b6; animation:fadeInCard .3s ease;">
-      <h3 style="background:#9b59b6;color:#fff;padding:6px;text-align:center;margin:-8px -8px 12px -8px;font-size:1rem;">البحث في سجل التحصين</h3>
-      <div class="search-record-grid">
-        <div class="sr-field"><label>رقم الحالة</label><input type="text" id="vacc_srCaseNumber"></div>
-        <div class="sr-field"><label>رقم الهاتف</label><input type="text" id="vacc_srPhone"></div>
-        <div class="sr-field"><label>الاسم</label><input type="text" id="vacc_srName"></div>
-        <div class="sr-field"><label>رقم الحيازة</label><input type="text" id="vacc_srPossession"></div>
-        <div class="sr-field"><label>المنطقة</label><input type="text" id="vacc_srRegion"></div>
-        <div class="sr-field"><label>الرقم المدني</label><input type="text" id="vacc_srCivil"></div>
-        <div class="sr-field"><label>من تاريخ</label><input type="date" id="vacc_srDateFrom"></div>
-        <div class="sr-field"><label>إلى تاريخ</label><input type="date" id="vacc_srDateTo"></div>
+      <!-- البحث في سجل التحصين -->
+    <div id="vacc_searchRecordCard" class="card vc-card vc-c-search" style="display:none;">
+      <h3>🗂️ البحث في سجل التحصين <span id="vacc_srResultCount" class="vc-count"></span></h3>
+      <div class="vc-sactions">
+        <button type="button" class="vc-b vc-b-back" id="vacc_srBackBtn">⬅️ رجوع</button>
+        <button type="button" class="vc-b vc-b-rec"  id="vacc_srSearchBtn">🔍 بحث</button>
+        <button type="button" class="vc-b vc-b-grey" id="vacc_srClearBtn">🧹 مسح البحث</button>
+        <button type="button" class="vc-b exp-xls" onclick="expTable('#vacc_searchRecordResults table','سجل التحصين','xlsx')">📗 Excel</button>
+        <button type="button" class="vc-b exp-pdf" onclick="expTable('#vacc_searchRecordResults table','سجل التحصين','pdf',true)">📕 PDF</button>
       </div>
-      <div class="btns">
-        <button class="back-btn" id="vacc_srBackBtn">← رجوع</button>
-        <button class="search-record" id="vacc_srSearchBtn">بحث</button>
-        <button class="clear" id="vacc_srClearBtn">مسح البحث</button>
-        <button class="exp-xls" onclick="expTable('#vacc_searchRecordResults table','سجل التحصين','xlsx')">📗 Excel</button>
-        <button class="exp-pdf" onclick="expTable('#vacc_searchRecordResults table','سجل التحصين','pdf',true)">📕 PDF</button>
+         <div class="vc-sbar">
+        <div class="vc-skw">🔍<input type="text" id="vacc_srKeyword"
+          placeholder="رقم الحالة، الهاتف، الاسم، الحيازة، المنطقة، الرقم المدني..."
+          oninput="clearTimeout(window._vsrT);if(this.value.trim().length>=2)window._vsrT=setTimeout(vaccDoSearchVaccinationRecords,500)"></div>
+        <label>من تاريخ<input type="date" id="vacc_srDateFrom" onchange="vaccDoSearchVaccinationRecords()"></label>
+        <label>إلى تاريخ<input type="date" id="vacc_srDateTo" onchange="vaccDoSearchVaccinationRecords()"></label>
       </div>
-      <div id="vacc_srResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#9b59b6;font-size:13px;"></div>
-      <div id="vacc_searchRecordResults" style="overflow:auto;max-height:80vh;margin-top:8px;font-size:13px;border:1px solid #ddd;border-radius:3px;"></div>    </div>
+      <div class="vc-shint">💡 اكتب أي معلومة عن المربي أو رقم الحالة، ويبدأ البحث تلقائياً. يمكنك حصر النتائج بالتاريخ</div>
+      <div id="vacc_searchRecordResults"></div>
+    </div>
 
-    <!-- بطاقة الإجمالي -->
-    <div id="vacc_allTotalCard" style="display:none; border-radius:4px; padding:8px; margin-top:4px; background:#fff3c9; border:4px solid #27ae60; animation:fadeInCard .3s ease;">
-      <h3 style="background:#27ae60;color:#fff;padding:6px;text-align:center;margin:-8px -8px 12px -8px;font-size:1rem;">إجمالي عدد الجرعات</h3>
-      <div class="all-total-date-grid">
-        <div class="sr-field"><label>من تاريخ</label><input type="date" id="vacc_atDateFrom"></div>
-        <div class="sr-field"><label>إلى تاريخ</label><input type="date" id="vacc_atDateTo"></div>
+     <!-- إجمالي عدد الجرعات (نافذة منبثقة) -->
+    <div id="vacc_allTotalCard" class="vc-pop" style="display:none;">
+      <div class="vc-pop-head">
+        <span>💉 إجمالي عدد الجرعات</span>
+        <button type="button" id="vacc_atBackBtn" class="vc-pop-x" title="إغلاق">✕</button>
       </div>
-      <div class="btns">
-        <button class="back-btn" id="vacc_atBackBtn">← رجوع</button>
-        <button class="all-total-btn" id="vacc_atSearchBtn">عرض الإجمالي</button>
-        <button class="clear" id="vacc_atClearBtn">مسح</button>
+      <div class="vc-pop-dates">
+        <label>من تاريخ<input type="date" id="vacc_atDateFrom"></label>
+        <label>إلى تاريخ<input type="date" id="vacc_atDateTo"></label>
+        <button type="button" id="vacc_atSearchBtn" class="vc-b vc-b-tot">عرض</button>
+        <button type="button" id="vacc_atClearBtn" class="vc-pop-clr" title="مسح">🧹</button>
+      </div>
+      <div id="vacc_atResultCount" class="vc-pop-count"></div>
+      <div id="vacc_allTotalResults" class="vc-pop-body"></div>
+      <div class="vc-pop-foot">
         <button class="exp-xls" onclick="expTable('#vacc_allTotalResults table','إجمالي عدد الجرعات','xlsx')">📗 Excel</button>
         <button class="exp-pdf" onclick="expTable('#vacc_allTotalResults table','إجمالي عدد الجرعات','pdf')">📕 PDF</button>
       </div>
-      <div id="vacc_atResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#27ae60;font-size:13px;"></div>
-      <div id="vacc_allTotalResults" style="overflow:auto;max-height:500px;margin-top:8px;font-size:12px;border:1px solid #ddd;border-radius:3px;"></div>
     </div>
 
-    <!-- بطاقة الحيوانات المحصنة -->
-    <div id="vacc_maxAnimalsCard" style="display:none; border-radius:4px; padding:8px; margin-top:4px; background:#f8ffff; border:4px solid #27ae60; animation:fadeInCard .3s ease;">
-      <h3 style="background:#27ae60;color:#fff;padding:6px;text-align:center;margin:-8px -8px 12px -8px;font-size:1rem;">عدد الحيوانات المحصنة</h3>
-      <div class="all-total-date-grid">
-        <div class="sr-field"><label>رقم الهاتف (اختياري)</label><input type="text" id="vacc_maPhone"></div>
-        <div class="sr-field"><label>من تاريخ</label><input type="date" id="vacc_maDateFrom"></div>
-        <div class="sr-field"><label>إلى تاريخ</label><input type="date" id="vacc_maDateTo"></div>
+    <!-- عدد الحيوانات المحصنة (نافذة منبثقة) -->
+    <div id="vacc_maxAnimalsCard" class="vc-pop" style="display:none;">
+      <div class="vc-pop-head">
+        <span>🐄 عدد الحيوانات المحصنة</span>
+        <button type="button" id="vacc_maCloseBtn" class="vc-pop-x" title="إغلاق">✕</button>
       </div>
-      <div class="btns">
-        <button class="back-btn" id="vacc_maBackBtn">← رجوع</button>
-        <button class="all-total-btn" id="vacc_maSearchBtn">عرض البيانات</button>
-        <button class="clear" id="vacc_maClearBtn">مسح</button>
+      <div class="vc-pop-dates">
+        <label>من تاريخ<input type="date" id="vacc_maDateFrom"></label>
+        <label>إلى تاريخ<input type="date" id="vacc_maDateTo"></label>
+        <button type="button" id="vacc_maClearBtn" class="vc-pop-clr" title="مسح التاريخ">🧹</button>
+      </div>
+      <div id="vacc_maResultCount" class="vc-pop-count"></div>
+      <div id="vacc_maxAnimalsResults" class="vc-pop-body"></div>
+      <div class="vc-pop-foot">
         <button class="exp-xls" onclick="expTable('#vacc_maxAnimalsResults table','عدد الحيوانات المحصنة','xlsx')">📗 Excel</button>
         <button class="exp-pdf" onclick="expTable('#vacc_maxAnimalsResults table','عدد الحيوانات المحصنة','pdf')">📕 PDF</button>
       </div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0;">
-  <div id="vacc_maResultCount" style="font-weight:bold;color:#27ae60;font-size:13px;"></div>
-  <label style="display:flex;align-items:center;gap:5px;font-weight:bold;font-size:13px;cursor:pointer;background:#e8f5e9;padding:4px 10px;border-radius:20px;border:1px solid #27ae60;">
-   <input type="checkbox" id="vacc_showTotalRow" onchange="vacc_toggleTotalRow(this.checked)">
-إظهار الإجمالي فقط
-  </label>
-</div>
-<div id="vacc_maxAnimalsResults" style="overflow:auto;max-height:80vh;margin-top:8px;font-size:13px;border:1px solid #ddd;border-radius:3px;"></div>
     </div>
 
   </div>
@@ -7327,7 +7949,7 @@ async function vaccFetchBreederData(phone) {
     vaccShowMessage("خطأ: " + err.message, true);
   } finally {
     // إعادة لون البطاقة الأصلي بعد انتهاء الجلب
-    if (card) card.style.background = '#f8ffff';
+       if (card) card.style.background = '';
   }
 }
 
@@ -7415,13 +8037,23 @@ function vaccFillFormWithData(data) {
     vacc_rabies_goat:'rabies_goat', vacc_rabies_cow:'rabies_cow',
     vacc_rabies_camel:'rabies_camel', vacc_rabies_horse:'rabies_horse'
   };
-  for (var id in fields) vaccSafeSet(id, data[fields[id]]);
+    for (var id in fields) vaccSafeSet(id, data[fields[id]]);
+  /* إيقاف التعبئة التلقائية حتى يبقى اسم مُنشئ الحالة ومحدّثها ظاهراً */
+  ['vacc_dataEntryInput', 'vacc_dataUpdaterInput'].forEach(function (k) {
+    var el = document.getElementById(k);
+    if (el && data.caseNumber) el.dataset.userModified = '1';
+  });
   vaccShowMessage('تم تحميل بيانات الحالة بنجاح', false);
   if (data.phone) vaccFetchVaccinationDataByPhone(data.phone, false);
 }
 
 function vaccClearForm() {
-  var today = new Date().toLocaleDateString('en-CA');
+  /* إعادة تفعيل التعبئة التلقائية باسم المستخدم الحالي */
+  ['vacc_dataEntryInput', 'vacc_dataUpdaterInput'].forEach(function (k) {
+    var el = document.getElementById(k);
+    if (el) delete el.dataset.userModified;
+  });
+  var today = new Date().toLocaleDateString('en-CA');;
   document.getElementById('vacc_financialDate').value = today;
   ['vacc_phoneInput','vacc_nameInput','vacc_possessionInput','vacc_regionInput','vacc_civilInput',
    'vacc_caseNumber','vacc_dataEntryInput','vacc_dataUpdaterInput','vacc_notes','vacc_copyingdata',
@@ -7601,21 +8233,17 @@ function vaccShowSubView(cardId) {
 
 // Search Records
 function vaccClearSearchRecordForm() {
-  ['vacc_srCaseNumber','vacc_srPhone','vacc_srName','vacc_srPossession','vacc_srRegion','vacc_srCivil','vacc_srDateFrom','vacc_srDateTo']
+  ['vacc_srKeyword','vacc_srDateFrom','vacc_srDateTo']
     .forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('vacc_searchRecordResults').innerHTML = '';
   document.getElementById('vacc_srResultCount').textContent = '';
 }
 
 async function vaccDoSearchVaccinationRecords() {
-  var filters = {
-    caseNumber:vaccGetValue('vacc_srCaseNumber'), phone:vaccGetValue('vacc_srPhone'),
-    name:vaccGetValue('vacc_srName'), possession:vaccGetValue('vacc_srPossession'),
-    region:vaccGetValue('vacc_srRegion'), civil:vaccGetValue('vacc_srCivil'),
-    dateFrom:vaccGetValue('vacc_srDateFrom'), dateTo:vaccGetValue('vacc_srDateTo')
-  };
-  if (!Object.values(filters).some(function(v){ return v!==''; })) { vaccShowMessage('الرجاء إدخال معيار بحث', true); return; }
-  var btn = document.getElementById('vacc_srSearchBtn'), orig = btn.textContent;
+  var filters = { dateFrom: vaccGetValue('vacc_srDateFrom'), dateTo: vaccGetValue('vacc_srDateTo') };
+  if (!vaccGetValue('vacc_srKeyword') && !filters.dateFrom && !filters.dateTo) {
+    vaccShowMessage('اكتب كلمة بحث أو حدد تاريخاً', true); return;
+  }  var btn = document.getElementById('vacc_srSearchBtn'), orig = btn.textContent;
   btn.textContent = 'جاري البحث...'; btn.disabled = true;
   var div = document.getElementById('vacc_searchRecordResults');
   div.innerHTML = '<p style="text-align:center;padding:12px;">جاري البحث...</p>';
@@ -7629,17 +8257,19 @@ async function vaccDoSearchVaccinationRecords() {
 
     // ← فلترة دقيقة على جانب العميل إذا تم إدخال رقم الحالة
     var rows = res.rows;
-    var srCaseNumber = vaccGetValue('vacc_srCaseNumber');
-    if (srCaseNumber !== '') {
-      rows = rows.filter(function(row) {
-        return String(row[0]).trim() === srCaseNumber.trim();
+    var kw = vaccGetValue('vacc_srKeyword').toLowerCase();
+    if (kw) {
+      rows = rows.filter(function (row) {
+        if (String(row[0]).trim() === kw) return true;              /* رقم الحالة: تطابق تام */
+        return [1, 2, 3, 4, 5].some(function (i) {                  /* الهاتف، الاسم، الحيازة، المنطقة، المدني */
+          return String(row[i] == null ? '' : row[i]).toLowerCase().indexOf(kw) !== -1;
+        });
       });
-      if (rows.length === 0) {
-        div.innerHTML = '<p style="text-align:center;color:#e65050;padding:12px;">لا توجد نتائج مطابقة لرقم الحالة: ' + escHtml(srCaseNumber) + '</p>';
+      if (!rows.length) {
+        div.innerHTML = '<p style="text-align:center;color:#e65050;padding:12px;">لا توجد نتائج مطابقة لـ: ' + escHtml(kw) + '</p>';
         return;
       }
     }
-
     document.getElementById('vacc_srResultCount').textContent = 'عدد النتائج: ' + rows.length + ' سجل';
     var html = '<table><thead><tr>';
    html += '<th rowspan="2" style="background:#7b2d8b;color:#fff;border:1px solid #5a1f68;padding:3px 5px;vertical-align:middle;position:sticky;top:0;z-index:10;">م</th>';
@@ -7807,18 +8437,121 @@ function vaccBindEvents() {
   document.getElementById('vacc_deleteBtn').onclick = vaccDeleteCase;
   document.getElementById('vacc_searchBtn').onclick = vaccSearchCase;
   document.getElementById('vacc_searchRecordBtn').onclick = function(){ vaccShowSubView('vacc_searchRecordCard'); };
-  document.getElementById('vacc_allTotalBtn').onclick = function(){ vaccShowSubView('vacc_allTotalCard'); };
-  document.getElementById('vacc_maxAnimalsBtn').onclick = function(){ vaccShowSubView('vacc_maxAnimalsCard'); };
+    /* ── إجمالي الجرعات: نافذة منبثقة من الزر ── */
+  (function () {
+    var pop = document.getElementById('vacc_allTotalCard');
+    var btn = document.getElementById('vacc_allTotalBtn');
+    function isOpen() { return pop.style.display !== 'none'; }
+    function close()  { pop.style.display = 'none'; }
+    function place() {
+      if (!isOpen()) return;
+      var r = btn.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+      if (!r.width || r.bottom < 0 || r.top > H) { close(); return; }
+      var pw = pop.offsetWidth, ph = pop.offsetHeight;
+      var side = W > 700 && r.left > pw + 24;
+      pop.classList.toggle('vc-pop-side', side);
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2, left, top;
+      if (side) {
+        left = r.left - pw - 12;
+        top  = Math.max(70, Math.min(cy - 40, H - ph - 10));
+        pop.style.setProperty('--ay', Math.max(18, Math.min(cy - top, ph - 18)) + 'px');
+      } else {
+        left = Math.max(10, Math.min(cx - pw / 2, W - pw - 10));
+        top  = Math.max(10, Math.min(r.bottom + 10, H - ph - 10));
+        pop.style.setProperty('--ax', Math.max(18, Math.min(cx - left, pw - 18)) + 'px');
+      }
+      pop.style.left = left + 'px';
+      pop.style.top  = top + 'px';
+    }
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      if (isOpen()) { close(); return; }
+      pop.style.display = 'block';
+      place();
+      vaccDoGetAllTotal();
+    };
+    window.vaccCloseTotalPop = close;
+    document.addEventListener('click', function (e) {
+      if (isOpen() && !pop.contains(e.target) && !btn.contains(e.target)) close();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen()) close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    if (window.ResizeObserver) new ResizeObserver(place).observe(pop);
+  })();
+    /* ── عدد الحيوانات المحصنة: نافذة منبثقة من الزر ── */
+  (function () {
+    var pop = document.getElementById('vacc_maxAnimalsCard');
+    var btn = document.getElementById('vacc_maxAnimalsBtn');
+    var $ = function (id) { return document.getElementById(id); };
+    function isOpen() { return pop.style.display !== 'none'; }
+    function close()  { pop.style.display = 'none'; }
+    function place() {
+      if (!isOpen()) return;
+      var r = btn.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+      if (!r.width || r.bottom < 0 || r.top > H) { close(); return; }
+      var pw = pop.offsetWidth, ph = pop.offsetHeight;
+      var side = W > 700 && r.left > pw + 24;
+      pop.classList.toggle('vc-pop-side', side);
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2, left, top;
+      if (side) {
+        left = r.left - pw - 12;
+        top  = Math.max(70, Math.min(cy - 40, H - ph - 10));
+        pop.style.setProperty('--ay', Math.max(18, Math.min(cy - top, ph - 18)) + 'px');
+      } else {
+        left = Math.max(10, Math.min(cx - pw / 2, W - pw - 10));
+        top  = Math.max(10, Math.min(r.bottom + 10, H - ph - 10));
+        pop.style.setProperty('--ax', Math.max(18, Math.min(cx - left, pw - 18)) + 'px');
+      }
+      pop.style.left = left + 'px';
+      pop.style.top  = top + 'px';
+    }
+    async function load() {
+      var f = $('vacc_maDateFrom').value, t = $('vacc_maDateTo').value;
+      var box = $('vacc_maxAnimalsResults'), cnt = $('vacc_maResultCount');
+      if (f && t && f > t) { showToast('⚠️ تاريخ البداية يجب أن يسبق تاريخ النهاية', 'warning'); return; }
+      box.innerHTML = '<p style="text-align:center;padding:12px">⏳ جاري الحساب...</p>';
+      cnt.textContent = '';
+      try {
+        var res = await vaccCallApi('getMaxAnimalsPerBreeder', { filters: { phone: '', dateFrom: f, dateTo: t } });
+        if (!res || !res.success) throw new Error((res && res.message) || 'تعذّر جلب البيانات');
+        var s = (res.totals || []).slice(2);   /* ماعز، أغنام، أبقار، جمال، خيول، الإجمالي */
+        var n = function (v) { return (Number(v) || 0).toLocaleString('en-US'); };
+        box.innerHTML =
+          '<table><thead><tr><th>م</th><th>ماعز</th><th>أغنام</th><th>أبقار</th><th>جمال</th><th>خيول</th><th>الإجمالي</th></tr></thead>' +
+          '<tbody><tr><td>1</td>' + [0, 1, 2, 3, 4, 5].map(function (i) { return '<td>' + n(s[i]) + '</td>'; }).join('') +
+          '</tr></tbody></table>';
+        cnt.textContent = 'عدد المربين: ' + (res.recordCount || 0) +
+          ((f || t) ? '   |   ' + (f || 'البداية') + ' ← ' + (t || 'اليوم') : '');
+      } catch (e) {
+        box.innerHTML = '<p style="color:#c62828;text-align:center;padding:12px">❌ ' + escHtml(e.message || e) + '</p>';
+      }
+    }
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      if (isOpen()) { close(); return; }
+      pop.style.display = 'block';
+      place();
+      load();
+    };
+    $('vacc_maCloseBtn').onclick = close;
+    $('vacc_maDateFrom').addEventListener('change', load);
+    $('vacc_maDateTo').addEventListener('change', load);
+    $('vacc_maClearBtn').onclick = function () { $('vacc_maDateFrom').value = ''; $('vacc_maDateTo').value = ''; load(); };
+    document.addEventListener('click', function (e) {
+      if (isOpen() && !pop.contains(e.target) && !btn.contains(e.target)) close();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen()) close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    if (window.ResizeObserver) new ResizeObserver(place).observe(pop);
+  })();
   document.getElementById('vacc_srBackBtn').onclick = vaccShowMainView;
   document.getElementById('vacc_srSearchBtn').onclick = vaccDoSearchVaccinationRecords;
   document.getElementById('vacc_srClearBtn').onclick = vaccClearSearchRecordForm;
-  document.getElementById('vacc_atBackBtn').onclick = vaccShowMainView;
+    document.getElementById('vacc_atBackBtn').onclick = function () { window.vaccCloseTotalPop(); };
   document.getElementById('vacc_atSearchBtn').onclick = vaccDoGetAllTotal;
   document.getElementById('vacc_atClearBtn').onclick = vaccClearAllTotalForm;
-  document.getElementById('vacc_maBackBtn').onclick = vaccShowMainView;
-  document.getElementById('vacc_maSearchBtn').onclick = vaccDoGetMaxAnimals;
-  document.getElementById('vacc_maClearBtn').onclick = vaccClearMaxAnimalsForm;
-
   document.getElementById('vacc_phoneInput').onchange = function() {
     vaccFetchBreederData(this.value);
     vaccFetchVaccinationDataByPhone(this.value, true);
@@ -7835,32 +8568,17 @@ function vaccBindEvents() {
     }
   });
 
-  ['vacc_srCaseNumber','vacc_srPhone','vacc_srName','vacc_srPossession','vacc_srRegion','vacc_srCivil','vacc_srDateFrom','vacc_srDateTo'].forEach(function(id){
+
+
+
+
+
+   ['vacc_srKeyword','vacc_srDateFrom','vacc_srDateTo'].forEach(function(id){
     document.getElementById(id).addEventListener('keypress', function(e){ if(e.key==='Enter'){ e.preventDefault(); vaccDoSearchVaccinationRecords(); } });
   });
   ['vacc_atDateFrom','vacc_atDateTo'].forEach(function(id){
     document.getElementById(id).addEventListener('keypress', function(e){ if(e.key==='Enter'){ e.preventDefault(); vaccDoGetAllTotal(); } });
   });
-['vacc_maPhone','vacc_maDateFrom','vacc_maDateTo'].forEach(function(id){
-    document.getElementById(id).addEventListener('keypress', function(e){ if(e.key==='Enter'){ e.preventDefault(); vaccDoGetMaxAnimals(); } });
-  });
- document.getElementById('vacc_maPhone').addEventListener('input', function() {
-  var phone = this.value.trim();
-  var table = document.querySelector('#vacc_maxAnimalsResults table');
-  if (!table) return;
-  var rows = table.querySelectorAll('tbody tr');
-  rows.forEach(function(row) {
-    if (phone === '') {
-      row.style.display = '';
-    } else {
-      var cell = row.cells[1];
-      var cellVal = cell ? cell.textContent.trim() : '';
-      row.style.display = (cellVal.indexOf(phone) !== -1) ? '' : 'none';
-    }
-  });
-   var tfoot = table.querySelector('tfoot');
-if (tfoot) tfoot.style.display = phone === '' ? '' : 'none';
-}); 
 }
 
 // FIX: دالة init للتحصين (تُستدعى من showPage فقط)
@@ -8597,6 +9315,121 @@ async function vr_saveToBreeder(r) {
 
 </div>
 <div id="samples" class="page">
+<style>
+/* ═══════════ تصميم صفحة نموذج العينات ═══════════ */
+#samples{--sm-line:#ecdfd2}
+#samples > #topBarMain{position:sticky;top:60px;z-index:40;border:0;border-radius:12px;padding:10px 16px;margin-bottom:14px;
+  background:linear-gradient(135deg,#7a3e00,#e67e22);box-shadow:0 4px 14px rgba(122,62,0,.25),0 -12px 0 var(--tr-mask,#d9d9d9)}
+#samples > #topBarMain::before{content:"";position:absolute;bottom:100%;left:-14px;right:-14px;height:72px;
+  background:var(--tr-mask,#d9d9d9);pointer-events:none}
+#samples > #topBarMain label{color:#fff;font-weight:bold}
+#samples > #topBarMain input{width:180px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;font-size:15px !important;text-align:center}
+#samples > #topBarMain span{background:rgba(255,255,255,.22) !important}
+
+/* البطاقات المرقّمة */
+#samples .two-cards-row{gap:14px;counter-reset:smstep}
+#samples .two-cards-row > .card{background:#fff;border:1px solid var(--sm-line);border-top:4px solid var(--c);
+  border-radius:12px;padding:14px 16px;margin:0;box-shadow:0 2px 10px rgba(122,62,0,.07)}
+#samples .two-cards-row > .card:nth-child(1){--c:#00b8d9}
+#samples .two-cards-row > .card:nth-child(2){--c:#e67e22}
+#samples .two-cards-row > .card:nth-child(3){--c:#8e44ad}
+#samples .two-cards-row > .card > h3{background:none;color:#5a3500;margin:0 0 10px;padding:0 0 10px;border-radius:0;
+  border-bottom:1px dashed var(--sm-line);text-align:right;font-size:15px;display:flex;align-items:center;gap:8px}
+#samples .two-cards-row > .card > h3:first-child::before{counter-increment:smstep;content:counter(smstep);width:24px;height:24px;
+  border-radius:50%;background:var(--c);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+#samples .two-cards-row > .card > h3:not(:first-child){font-size:12px;color:#6b5440;border:0;padding:0;margin:12px 0 4px}
+#samples .two-cards-row .row{margin:0 0 8px;gap:8px}
+#samples .two-cards-row .row label{font-size:12px;color:#6b5440;width:110px}
+#samples .two-cards-row input:not([type=hidden]),#samples .two-cards-row select,#samples .two-cards-row textarea{
+  padding:7px 9px;border:1.5px solid #e3d6c8;border-radius:7px;background:#fffdfb}
+#samples .two-cards-row input:focus,#samples .two-cards-row select:focus,#samples .two-cards-row textarea:focus{
+  border-color:var(--c);box-shadow:0 0 0 3px rgba(230,126,34,.15);background:#fff}
+#samples .two-cards-row input[readonly]{background:#f6f2ee}
+#samples #phoneInput{border-color:#00b8d9;font-weight:bold}
+
+/* أيقونات الأزرار */
+#samples #saveBtn::before{content:"💾 "}   #samples #updateBtn::before{content:"✏️ "}
+#samples #clearBtn::before{content:"🧹 "}  #samples #deleteBtn::before{content:"🗑️ "}
+#samples #searchBtn::before{content:"🔍 "} #samples #toggleSearchCardBtn::before{content:"🗂️ "}
+#samples #searchBtn{background:#00b8d9;color:#fff}
+
+/* عمود الأزرار الثابت على اليمين */
+@media (min-width:701px){
+  #samples > #topBarMain,#samples #mainContainer{margin-right:215px}
+  #samples #mainContainer .right-panel > .top-bar{position:fixed;top:72px;right:12px;width:195px;z-index:50;
+    flex-direction:column;flex-wrap:nowrap;align-items:stretch;margin:0;padding:12px;background:#fdf7f0 !important;
+    border:1px solid var(--sm-line);border-top:4px solid #e67e22;border-radius:12px;
+    max-height:calc(100vh - 140px);overflow-y:auto;box-shadow:0 6px 20px rgba(122,62,0,.18)}
+  #samples #mainContainer .right-panel > .top-bar button{width:100%;margin:0;padding:9px 12px;border-radius:8px;
+     text-align:center;white-space:normal;-webkit-text-stroke:.3px currentColor}
+}
+
+/* ═══ نتائج البحث في العينات ═══ */
+#samples #searchResultsCard{background:#fff;border:1px solid var(--sm-line);border-top:4px solid #e67e22;border-radius:12px;
+  padding:14px 16px;box-shadow:0 2px 10px rgba(122,62,0,.07);max-height:none;overflow:visible}
+#samples #searchResultsCard > div:first-child{background:linear-gradient(135deg,#7a3e00,#e67e22) !important;
+  margin:-14px -16px 14px !important;padding:10px 16px !important;border-radius:8px 8px 0 0 !important}
+#samples #closeSearchCardBtn{border-radius:20px !important;padding:6px 18px !important;color:#7a3e00 !important}
+#samples #closeSearchCardBtn::before{content:"⬅️ "}
+#samples #searchResultsCard .search-filters{background:#fdf7f0;border:1px solid var(--sm-line);border-radius:10px;padding:10px;gap:10px}
+#samples #searchResultsCard .search-filters label{color:#6b5440;font-size:12px}
+#samples #searchResultsCard .search-filters input:not([type=checkbox]){width:150px;padding:7px 9px;
+  border:1.5px solid #e3d6c8;border-radius:7px;background:#fff}
+#samples #searchPhoneInput{width:200px !important;border-color:#e67e22 !important;font-weight:bold}
+#samples #searchResultsCard .search-filters button{border-radius:8px;padding:7px 16px}
+#samples #performSearchBtn{background:#e67e22;color:#fff}
+#samples #performSearchBtn::before{content:"🔍 "}
+#samples #clearSearchBtn::before{content:"🧹 "}
+#samples .toggle-checkbox{background:#fff;border:1.5px solid #e3d6c8;border-radius:20px;padding:5px 12px;
+  font-size:12px;font-weight:bold;color:#6b5440}
+#samples #searchTypeCount{background:#fff !important;color:#7a3e00;padding:3px 12px;border-radius:20px;font-weight:bold;font-size:12px;white-space:nowrap}
+#samples #searchResultsContainer{margin-top:12px;max-height:calc(100vh - 290px);overflow:auto;
+  overscroll-behavior:contain;border:1px solid var(--sm-line);border-radius:8px}
+#samples #resultsTable{border-collapse:separate;border-spacing:0}
+#samples #resultsTable th{background:#7a3e00;color:#fff;font-size:12px}
+#samples #resultsTable td{border:0;border-bottom:1px solid #f1e8df;font-size:12px;padding:7px 8px}
+#samples #resultsTable tbody tr:nth-child(even) td{background:#fffaf5}
+#samples #resultsTable td:first-child{font-weight:bold;color:#e67e22}
+
+/* رأس البطاقة + عمود الأزرار الثابت */
+#samples .sm-shead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#samples .sm-shead h3{margin:0;color:#fff;font-size:15px}
+#samples .sm-sactions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+#samples #closeSearchCardBtn{background:#7a3e00;color:#fff !important}
+@media (min-width:701px){
+  #samples #searchResultsCard{margin-right:215px}
+  #samples .sm-sactions{position:fixed;top:72px;right:12px;width:195px;z-index:50;flex-direction:column;flex-wrap:nowrap;
+    margin:0;padding:12px;background:#fdf7f0;border:1px solid var(--sm-line);border-top:4px solid #e67e22;
+    border-radius:12px;box-shadow:0 6px 20px rgba(122,62,0,.18)}
+  #samples .sm-sactions button{width:100%;margin:0;padding:9px 12px !important;border-radius:8px !important;
+    text-align:center;-webkit-text-stroke:.3px currentColor}
+  #samples .sm-sactions .toggle-checkbox{margin:4px 0 0;justify-content:center;border-radius:10px;padding:8px;text-align:center}
+}
+
+/* ═══ نتائج الفحوصات ═══ */
+#samples #testsResultsCard{background:#fff;border:1px solid var(--sm-line);border-top:4px solid #e67e22;border-radius:12px;
+  padding:14px 16px;box-shadow:0 2px 10px rgba(122,62,0,.07);max-height:none;overflow:visible}
+#samples #testsResultsCard > .sm-shead{background:linear-gradient(135deg,#7a3e00,#e67e22);margin:-14px -16px 14px;
+  padding:10px 16px;border-radius:8px 8px 0 0}
+#samples #testsResultCount{background:#fff;color:#7a3e00;padding:3px 12px;border-radius:20px;font-weight:bold;font-size:12px;white-space:nowrap}
+#samples #testsResultCount:empty{display:none}
+#samples #closeTestsCardBtn{background:#7a3e00;color:#fff}
+#samples #closeTestsCardBtn::before{content:"⬅️ "}
+#samples #performTestsSearchBtn{background:#e67e22;color:#fff}
+#samples #performTestsSearchBtn::before{content:"🔍 "}
+#samples #clearTestsSearchBtn::before{content:"🧹 "}
+#samples #printTestsBtn{background:#6c5ce7;color:#fff}
+#samples #testsResultsCard .search-filters{background:#fdf7f0;border:1px solid var(--sm-line);border-radius:10px;padding:10px;gap:10px}
+#samples #testsResultsCard .search-filters label{color:#6b5440;font-size:12px}
+#samples #testsResultsCard select{min-width:200px;padding:7px 9px;border:1.5px solid #e3d6c8;border-radius:7px;background:#fff}
+#samples #testsResultsContainer{margin-top:12px;max-height:calc(100vh - 300px);overflow:auto;overscroll-behavior:contain}
+#samples #testsTable{border-collapse:separate;border-spacing:0}
+#samples #testsTable th{background:#7a3e00;color:#fff}
+#samples #testsTable td{border:0;border-bottom:1px solid #f1e8df;padding:7px 10px}
+@media (min-width:701px){
+  #samples #testsResultsCard{margin-right:215px}
+}
+</style>
 <div class="loading-overlay" id="initialLoadingOverlaySamples">
   <div class="loading-spinner"></div>
   <div class="loading-text">جاري تحميل الصفحة</div>
@@ -8716,37 +9549,62 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
 </div>
 
 <div id="searchResultsCard" class="search-results-card">
-  <div style="display:flex;justify-content:space-between;align-items:center;background:#00b8d9;margin:-15px -15px 15px -15px;padding:8px 15px;border-radius:4px 4px 0 0">
-    <h3 style="margin:0;color:#fff;font-size:1.1rem">نتائج البحث في العينات</h3>
-    <button id="closeSearchCardBtn" style="background:#fff;color:#00b8d9;border:none;padding:5px 15px;border-radius:4px;cursor:pointer;font-weight:bold">رجوع</button>
+  <div class="sm-shead">
+    <h3>🗂️ نتائج البحث في العينات</h3>
+    <span id="searchTypeCount" style="display:none;"></span>
+  </div>
+  <div class="sm-sactions">
+    <button type="button" id="closeSearchCardBtn">رجوع</button>
+    <button type="button" class="search" id="performSearchBtn">بحث</button>
+    <button type="button" class="clear" id="clearSearchBtn">مسح</button>
+    <button type="button" class="update" id="refreshSearchBtn">🔄 تحديث</button>
+    <label class="toggle-checkbox"><input type="checkbox" id="hideColsCheckbox"><span>عرض الفحوصات ونتائجها</span></label>
   </div>
   <div class="search-filters">
-    <div class="top-group"><label>رقم الهاتف او العينة:</label><input type="text" id="searchPhoneInput" placeholder="رقم الهاتف او العينة"></div>
-    <div class="top-group"><label>نوع العينة:</label><input type="text" id="searchTypeInput" list="sampleTypeList" placeholder="نوع العينة">
-    <span id="searchTypeCount" style="display:none;background:#9c27b0;color:#fff;padding:4px 12px;border-radius:20px;font-weight:bold;font-size:12px;white-space:nowrap;"></span></div>
+    <div class="top-group"><label>رقم الهاتف أو العينة:</label><input type="text" id="searchPhoneInput" placeholder="رقم الهاتف أو العينة"></div>
+    <div class="top-group"><label>نوع العينة:</label><input type="text" id="searchTypeInput" list="sampleTypeList" placeholder="نوع العينة"></div>
     <div class="top-group"><label>من:</label><input type="date" id="searchDateFrom"></div>
-    <div class="top-group"><label>إلى:</label><input type="date" id="searchDateTo"></div>    <button class="search" id="performSearchBtn">بحث</button>
-    <button class="clear" id="clearSearchBtn">مسح</button>
-    <button class="update" id="refreshSearchBtn">🔄 تحديث</button>
-    <label class="toggle-checkbox"><input type="checkbox" id="hideColsCheckbox"><span>عرض الفحوصات ونتائجها</span></label>
+    <div class="top-group"><label>إلى:</label><input type="date" id="searchDateTo"></div>
   </div>
   <div id="searchResultsContainer"><p style="text-align:center;color:#666;padding:20px">أدخل رقم الهاتف أو رقم العينة واضغط بحث</p></div>
 </div>
 <div id="testsResultsCard" class="search-results-card">
-  <div style="display:flex;justify-content:space-between;align-items:center;background:#e67e22;margin:-15px -15px 15px -15px;padding:8px 15px;border-radius:4px 4px 0 0">
-    <h3 style="margin:0;color:#fff;font-size:1.1rem">نتائج الفحوصات</h3>
-    <button id="closeTestsCardBtn" style="background:#fff;color:#e67e22;border:none;padding:5px 15px;border-radius:4px;cursor:pointer;font-weight:bold">رجوع</button>
+  <div class="sm-shead">
+    <h3>📊 نتائج الفحوصات</h3>
+    <span id="testsResultCount"></span>
+  </div>
+  <div class="sm-sactions">
+    <button type="button" id="closeTestsCardBtn">رجوع</button>
+    <button type="button" id="performTestsSearchBtn">بحث</button>
+    <button type="button" class="clear" id="clearTestsSearchBtn">مسح</button>
+    <button type="button" id="printTestsBtn">🖨️ طباعة</button>
   </div>
   <div class="search-filters">
-    <div class="top-group">
-      <label>نوع الفحص:</label>
-      <select id="testsFilterSelect" style="padding:6px;border:2px solid #ddd;border-radius:3px;font-size:13px;font-family:inherit;">
-        <option value="">-- اختر الفحص --</option>
-      </select>
+    <div class="top-group"><label>نوع الفحص:</label>
+            <input list="testList" id="testsFilterSearch" autocomplete="off" placeholder="🔍 اكتب اسم الفحص — فارغ = الكل"
+        style="min-width:260px;padding:7px 9px;border:1.5px solid #e67e22;border-radius:7px;background:#fff;font-weight:bold">
+      <select id="testsFilterSelect" style="display:none"><option value="">-- اختر الفحص --</option></select>
+      <script>
+      (function () {
+        var inp = document.getElementById('testsFilterSearch');
+        var sel = document.getElementById('testsFilterSelect');
+        /* نقل الاختيار إلى القائمة المخفية التي يقرأ منها البحث */
+        function sync() {
+          var v = inp.value.trim();
+          var ok = v && Array.prototype.some.call(sel.options, function (o) { return o.value === v; });
+          sel.value = ok ? v : 'all';
+          return ok || !v;
+        }
+        inp.addEventListener('change', function () {
+          if (sync()) foPerformTestsSearch();
+          else showToast('⚠️ هذا الفحص غير موجود في القائمة — اختر من الاقتراحات', 'warning');
+        });
+        document.getElementById('clearTestsSearchBtn').addEventListener('click', function () { inp.value = ''; });
+      })();
+      </script>
     </div>
-    <div class="top-group">
-      <label>النتيجة:</label>
-      <select id="testsResultFilter" style="padding:6px;border:2px solid #ddd;border-radius:3px;font-size:13px;font-family:inherit;">
+    <div class="top-group"><label>النتيجة:</label>
+      <select id="testsResultFilter">
         <option value="">-- كل النتائج --</option>
         <option value="إيجابي">إيجابي</option>
         <option value="سلبي">سلبي</option>
@@ -8754,11 +9612,7 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
         <option value="الفحص غير متوفر">الفحص غير متوفر</option>
       </select>
     </div>
-    <button class="search" id="performTestsSearchBtn" style="background:#e67e22;">بحث</button>
-    <button class="clear" id="clearTestsSearchBtn">مسح</button>
-    <button class="print-btn" id="printTestsBtn">🖨️ طباعة</button>
   </div>
-  <div id="testsResultCount" style="text-align:center;font-weight:bold;margin:6px 0;color:#e67e22;font-size:13px;"></div>
   <div id="testsResultsContainer"><p style="text-align:center;color:#666;padding:20px">اختر نوع الفحص واضغط بحث</p></div>
 </div>
 </div>
@@ -8792,13 +9646,23 @@ function fofillFormWithData(data) {
   fosafeSet('caseNumberrt',data.caseNumberrt);
   if(data.caseNumberrt&&data.caseNumberrt.toString().trim()!==''){lastSampleNumber=data.caseNumberrt.toString().trim();fosafeSet('specialsample',lastSampleNumber);}
   var fields = ['phoneInput:phone','nameInput:name','possessionInput:possession','regionInput:region','civilInput:civil','financialDate:financialDate','animalType:animalType','gender:gender','age:age','diseaseDate:diseaseDate','anatomicalFeature:anatomicalFeature','pathologyDesc:pathologyDesc','sickCount:sickCount','contactCount:contactCount','deathCount:deathCount','sampleTakenDate:sampleTakenDate','sampleSentDate:sampleSentDate','suspectedDisease:suspectedDisease','dataEntryInput:dataEntry','dataUpdaterInput:dataUpdater','notes:notes'];
-  fields.forEach(function(f){var p=f.split(':');fosafeSet(p[0],data[p[1]]);});
+    fields.forEach(function(f){var p=f.split(':');fosafeSet(p[0],data[p[1]]);});
+  /* إيقاف التعبئة التلقائية حتى يبقى اسم مُنشئ العينة ومحدّثها ظاهراً */
+  ['dataEntryInput', 'dataUpdaterInput'].forEach(function (k) {
+    var el = document.getElementById(k);
+    if (el && data.caseNumberrt) el.dataset.userModified = '1';
+  });
   fo_stLoad(data.sampleType);
   fo_atLoad(data.animalType, data.gender);
   for(var k=1;k<=5;k++){fosafeSet('test'+k,data['test'+k]);fosafeSet('result'+k,data['result'+k]);}
   foshowMessage('تم تحميل بيانات العينة '+data.caseNumberrt+' بنجاح',false);
 }
 function fochearForm() {
+  /* إعادة تفعيل التعبئة التلقائية باسم المستخدم الحالي */
+  ['dataEntryInput', 'dataUpdaterInput'].forEach(function (k) {
+    var el = document.getElementById(k);
+    if (el) delete el.dataset.userModified;
+  });
   var today = new Date().toLocaleDateString('en-CA');
   fosafeSet('financialDate',today); lastSampleNumber=''; fosafeSet('specialsample','');
   var ids = ['caseNumberrt','phoneInput','nameInput','possessionInput','regionInput','civilInput','animalType','gender','age','diseaseDate','anatomicalFeature','pathologyDesc','sickCount','contactCount','deathCount','sampleTakenDate','sampleSentDate','suspectedDisease','dataEntryInput','dataUpdaterInput','notes','test1','test2','test3','test4','test5','result1','result2','result3','result4','result5'];
@@ -11816,8 +12680,50 @@ async function rpt_saveDates() {
 
 
 
-<!-- ===== Script العام للمظهر ===== -->
-<script>
+<style>
+/* ═══ توحيد تصميم البطاقات في صفحات التقارير ═══ */
+#financialInventory{--c:#1d6f42}  #diseaseTracking{--c:#e65050}   #reports{--c:#e67e22}
+#animalDistribution{--c:#2bb673}  #comprehensiveReport{--c:#6c5ce7} #vaccinationRequests{--c:#8e44ad}
+
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests) .card{
+  background:#fff;border:1px solid #dcebf0;border-top:4px solid var(--c);border-radius:12px;
+  padding:14px 16px;box-shadow:0 2px 10px rgba(0,78,102,.07)}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests) .card > h3{
+  background:none !important;color:#004e66 !important;margin:0 0 12px !important;padding:0 0 10px !important;
+  border-radius:0 !important;border-bottom:1px dashed #dcebf0;text-align:right !important;font-size:15px !important;
+  display:flex;align-items:center;gap:8px}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests) .card > h3::before{
+  content:"";width:10px;height:10px;border-radius:50%;background:var(--c);flex-shrink:0}
+
+/* أداء الأطباء */
+#doctorPerformance #dp_filterBar,#doctorPerformance .dp_tbl_wrap,#doctorPerformance .dp_chart_card,#doctorPerformance .dp_stat{
+  background:#fff;border:1px solid #dcebf0;border-radius:12px;box-shadow:0 2px 10px rgba(0,78,102,.07)}
+#doctorPerformance #dp_filterBar,#doctorPerformance .dp_tbl_wrap,#doctorPerformance .dp_chart_card{border-top:4px solid #00b8d9}
+#doctorPerformance .dp_stat{border-top:4px solid #00b8d9}
+#doctorPerformance .dp_stat.c-green{border-top-color:#2bb673}
+#doctorPerformance .dp_stat.c-amber{border-top-color:#e0a800}
+#doctorPerformance .dp_stat.c-red{border-top-color:#e65050}
+#doctorPerformance .dp_stat.c-purple{border-top-color:#9b59b6}
+
+/* ═══ توحيد تصميم الجداول في صفحات التقارير ═══ */
+#doctorPerformance{--c:#004e66}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests,#doctorPerformance) table{
+  border-collapse:separate !important;border-spacing:0}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests,#doctorPerformance) table thead th{
+  background:var(--c) !important;color:#fff !important;border:0 !important;border-left:1px solid rgba(255,255,255,.18) !important;
+  padding:9px 8px !important;font-size:12px;font-weight:bold}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests,#doctorPerformance) table tbody td{
+  border:0 !important;border-bottom:1px solid #edf2f4 !important;padding:7px 8px}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#doctorPerformance) table tbody tr:nth-child(even):not(.tot):not(.sec) td{
+  background:#f8fbfc}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests,#doctorPerformance) table tbody tr:hover td{
+  background:#fff6cc !important}
+:is(#financialInventory,#diseaseTracking,#reports,#animalDistribution,#comprehensiveReport,#vaccinationRequests,#doctorPerformance) table tfoot td,
+#comprehensiveReport tr.tot td{
+  background:#fff8e1 !important;color:#5a4400 !important;font-weight:bold;border-top:2px solid var(--c) !important;border-bottom:0 !important}
+#comprehensiveReport tr.sec td{background:#f0eeff !important;color:#4834d4 !important;font-weight:bold;text-align:right;padding-right:12px}
+</style>
+<!-- ===== Script العام للمظهر ===== --><script>
 function saveAppearance() {
   localStorage.setItem('app_bg', document.getElementById('bgColor').value);
   localStorage.setItem('app_txt', document.getElementById('txtColor').value);
