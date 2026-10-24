@@ -18026,5 +18026,84 @@ function route(name, routes, soft) {
   window.addEventListener('resize', close);
 })();
 </script>
+<script>
+/* ═══ فحص وجود نسخة جديدة من النظام ═══ */
+(function () {
+  "use strict";
+  var CHECK_MS = 5 * 60 * 1000;      /* كل 5 دقائق */
+  var base = null, shown = false, last = 0;
+
+  function hash(s) {
+    var h = 5381, i = s.length;
+    while (i--) h = (h * 33) ^ s.charCodeAt(i);
+    return (h >>> 0).toString(36) + '_' + s.length;
+  }
+
+  /* XHR بدل fetch حتى لا يُظهر حارس الاتصال رسائل خطأ عند الفحص */
+  /* طلب الترويسات فقط (HEAD) — بصمة النسخة من ETag، بلا تنزيل الصفحة */
+  function fetchPage(cb) {
+    var x = new XMLHttpRequest();
+    x.open('HEAD', location.pathname + '?v=' + Date.now(), true);
+    x.setRequestHeader('Cache-Control', 'no-cache');
+    x.timeout = 20000;
+    x.onload = function () {
+      if (x.status !== 200) return;
+      var tag = x.getResponseHeader('ETag') || x.getResponseHeader('Last-Modified');
+      if (tag) { cb(tag); return; }
+      /* الخادم لا يرسل بصمة — الرجوع لتنزيل الصفحة كاملة */
+      var y = new XMLHttpRequest();
+      y.open('GET', location.pathname + '?v=' + Date.now(), true);
+      y.timeout = 20000;
+      y.onload = function () { if (y.status === 200 && y.responseText) cb(hash(y.responseText)); };
+      y.send();
+    };
+    x.send();
+  }
+
+  function notify() {
+    shown = true;
+    /* غير مسجّل دخول: لا يوجد عمل يُفقد — حدّث فوراً */
+    if (!window._isLoggedIn) { location.reload(); return; }
+
+    var b = document.createElement('div');
+    b.id = 'updateBanner';
+    b.style.cssText =
+      'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:100003;' +
+      'background:#004e66;color:#fff;border:2px solid #00b8d9;border-radius:12px;' +
+      'padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;' +
+      'justify-content:center;font-family:Tahoma,Arial;font-size:13px;direction:rtl;' +
+      'box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:94vw;';
+    b.innerHTML =
+      '<span>🆕 <b>تحديث جديد للنظام متاح</b> — احفظ عملك الحالي ثم اضغط تحديث ' +
+      '(ستحتاج لإعادة تسجيل الدخول)</span>' +
+      '<button id="updateNowBtn" style="background:#2bb673;color:#fff;border:none;' +
+      'border-radius:6px;padding:7px 18px;font-weight:bold;cursor:pointer;font-family:inherit;">' +
+      '🔄 تحديث الآن</button>';
+    document.body.appendChild(b);
+    document.getElementById('updateNowBtn').onclick = function () { location.reload(); };
+  }
+
+  function check() {
+    if (shown || !navigator.onLine || location.protocol.indexOf('http') !== 0) return;
+    if (Date.now() - last < 60000) return;    /* فحص واحد في الدقيقة كحد أقصى */
+    last = Date.now();
+    fetchPage(function (h) {
+      if (!base) { base = h; return; }        /* أول فحص = بصمة النسخة الحالية */
+      if (h !== base) notify();
+    });
+  }
+
+  setTimeout(check, 3000);
+  setInterval(check, CHECK_MS);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') check();   /* عند العودة للتبويب */
+  });
+  window.addEventListener('online', check);
+
+  var st = document.createElement('style');
+  st.textContent = '@media print { #updateBanner { display:none !important; } }';
+  document.head.appendChild(st);
+})();
+</script>
 </body>
 </html>
