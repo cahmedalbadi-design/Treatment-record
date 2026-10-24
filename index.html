@@ -186,13 +186,7 @@ nav button.nav-active::after {
    ============================================================ */
 .main-container { display: flex; gap: 14px; align-items: flex-start; }
 .right-panel    { flex: 1; display: flex; flex-direction: column; gap: 12px; }
-.first-row      { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
-.other-cards    { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .two-cards-row  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-
-#treatment  .right-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-#breeder    .right-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-#vaccination .right-panel { display: flex; flex-direction: column; gap: 12px; }
 
 /* ============================================================
    ٨. FORM ELEMENTS
@@ -234,9 +228,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
 .clear         { background: #ffb347; color: #fff; }
 .delete        { background: #e65050; color: #fff; }
 .search        { background: #00ff4b; color: #000; }
-.search-record { background: #9b59b6; color: #fff; }
-.all-total-btn { background: #27ae60; color: #fff; }
-.back-btn      { background: #00b8d9; color: #fff; padding: 8px 24px; font-size: 14px; }
 .print         { background: #6c5ce7; color: #fff; }
 .print-btn     { background: #00b8d9; color: #fff; }
 .samples-search { background: #9c27b0; color: #fff; }
@@ -304,27 +295,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
 /* ============================================================
    ١٢. LOADING OVERLAYS
    ============================================================ */
-.initial-loading-overlay {
-  position: fixed; inset: 0;
-  background: rgba(255,255,255,.97);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  z-index: 99999;
-  transition: opacity .5s ease;
-}
-
-.initial-loading-overlay.hide { opacity: 0; pointer-events: none; }
-.initial-loading-spinner {
-  width: 80px; height: 80px;
-  border: 8px solid #e0e0e0;
-  border-top: 8px solid #00b8d9;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 25px;
-}
-.initial-loading-text    { font-size: 1.5rem; font-weight: bold; color: #00b8d9; margin-bottom: 10px; text-align: center; }
-.initial-loading-subtext { font-size: 1rem; color: #666; text-align: center; animation: fadeInOut 2s ease-in-out infinite; }
-
 .loading-overlay {
   position: absolute; inset: 0;
   background: rgba(255,255,255,.97);
@@ -335,25 +305,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
   min-height: 200px;
 }
 .loading-overlay.hide { opacity: 0; pointer-events: none; }
-
-.loading-box {
-  background: #fff;
-  border-radius: 16px;
-  padding: 30px 50px;
-  text-align: center;
-  box-shadow: 0 10px 40px rgba(0,184,217,.3);
-  border: 3px solid #00b8d9;
-}
-
-.page-loading-overlay {
-  position: fixed; inset: 0;
-  background: rgba(255,255,255,.97);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  z-index: 10000;
-  transition: opacity .4s ease;
-}
-.page-loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
 .loading-spinner {
   width: 70px; height: 70px;
@@ -368,7 +319,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
 .loading-subtext { font-size: .95rem; color: #666; text-align: center; animation: fadeInOut 2s ease-in-out infinite; }
 .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
 
-#vaccination { position: relative; min-height: 200px; }
 #rpt_loadingOverlay {
   display: none;
   width: 100%;
@@ -382,7 +332,6 @@ button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px
   border: 2px solid #00b8d9;
   margin-bottom: 12px;
 }
-
 /* ============================================================
    تلوين جداول الأمراض الوبائية
    ============================================================ */
@@ -481,22 +430,6 @@ tr.sec td { background: #e8f5e9; font-weight: bold; color: #2e7d32; }
 .radio-group label { font-weight: normal; display: flex; align-items: center; gap: 4px; }
 
 /* ============================================================
-   ١٥. ANIMALS GRID
-   ============================================================ */
-.animals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.animal-item  { display: flex; align-items: center; gap: 5px; font-size: 13px; }
-.animal-item label { width: 50px; font-weight: bold; }
-.animal-item input { width: 80px; }
-
-/* ============================================================
-   ١٦. DIAGNOSIS & DRUG ROWS
-   ============================================================ */
-.diagnosis-row { display: grid; grid-template-columns: 2fr 1fr .7fr; gap: 6px; margin: 4px 0; }
-.diagnosis-row select, .diagnosis-row input { width: 100%; font-size: 12px; padding: 5px; }
-.drug-row { display: grid; grid-template-columns: 2.5fr 1fr; gap: 6px; margin: 4px 0; }
-.drug-row input, .drug-row select { width: 100%; }
-
-/* ============================================================
    ١٧. TOOLBAR & STATS
    ============================================================ */
 .toolbar {
@@ -526,12 +459,6 @@ tr.sec td { background: #e8f5e9; font-weight: bold; color: #2e7d32; }
    ١٨. VACCINATION SUB-CARDS
    ============================================================ */
 .main-hidden         { display: none !important; }
-.search-record-grid  { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
-.all-total-date-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
-.sr-field            { display: flex; flex-direction: column; gap: 3px; }
-.sr-field label      { font-size: 12px; font-weight: bold; color: #333; }
-.sr-field input      { width: 100%; font-size: 12px; padding: 5px 6px; border: 2px solid #ddd; border-radius: 3px; }
-
 /* ============================================================
    ١٩. ALERT BADGE
    ============================================================ */
@@ -709,7 +636,6 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
    ============================================================ */
 @keyframes spin       { to { transform: rotate(360deg); } }
 @keyframes fadeInOut  { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
-@keyframes fadeInCard { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideUp    { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes dots       { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
 @keyframes pulseBadge { 0% { box-shadow: 0 0 0 0 rgba(229,57,53,.55); } 70% { box-shadow: 0 0 0 10px rgba(229,57,53,0); } 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0); } }
@@ -719,16 +645,13 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
    ٣١. RESPONSIVE
    ============================================================ */
 @media (max-width: 1100px) {
-  .first-row, .other-cards, .two-cards-row { grid-template-columns: 1fr; }
+  .two-cards-row { grid-template-columns: 1fr; }
   .main-container { flex-direction: column; }
-  .search-record-grid, .all-total-date-grid { grid-template-columns: repeat(2, 1fr); }
-  #treatment .right-panel, #breeder .right-panel { grid-template-columns: 1fr; }
   .merged-empty-card { min-height: auto; }
 }
 @media (max-width: 1000px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 768px)  { .date-row { flex-direction: column !important; gap: 8px !important; } }
 @media (max-width: 650px)  { .form-grid { grid-template-columns: 1fr; } }
-@media (max-width: 600px)  { .search-record-grid, .all-total-date-grid { grid-template-columns: 1fr; } }
 
 /* ============================================================
    ٣٢. PRINT — كتلة واحدة موحدة نهائية
@@ -797,6 +720,7 @@ tr.data-missing { background-color: #ff0000 !important; color: #000 !important; 
 #treatment,
 #breeder,
 #samples,
+#vaccination,
 #vaccinationRequests {
   position: relative;
   min-height: 200px;
@@ -1393,9 +1317,7 @@ function bootOpenTreatment() {
     try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (e) { window.scrollTo(0, 0); }
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
-    var nav = document.querySelector('nav');
-    if (nav) nav.scrollLeft = nav.scrollWidth;
-  }, 120);
+     }, 120);
 }
 
 async function bootLoadAll() {
@@ -1828,41 +1750,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  async function camp_save() {
-    var from = document.getElementById('camp_dateFrom').value;
-    var to   = document.getElementById('camp_dateTo').value;
-    var days   = document.getElementById('camp_days').value;
-    var target = document.getElementById('camp_target').value;
-
-    if (!from || !to) { showToast('⚠️ أدخل تاريخ البداية وتاريخ النهاية', 'warning'); return; }
-    if (from > to)    { showToast('⚠️ تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 'warning'); return; }
-
-    var btn = document.getElementById('camp_saveBtn');
-    if (btn) btn.disabled = true;
-    camp_setStatus('⏳ جاري الحفظ...', '#00b8d9');
-    showToast('⏳ جاري حفظ بيانات الحملة...', 'info');
-    try {
-      var res = await camp_api('saveVaccCampaign', {
-        dateFrom: from, dateTo: to, days: days, target: target,
-        dataEntry: window._currentUser || ''
-      });
-      if (res && res.success) {
-        window._vaccCampaign = { dateFrom: from, dateTo: to, days: days, target: target };
-        camp_setStatus('✅ الحملة الحالية: ' + from + ' → ' + to
-          + (days ? ' (' + days + ' يوم)' : '')
-          + (target ? ' | المستهدف: ' + target : ''), '#2bb673');
-        showToast('✅ تم حفظ المدى الزمني لحملة التحصين', 'success');
-        camp_loadVaccinated(true);      } else {
-        camp_setStatus('❌ ' + ((res && res.message) || 'فشل الحفظ'), '#e65050');
-        showToast('❌ ' + ((res && res.message) || 'فشل الحفظ'), 'error');
-      }
-    } catch (err) {
-      camp_setStatus('❌ ' + err.message, '#e65050');
-      showToast('❌ ' + err.message, 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
   </script>
 
   <div class="hg-lists" style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;max-width:420px;margin-top:14px;">
@@ -2067,11 +1954,7 @@ function clinicInfoRefresh() {
 <script>
 var ua_users = [], ua_clinics = [];
 
-function ua_esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-  });
-}
+function ua_esc(s) { return escHtml(s); }
 function ua_split(v) { return String(v || '').toLowerCase().split(/[,،\s]+/).filter(Boolean); }
 function ua_fmt(d) {
   if (!d) return '—';
@@ -3496,7 +3379,6 @@ document.getElementById('l_logoutBtn').addEventListener('click', async ()=>{
 
   window._currentUser = null;
   window._userAllowedPages = null;
-  window._activeApiUrl = null;
   lCU=null;
   document.getElementById('l_username').value='';
   document.getElementById('l_password').value='';
@@ -5862,9 +5744,10 @@ function trbindEvents() {
      const cn = cell.textContent.trim();
     if (!cn || !/^\d+$/.test(cn)) return;
 
-    trblockButtons();
+      trblockButtons();
     trclearFormExcept(null);
-    document.getElementById("tr_caseNumber").value = cn;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.getElementById("tr_caseNumber").value = cn;;
     trupdateMirrorCaseNumber();
     trshowMessage("⏳ جاري الجلب...", false);
 
@@ -6142,6 +6025,7 @@ function trCloseIncompleteModal() {
 }
 async function trSelectIncompleteCase(caseNumber) {
   trCloseIncompleteModal();
+  window.scrollTo({ top: 0, behavior: "smooth" });
   document.getElementById("tr_caseNumber").value = caseNumber;
   trupdateMirrorCaseNumber();
   trshowMessage("⏳ جاري تحميل الحالة...", false);
@@ -6669,7 +6553,7 @@ function bd_validateCommon() {
     return false;
   }
   if (!bd_getValue("bd_regionInput")) {
-    bd_showMessage("المنطقة مطلوبة", true);   bd_showMessage("المنطقة مطلوبة", true);
+    bd_showMessage("المنطقة مطلوبة", true);
     document.getElementById("bd_regionInput").focus();
     return false;
   }
@@ -7666,9 +7550,6 @@ function bd_printHoldList() {
 #vaccination .vc-b-grey{background:#607d8b}
 #vaccination .vc-sactions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 #vaccination .vc-sactions .vc-b{flex:1}
-#vaccination .vc-sgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
-  background:#faf6fc;border:1px solid var(--vc-line);border-radius:10px;padding:10px}
-#vaccination .vc-sgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:bold;color:#5a4566;min-width:0}
 #vaccination .vc-shint{font-size:11px;color:#8a7a94;margin:6px 2px 10px}
 #vaccination #vacc_searchRecordResults{overflow:auto;max-height:70vh;border:1px solid var(--vc-line);border-radius:8px;font-size:12px}
 #vaccination #vacc_searchRecordResults:empty{display:none}
@@ -8364,57 +8245,6 @@ async function vaccDoGetAllTotal() {
   finally{ btn.textContent=orig; btn.disabled=false; }
 }
 
-// Max Animals
-function vaccClearMaxAnimalsForm() {
-  ['vacc_maPhone','vacc_maDateFrom','vacc_maDateTo'].forEach(function(id){ document.getElementById(id).value=''; });
-  document.getElementById('vacc_maxAnimalsResults').innerHTML='';
-  document.getElementById('vacc_maResultCount').textContent='';
-}
-async function vaccDoGetMaxAnimals() {
-  var filters = { phone:vaccGetValue('vacc_maPhone'), dateFrom:vaccGetValue('vacc_maDateFrom'), dateTo:vaccGetValue('vacc_maDateTo') };
-  var btn = document.getElementById('vacc_maSearchBtn'), orig = btn.textContent;
-  btn.textContent='جاري البحث...'; btn.disabled=true;
-  var div = document.getElementById('vacc_maxAnimalsResults');
-  div.innerHTML='<p style="text-align:center;padding:12px;">جاري الجلب...</p>';
-  document.getElementById('vacc_maResultCount').textContent='';
-  try {
-    var res = await vaccCallApi("getMaxAnimalsPerBreeder", { filters:filters });
-    if(!res.success||!res.rows||res.rows.length===0){ div.innerHTML='<p style="text-align:center;color:#e65050;">لا توجد بيانات</p>'; return; }
-    document.getElementById('vacc_maResultCount').textContent='عدد المربين: '+res.recordCount;
-var phone = vaccGetValue('vacc_maPhone').trim();
-var displayRows = res.rows;
-if (phone !== '') {
-  displayRows = res.rows.filter(function(row) {
-    return (row[1] != null) && row[1].toString().trim().indexOf(phone) !== -1;
-  });
-  if (displayRows.length === 0) {
-    div.innerHTML = '<p style="text-align:center;color:#e65050;">لا توجد بيانات لهذا الرقم</p>';
-    return;
-  }
-}
-var html='<table><thead><tr>'+(res.headers||[]).map(function(h){
-  return '<th>'+(h||'')+'</th>';
-}).join('')+'</tr></thead><tbody>';
-displayRows.forEach(function(row,idx){
-  var bg=(idx%2!==0)?' style="background:#eafaf1;"':'';
-  html+='<tr'+bg+'>'+row.map(function(c){
-    return '<td style="border:1px solid #ddd;padding:5px;">'+escHtml(c!=null?c:'')+'</td>';
-  }).join('')+'</tr>';
-});
-    html+='</tbody>';
-    if(res.totals&&res.totals.length){ html+='<tfoot><tr><td colspan="2">الإجمالي الكلي</td>'+res.totals.map(function(t){ return '<td>'+(t||0)+'</td>'; }).join('')+'</tr></tfoot>'; }
-html+='</table>';
-div.innerHTML = html;
-
-// تطبيق حالة مربع الاختيار بعد كل بحث
-var cb = document.getElementById('vacc_showTotalRow');
-if (cb && cb.checked) {
-  var tbody = div.querySelector('tbody');
-  if (tbody) tbody.style.display = 'none';
-}
-  } catch(err){ div.innerHTML='<p style="color:red;">خطأ: '+err.message+'</p>'; }
-  finally{ btn.textContent=orig; btn.disabled=false; }
-}
 /* المصدر الوحيد لعدد الحيوانات المحصنة — تستخدمه الصفحة ولوحة الحملة معاً */
 async function vaccGetTotalVaccinated(dateFrom, dateTo, phone) {
   var res = await vaccCallApi("getMaxAnimalsPerBreeder", {
@@ -8426,10 +8256,6 @@ async function vaccGetTotalVaccinated(dateFrom, dateTo, phone) {
   return { total: total, breeders: res.recordCount || 0, totals: t, rows: res.rows || [] };
 }
 
-function vacc_toggleTotalRow(show) {
-  var tbody = document.querySelector('#vacc_maxAnimalsResults tbody');
-  if (tbody) tbody.style.display = show ? 'none' : '';
-}
 function vaccBindEvents() {
   if (vaccBindEvents._done) return; vaccBindEvents._done = true;
   document.getElementById('vacc_saveBtn').onclick = vaccSaveData;
@@ -8773,15 +8599,8 @@ function vr_requestSummary(r) {
   return '<span style="color:#7a0000;font-weight:bold;">📋 مطلوب تحصين:</span> ' +
          vr_escapeHtml(parts.join('، '));
 }
-function vr_escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+
+function vr_escapeHtml(s) { return escHtml(s); }
 
 async function vr_loadData() {
   vr_showMsg('جاري تحميل البيانات...', false);
@@ -9238,7 +9057,6 @@ async function vr_saveToBreeder(r) {
 // يُستدعى من showPage المركزية
 // =====================================================
   function vr_printTable() {
-  var dateText = 'جميع البيانات';
   var total = document.getElementById('vr_statTotal').textContent;
   var vacc  = document.getElementById('vr_statVacc').textContent;
   var notV    = document.getElementById('vr_statNot').textContent;
@@ -9912,8 +9730,8 @@ function fodisplaySearchResults(data) {
 
 function fotoggleColumnsVisibility(){var cb=document.getElementById('hideColsCheckbox'),tbl=document.getElementById('resultsTable');if(!tbl)return;tbl.querySelectorAll('.col-e-s').forEach(function(c){c.style.display=cb.checked?'none':'';});}
 
-function fochearSearchResults(){fosafeSet('searchPhoneInput','');fosafeSet('searchCaseInput','');fosafeSet('searchTypeInput','');fosafeSet('searchDateFrom','');fosafeSet('searchDateTo','');foSetSearchCount(null);fosafeSet('searchTypeInput','');fosafeSet('searchDateFrom','');
- fosafeSet('searchDateTo','');document.getElementById('searchResultsContainer').innerHTML='<p style="text-align:center;color:#666;padding:20px">أدخل معيار بحث</p>';document.getElementById('hideColsCheckbox').checked=false;document.getElementById('searchPhoneInput').focus();}
+function fochearSearchResults(){fosafeSet('searchPhoneInput','');fosafeSet('searchCaseInput','');fosafeSet('searchTypeInput','');fosafeSet('searchDateFrom','');fosafeSet('searchDateTo','');foSetSearchCount(null);
+ document.getElementById('searchResultsContainer').innerHTML='<p style="text-align:center;color:#666;padding:20px">أدخل معيار بحث</p>';document.getElementById('hideColsCheckbox').checked=false;document.getElementById('searchPhoneInput').focus();}
 
 async function forefreshSearchResults(){
   var btn=document.getElementById('refreshSearchBtn'),orig=btn.textContent;
@@ -12868,8 +12686,6 @@ function foDismissOverdueAlert() {
     tempupdate: "تحديث مؤقت",
     bdsave: "حفظ بيانات التحصين", 
     bdupdate: "تحديث بيانات التحصين",
-    camp_save: "حفظ حملة التحصيت",
-    camp_load: "جلب حملة التحصين",
   };
 
   /* ─────────────────────────────────────────────────────
@@ -12914,11 +12730,6 @@ function foDismissOverdueAlert() {
     reports: [
       { selector: "#reports .print-btn", action: "print" },
     ],
-
-     home: [
-      { id: "camp_saveBtn",   action: "camp_save"   },
-      { id: "camp_loadBtn", action: "camp_load" },
-  ],
   };
 
   /* ─────────────────────────────────────────────────────
@@ -15483,8 +15294,6 @@ reset: function () { ready = null; me = null; global._sbProfile = null; },
 
 function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, false); }
   function drugId(n)    { return findOrCreate(n, "drugs",    "drugs",    null, false); }
-  function regionId(n)  { return findOrCreate(n, "regions",  "regions", { wilayat_id: me.wilayat_id }, true); }
-
   /* ════════════════════════════════════════════════════════════════
      ربط المربي — ينشئ صفاً من بيانات الحالة إن لم يكن مسجَّلاً
      (٤٦ رقماً في الورقة الحالية بلا مربٍّ مسجَّل)
@@ -15497,23 +15306,7 @@ function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, fal
     return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
       .then(function (r) {
          if (r.data) return r.data.id;
-        throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
-        return regionId(d.region).then(function (rid) {
-          return sb.from("breeders").insert({
-            wilayat_id:    me.wilayat_id,
-            phone:         phone,
-            name:          txt(d.name) || "غير مسجَّل",
-            possession_no: strip(d.possession),
-            region_id:     rid,
-            civil_id:      txt(d.civil),
-            created_by:    me.id
-          }).select("id").single();
-        }).then(function (r2) {
-          if (r2.error && r2.error.code === "23505") return global.SBOtherClinic(phone);
-          if (r2.error) throw r2.error;
-          log("أُنشئ مربٍّ جديد تلقائياً: " + phone);
-          return r2.data.id;
-        });
+         throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
       });
   }
 
@@ -16232,19 +16025,7 @@ function names(table, col, filterWilayat) {
       .then(function (r) {
         if (r.error) throw r.error;
             if (r.data) return r.data.id;
-        throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
-        return sb.from("breeders").insert({
-          wilayat_id: me.wilayat_id,
-          phone:      phone,
-          name:       txt(d.name) || "غير مسجَّل",
-          civil_id:   txt(d.civil),
-          created_by: me.id
-        }).select("id").single().then(function (r2) {
-          if (r2.error && r2.error.code === "23505") return global.SBOtherClinic(phone);
-          if (r2.error) throw r2.error;
-          log("أُنشئ مربٍّ جديد: " + phone);
-          return r2.data.id;
-        });
+            throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
       });
   }
 
@@ -17398,20 +17179,7 @@ function idsFor(key, table, names) {
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
     return lookupBreeder(phone).then(function (id) {
       if (id) return id;
-      throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
-      return regionId(d.region).then(function (rid) {
-        return sb.from("breeders").insert({
-          wilayat_id: me.wilayat_id, phone: phone,
-          name: txt(d.name) || "غير مسجَّل",
-          possession_no: strip(d.possession), region_id: rid,
-          civil_id: txt(d.civil), created_by: me.id
-        }).select("id").single();
-     }).then(function (r) {
-        if (r.error && r.error.code === "23505") return g.SBOtherClinic(phone);
-        if (r.error) throw r.error;
-        log("أُنشئ مربٍّ جديد: " + phone);
-        return r.data.id;
-      });
+        throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
     });
   }
 
@@ -17723,21 +17491,6 @@ function childRows(sampleId, d, tm, sm, keep) {
                days: nz(c.work_days), target: nz(c.target_count) };
     });
   }
-  function campSave(p) {
-    var row = { date_from: toISO(p.dateFrom), date_to: toISO(p.dateTo),
-                work_days: int(p.days), target_count: int(p.target) };
-    if (!row.date_from || !row.date_to)
-      return Promise.resolve({ success: false, message: "تاريخ البداية والنهاية مطلوبان" });
-    return activeCamp().then(function (c) {
-      if (c) return sb.from("vacc_campaigns").update(row).eq("id", c.id);
-      row.wilayat_id = me.wilayat_id; row.created_by = me.id; row.is_active = true;
-      return sb.from("vacc_campaigns").insert(row);
-    }).then(function (r) {
-      if (r.error) throw r.error;
-      return { success: true };
-    });
-  }
-
   /* ════════════════════════════════════════════════════════════
      طلبات التحصين من سجل المربي
      التحديث والحذف يطبّقان على أحدث طلب لرقم الهاتف
@@ -17896,7 +17649,7 @@ function route(name, routes, soft) {
     var ok = [
       route("focallApi", FO, true),
       route("db_call",   { searchSampleData: printData }),
-      route("camp_api",  { getVaccCampaign: campGet, saveVaccCampaign: campSave }, true),
+            route("camp_api",  { getVaccCampaign: campGet }, true),
       patchBd(),
       replaceStaticLists()
     ];
