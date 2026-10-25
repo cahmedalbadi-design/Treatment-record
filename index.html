@@ -6383,7 +6383,7 @@ async function trSelectIncompleteCase(caseNumber) {
 
     <!-- ٢) الحيازة والإدخال -->
     <div class="card bd-card bd-c-hold">
-      <h3><span class="bd-step">2</span>📅 الحيازة والإدخال</h3>
+      <h3><span class="bd-step">2</span>📅 الحيازة ومدخل البيانات وموقع الحيازة</h3>
       <div class="bd-field"><label for="bd_financialDate">تاريخ انتهاء الحيازة</label><input type="date" id="bd_financialDate" dir="ltr"></div>
       <div class="bd-field"><label for="bd_dataEntryInput">مدخل البيانات</label>
         <input list="bd_dataEntryList" id="bd_dataEntryInput" placeholder="اختر مدخل البيانات"><datalist id="bd_dataEntryList"></datalist>
@@ -6392,6 +6392,13 @@ async function trSelectIncompleteCase(caseNumber) {
         <input list="bd_dataUpdaterList" id="bd_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="bd_dataUpdaterList"></datalist>
       </div>
       <div class="bd-field"><label for="bd_notes">الملاحظات</label><textarea id="bd_notes" placeholder="ملاحظات إضافية..."></textarea></div>
+      <div class="bd-field"><label>📍 موقع الحيازة</label>
+        <div class="geo-row">
+          <button type="button" class="geo-btn" id="bd_locBtn" onclick="GeoLoc.capture('bd')">📍 إضافة الموقع الحالي</button>
+          <a class="geo-map" id="bd_locMap" target="_blank" style="display:none">🗺️ عرض</a>
+        </div>
+        <small class="geo-info" id="bd_locInfo"></small>
+      </div>
     </div>
 
     <!-- ٣) عدد الحيوانات -->
@@ -6494,6 +6501,7 @@ function bd_fillFormWithData(data) {
   window._bd_origPossession = String(data.possession || "").replace(/^'/, "").trim();
   bd_safeSet("bd_notes",data.notes);
   bd_safeSet("bd_financialDate",data.financialDate);
+  GeoLoc.set('bd', data.locLat, data.locLng, data.locAcc, false);
   if(data.animals){
     bd_safeSet("bd_animal_goat",data.animals.goat); bd_safeSet("bd_animal_sheep",data.animals.sheep);
     bd_safeSet("bd_animal_cow",data.animals.cow); bd_safeSet("bd_animal_camel",data.animals.camel);
@@ -6520,6 +6528,7 @@ var bdCountBadge = document.getElementById("bd_fetchAllCount");
   document.getElementById("bd_searchResultsContainer").style.display="none";
   document.getElementById("bd_searchResultsBody").innerHTML="";
   document.getElementById("bd_searchResultsHeader").innerHTML="";
+  GeoLoc.clear('bd');
   bd_isClearing = false;  // ← أضف هذا السطر
 }
 
@@ -6655,6 +6664,7 @@ function bd_collectData(forUpdate) {
     animals:       bd_collectAnimals()
   };
   if (forUpdate) d.newPhone = bd_getValue("bd_newPhoneInput") || phone;
+  d.location = GeoLoc.fresh('bd');
   return d;
 }
 async function bd_saveData() {
@@ -7639,6 +7649,13 @@ function bd_printHoldList() {
           <input list="vacc_dataUpdaterList" id="vacc_dataUpdaterInput" placeholder="اختر مدخل البيانات للتحديث"><datalist id="vacc_dataUpdaterList"></datalist>
         </div>
         <div class="vc-field"><label for="vacc_notes">الملاحظات</label><textarea id="vacc_notes" placeholder="أضف ملاحظات إضافية هنا..."></textarea></div>
+        <div class="vc-field"><label>📍 موقع الحيازة</label>
+          <div class="geo-row">
+            <button type="button" class="geo-btn" id="vacc_locBtn" onclick="GeoLoc.capture('vacc')">📍 إضافة الموقع الحالي</button>
+            <a class="geo-map" id="vacc_locMap" target="_blank" style="display:none">🗺️ عرض</a>
+          </div>
+          <small class="geo-info" id="vacc_locInfo"></small>
+        </div>
       </div>
 
       <!-- سجل تحصينات المربي -->
@@ -7823,6 +7840,7 @@ async function vaccFetchBreederData(phone) {
       vaccSafeSet('vacc_possessionInput', res.possession);
       vaccSafeSet('vacc_regionInput', res.region);
       vaccSafeSet('vacc_civilInput', res.civil);
+      GeoLoc.set('vacc', res.locLat, res.locLng, res.locAcc, false);
     } else {
       vaccShowMessage(res.message || 'لم يتم العثور على المربي', true);
       ['vacc_nameInput','vacc_possessionInput','vacc_regionInput','vacc_civilInput'].forEach(function(id){ document.getElementById(id).value=''; });
@@ -7925,6 +7943,7 @@ function vaccFillFormWithData(data) {
     var el = document.getElementById(k);
     if (el && data.caseNumber) el.dataset.userModified = '1';
   });
+  GeoLoc.set('vacc', data.locLat, data.locLng, data.locAcc, false);
   vaccShowMessage('تم تحميل بيانات الحالة بنجاح', false);
   if (data.phone) vaccFetchVaccinationDataByPhone(data.phone, false);
 }
@@ -7944,6 +7963,7 @@ function vaccClearForm() {
    'vacc_rabies_sheep','vacc_rabies_goat','vacc_rabies_cow','vacc_rabies_camel','vacc_rabies_horse'
  ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.querySelectorAll('#vaccination .inner-table input').forEach(function(el){ el.value=''; });
+  GeoLoc.clear('vacc');
   document.getElementById('vacc_vaccinationDataDisplay').innerHTML = '';
   vaccClearTopBarMessage();
 }
@@ -7984,7 +8004,8 @@ function vaccCollectFormData() {
     financialDate: vaccGetValue('vacc_financialDate'),
     // الفرق هنا
  dataEntry:   isUpdate ? '' : vaccGetValue('vacc_dataEntryInput'),
-    dataUpdater: isUpdate ? vaccGetValue('vacc_dataUpdaterInput') : ''
+     dataUpdater: isUpdate ? vaccGetValue('vacc_dataUpdaterInput') : '',
+    location: GeoLoc.fresh('vacc')
   };
 }
 
@@ -8624,6 +8645,7 @@ vr_allData = res.data || [];
     vr_hideMsg();
     document.getElementById("vr_searchResultsTable").style.display = "";
     vr_render();
+    vr_loadLocations();
     document.getElementById('vr_searchInput').oninput = function() { vr_render(); };
     document.getElementById('vr_sortBy').onchange = function() { vr_render(); };
   } catch (err) {
@@ -8880,11 +8902,50 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
       '<td style="' + nameCellStyle + '">' + nameContent + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(r.area) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_escapeHtml(vr_formatDate(r.entryDate)) + '</td>' +
-      '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + '</td>' +
+            '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + vr_locBtn(r) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + (r.vaccinated ? vr_escapeHtml(r.summary || "—") : vr_requestSummary(r)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
     tbody.appendChild(tr);
   });
+}
+/* ── مواقع المربين (من النموذج الخارجي) ── */
+var vr_locMap = {};
+
+async function vr_loadLocations() {
+  vr_locMap = {};
+  try {
+    var sb = await window.SBAuth.client();
+    var w  = window._sbProfile.wilayat_id;
+    var res = await Promise.all([
+      sb.from('breeders').select('phone, location_lat, location_lng, location_acc')
+        .eq('wilayat_id', w).not('location_lat', 'is', null),
+      sb.from('vaccination_requests').select('phone, location_lat, location_lng, location_acc')
+        .eq('wilayat_id', w).not('location_lat', 'is', null)
+        .order('entry_date', { ascending: false }).order('id', { ascending: false })
+    ]);
+    if (res[0].error) throw res[0].error;
+    if (res[1].error) throw res[1].error;
+    function add(x) {
+      var ph = String(x.phone || '').trim();
+      if (ph && !vr_locMap[ph]) vr_locMap[ph] = { lat: x.location_lat, lng: x.location_lng, acc: x.location_acc };
+    }
+    (res[0].data || []).forEach(add);   /* سجل المربي — المصدر الأساسي */
+    (res[1].data || []).forEach(add);   /* الطلب — لغير المسجَّلين فقط */
+    if (Object.keys(vr_locMap).length) vr_render();
+  } catch (e) {
+    console.warn('[VR] تعذّر جلب المواقع:', e.message || e);
+  }
+}
+
+function vr_locBtn(r) {
+  var l = vr_locMap[String(r.phone || '').trim()];
+  if (!l) return '';
+  var weak = l.acc != null && l.acc > 100;
+  var url  = 'https://www.google.com/maps/search/?api=1&query=' + l.lat + ',' + l.lng;
+  return ' <button onclick="window.open(\'' + url + '\', \'_blank\')" ' +
+    'title="' + (l.acc != null ? 'دقة الموقع ±' + l.acc + ' م' : 'موقع المربي') + '" ' +
+    'style="padding:2px 8px;font-size:11px;border-radius:10px;margin-right:4px;border:none;cursor:pointer;' +
+    'background:' + (weak ? '#e67e22' : '#16a085') + ';color:#fff;">📍 الموقع</button>';
 }
 function vr__confirm(title, html) {
   return new Promise(function (resolve) {
@@ -14897,7 +14958,7 @@ if (sbw) showModal(reason, 'failed');
   /* ── تحويل صف القاعدة إلى الشكل الذي تتوقعه الواجهة ──────────── */
 
   var SELECT_COLS =
-    "id, phone, name, possession_no, civil_id, notes, holding_expiry, " +
+        "id, phone, name, possession_no, civil_id, notes, holding_expiry, location_lat, location_lng, location_acc, " +
     "goats, sheep, cattle, camels, horses, cats, dogs, poultry, " +
     "regions(name), creator:created_by(full_name), editor:updated_by(full_name)";
 
@@ -14911,7 +14972,7 @@ if (sbw) showModal(reason, 'failed');
       notes:         txt(r.notes),
       financialDate: txt(r.holding_expiry),
       dataEntry:     r.creator ? txt(r.creator.full_name) : "",
-      dataUpdater:   r.editor  ? txt(r.editor.full_name)  : "",
+     locLat: r.location_lat, locLng: r.location_lng, locAcc: r.location_acc,
       animals: {
         goat:    r.goats   || "",
         sheep:   r.sheep   || "",
@@ -14940,7 +15001,10 @@ if (sbw) showModal(reason, 'failed');
       goats:   num(a.goat),   sheep:   num(a.sheep),
       cattle:  num(a.cow),    camels:  num(a.camel),
       horses:  num(a.horse),  cats:    num(a.cat),
-      dogs:    num(a.dog),    poultry: num(a.poultry)
+         dogs:    num(a.dog),    poultry: num(a.poultry),
+      location_lat: d.location ? d.location.lat : undefined,
+      location_lng: d.location ? d.location.lng : undefined,
+      location_acc: d.location ? d.location.acc : undefined
     };
   }
 
@@ -16028,7 +16092,14 @@ function names(table, col, filterWilayat) {
             throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
       });
   }
-
+  /* حفظ الموقع في سجل المربي — فشله لا يُفشل حفظ التحصين */
+  function saveBreederLoc(phone, L) {
+    if (!L || L.lat == null) return Promise.resolve();
+    return sb.from("breeders")
+      .update({ location_lat: L.lat, location_lng: L.lng, location_acc: L.acc })
+      .eq("wilayat_id", me.wilayat_id).eq("phone", txt(phone))
+      .then(function (r) { if (r.error) log("تعذّر حفظ الموقع: " + r.error.message); });
+  }
   /* ── بناء صفوف الجرعات من النموذج ───────────────────────────── */
   function buildDoses(d) {
     var out = [];
@@ -16080,7 +16151,9 @@ function names(table, col, filterWilayat) {
           doses.forEach(function (x) { x.record_id = id; });
           return sb.from("vaccination_doses").insert(doses).then(function (r2) {
             if (r2.error) throw r2.error;
-            return { success: true, message: "تم الحفظ", caseNumber: r.data.case_no };
+                      return saveBreederLoc(d.phone, d.location).then(function () {
+              return { success: true, message: "تم الحفظ", caseNumber: r.data.case_no };
+            });
           });
         });
     });
@@ -16114,8 +16187,11 @@ function names(table, col, filterWilayat) {
           doses.forEach(function (x) { x.record_id = id; });
           return sb.from("vaccination_doses").insert(doses);
         })
-        .then(function (r2) {
+            .then(function (r2) {
           if (r2.error) throw r2.error;
+          return saveBreederLoc(d.phone, d.location);
+        })
+        .then(function () {
           return { success: true, message: "تم التحديث" };
         });
       });
@@ -16135,7 +16211,7 @@ function names(table, col, filterWilayat) {
   var REC_COLS =
     "id, case_no, possession_no_snapshot, notes, vaccinated_on, wilayat_id, " +
     "created_at, updated_at, " +
-    "breeders ( phone, name, civil_id, regions(name) ), " +
+        "breeders ( phone, name, civil_id, location_lat, location_lng, location_acc, regions(name) ), " +
     "vaccination_doses ( vaccine_type_id, species_id, dose_no, animal_count ), " +
     "creator:created_by(full_name), editor:updated_by(full_name)";
 
@@ -16155,7 +16231,8 @@ function names(table, col, filterWilayat) {
       financialDate: txt(c.vaccinated_on),
       notes:         txt(c.notes),
       dataEntry:     c.creator ? txt(c.creator.full_name) : "",
-      dataUpdater:   c.editor  ? txt(c.editor.full_name)  : ""
+       dataUpdater:   c.editor  ? txt(c.editor.full_name)  : "",
+      locLat: b.location_lat, locLng: b.location_lng, locAcc: b.location_acc
     };
     Object.keys(FIELDS).forEach(function (k) { o[k] = ""; });
     (c.vaccination_doses || []).forEach(function (d) {
@@ -16178,8 +16255,8 @@ function names(table, col, filterWilayat) {
   }
 
   function breederData(p) {
-    return sb.from("breeders")
-      .select("name, possession_no, civil_id, regions(name)")
+       return sb.from("breeders")
+      .select("name, possession_no, civil_id, location_lat, location_lng, location_acc, regions(name)")
       .eq("wilayat_id", me.wilayat_id).eq("phone", txt(p.phone)).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
@@ -16188,7 +16265,8 @@ function names(table, col, filterWilayat) {
                  name:       txt(r.data.name),
                  possession: txt(r.data.possession_no),
                  region:     r.data.regions ? txt(r.data.regions.name) : "",
-                 civil:      txt(r.data.civil_id) };
+                                 civil:      txt(r.data.civil_id),
+                 locLat: r.data.location_lat, locLng: r.data.location_lng, locAcc: r.data.location_acc };
       });
   }
 
@@ -17856,6 +17934,77 @@ function route(name, routes, soft) {
   var st = document.createElement('style');
   st.textContent = '@media print { #updateBanner { display:none !important; } }';
   document.head.appendChild(st);
+})();
+</script>
+<script>
+/* ═══ وحدة الموقع المشتركة — سجل المربي وسجل التحصين ═══ */
+window.GeoLoc = (function () {
+  "use strict";
+  var S = {};
+  function el(p, id) { return document.getElementById(p + '_' + id); }
+  function toast(m, t) { if (window.showToast) showToast(m, t); }
+
+  function render(p) {
+    var v = S[p], btn = el(p, 'locBtn'), map = el(p, 'locMap'), info = el(p, 'locInfo');
+    if (!btn) return;
+    btn.disabled = false;
+    if (v) {
+      btn.textContent = v.fresh ? '✅ موقع جديد — سيُحفظ عند الحفظ' : '🔄 استبدال بالموقع الحالي';
+      btn.classList.add('has');
+      map.href = 'https://www.google.com/maps/search/?api=1&query=' + v.lat + ',' + v.lng;
+      map.style.display = 'inline-block';
+      map.style.background = (v.acc != null && v.acc > 100) ? '#e67e22' : '#16a085';
+      info.textContent = v.lat + ', ' + v.lng + (v.acc != null ? '  (±' + v.acc + 'm)' : '');
+    } else {
+      btn.textContent = '📍 إضافة الموقع الحالي';
+      btn.classList.remove('has');
+      map.style.display = 'none';
+      info.textContent = '';
+    }
+  }
+
+  function set(p, lat, lng, acc, fresh) {
+    S[p] = (lat != null && lng != null && lat !== '' && lng !== '')
+      ? { lat: +lat, lng: +lng, acc: (acc == null || acc === '') ? null : +acc, fresh: !!fresh }
+      : null;
+    render(p);
+  }
+  function clear(p) { S[p] = null; render(p); }
+  function get(p)   { return S[p] || null; }
+  function fresh(p) { var v = S[p]; return (v && v.fresh) ? { lat: v.lat, lng: v.lng, acc: v.acc } : null; }
+
+  function capture(p) {
+    var btn = el(p, 'locBtn');
+    if (!navigator.geolocation) { toast('المتصفح لا يدعم تحديد الموقع', 'error'); return; }
+    btn.disabled = true;
+    btn.textContent = '⏳ جارٍ تحديد الموقع...';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      if (lat < 16 || lat > 27 || lng < 51 || lng > 60) {
+        render(p); toast('⚠️ الموقع خارج حدود السلطنة', 'warning'); return;
+      }
+      set(p, +lat.toFixed(6), +lng.toFixed(6), Math.round(pos.coords.accuracy), true);
+      toast('📍 تم تحديد الموقع — سيُحفظ عند الضغط على حفظ أو تحديث', 'success');
+    }, function (e) {
+      render(p);
+      toast(e.code === 1 ? '⛔ تم رفض إذن الموقع — فعّله من إعدادات المتصفح'
+                         : '❌ تعذّر تحديد الموقع، حاول مرة أخرى', 'error');
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }
+
+  var st = document.createElement('style');
+  st.textContent =
+    '.geo-row{display:flex;gap:6px;flex-wrap:wrap}' +
+    '.geo-btn{flex:1;padding:8px 12px;border-radius:8px;border:1.5px dashed #16a085;background:#effaf6;' +
+    'color:#0e6655;font-weight:bold;cursor:pointer;font-size:13px;font-family:inherit}' +
+    '.geo-btn.has{border-style:solid}' +
+    '.geo-map{padding:8px 14px;border-radius:8px;background:#16a085;color:#fff;font-weight:bold;' +
+    'text-decoration:none;font-size:13px;white-space:nowrap}' +
+    '.geo-info{display:block;font-size:11px;color:#5d7a84;margin-top:4px;direction:ltr;text-align:right}' +
+    '@media print{.geo-row{display:none!important}}';
+  document.head.appendChild(st);
+
+  return { set: set, clear: clear, get: get, fresh: fresh, capture: capture };
 })();
 </script>
 </body>
