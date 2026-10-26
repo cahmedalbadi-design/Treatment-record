@@ -15243,10 +15243,17 @@ if (sbw) showModal(reason, 'failed');
   /* المربي مسجَّل في عيادة أخرى — رسالة واضحة بدل خطأ التفرد */
   global.SBOtherClinic = function (phone) {
     return init(true).then(function (c) {
-      return c.rpc("breeder_clinic", { p_phone: txt(phone) });
-    }).then(function (r) {
-      throw new Error(r.data
-        ? "هذا المربي مسجَّل في " + r.data + " — يُخدم في عيادة ولايته فقط"
+      return Promise.all([
+        c.rpc("breeder_clinic", { p_phone: txt(phone) }),
+        c.from("breeders").select("id").eq("phone", txt(phone)).eq("is_shared", true).maybeSingle()
+      ]);
+    }).then(function (v) {
+      var clinic = v[0].data, shared = !!(v[1] && v[1].data);
+      if (shared)
+        throw new Error("ℹ️ هذا المربي مسجَّل في " + (clinic || "عيادة أخرى") +
+          " ومسموح بخدمته في كل العيادات — لا حاجة لتسجيله، اكتب رقمه مباشرة في العلاج أو التحصين أو العينات");
+      throw new Error(clinic
+        ? "هذا المربي مسجَّل في " + clinic + " — يُخدم في عيادة ولايته فقط"
         : "رقم الهاتف مسجَّل مسبقاً");
     });
   };
@@ -15717,7 +15724,9 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
 function names(table, col, filterWilayat) {
     return trPageAll(function () {
       var q = sb.from(table).select(col).order(col).order("id");
-      if (filterWilayat) q = q.eq("wilayat_id", me.wilayat_id);
+            if (filterWilayat) q = (table === "breeders")
+        ? q.or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true")
+        : q.eq("wilayat_id", me.wilayat_id);
       return q;
     }).then(function (rows) {
       return { success: true, data: rows.map(function (x) { return x[col]; }) };
@@ -16473,7 +16482,9 @@ function names(table, col, filterWilayat) {
  function names(table, col, filterW) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col).order("id");
-      if (filterW) q = q.eq("wilayat_id", me.wilayat_id);
+            if (filterW) q = (table === "breeders")
+        ? q.or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true")
+        : q.eq("wilayat_id", me.wilayat_id);
       return q;
     }).then(function (rows) {
       return { success: true, data: rows.map(function (x) { return x[col]; }) };
@@ -17205,7 +17216,9 @@ function names(table, col, filterWilayat) {
   function list(table, col, byWilayat, activeOnly) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col);
-      if (byWilayat)  q = q.eq("wilayat_id", me.wilayat_id);
+            if (byWilayat)  q = (table === "breeders")
+        ? q.or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true")
+        : q.eq("wilayat_id", me.wilayat_id);
       if (activeOnly) q = q.or("is_active.is.null,is_active.eq.true");
       return q;
     }).then(function (rows) {
