@@ -15055,6 +15055,8 @@ if (sbw) showModal(reason, 'failed');
       notes:         txt(r.notes),
       financialDate: txt(r.holding_expiry),
       dataEntry:     r.creator ? txt(r.creator.full_name) : "",
+      dataUpdater:   r.editor  ? txt(r.editor.full_name)  : "",
+      locLat: r.location_lat, locLng: r.location_lng, locAcc: r.location_acc,
      locLat: r.location_lat, locLng: r.location_lng, locAcc: r.location_acc,
       animals: {
         goat:    r.goats   || "",
@@ -15130,7 +15132,7 @@ if (sbw) showModal(reason, 'failed');
     /* ٤) جلب مربٍّ واحد برقم هاتفه */
     if (action === "bd_searchCaseData") {
           return sb.from("breeders").select(SELECT_COLS)
-        .or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", txt(payload.phone)).maybeSingle()
+   .eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return sb.from("breeders").select("name, wilayat:wilayat_id(name)")
@@ -15717,7 +15719,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function unpaidCount(p) {
     var phone = txt(p.phone);
     if (!phone) return Promise.resolve({ success: true, count: 0 });
-    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: true, count: 0 };
@@ -16184,7 +16186,7 @@ function names(table, col, filterWilayat) {
   function breederId(d) {
     var phone = txt(d.phone);
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
-    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
             if (r.data) return r.data.id;
@@ -16373,7 +16375,7 @@ function names(table, col, filterWilayat) {
   function byPhone(p) {
     var phone = txt(p.phone);
       if (!phone) return Promise.resolve({ success: false, rows: [] });
-    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, rows: [] };
@@ -16796,7 +16798,7 @@ function names(table, col, filterWilayat) {
     if (!phone) return Promise.resolve({ success: true, rows: [] });
 
     return sb.from("breeders").select("id, name, phone, regions(name)")
-      .eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+      .or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: true, rows: [] };
@@ -17350,7 +17352,7 @@ function idsFor(key, table, names) {
 
   function lookupBreeder(phone) {
     if (!phone) return Promise.resolve(null);
-    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) { return (r.data && r.data.id) || null; });
   }
 
