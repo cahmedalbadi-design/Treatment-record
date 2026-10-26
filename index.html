@@ -1863,9 +1863,93 @@ function clinicInfoRefresh() {
 .ua-modal select,.ua-modal input[type=datetime-local]{padding:6px 8px;border:2px solid #ddd;border-radius:4px;font-family:inherit}
 @media(max-width:650px){.ua-grid{grid-template-columns:1fr 1fr}}
 </style>
+<style>
+/* ═══════════ إدارة النظام — مظهر واجهة برمجية ═══════════ */
+#userAdmin{--ide-bg:#1e1e1e;--ide-panel:#252526;--ide-head:#2d2d2d;--ide-line:#3c3c3c;--ide-txt:#d4d4d4;
+  --ide-dim:#858585;--ide-acc:#4fc1ff;--ide-ok:#4ec9b0;--ide-warn:#dcdcaa;--ide-err:#f48771;--ide-kw:#c586c0;
+  --ide-mono:'Cascadia Code',Consolas,Tahoma,monospace;
+  background:var(--ide-bg);color:var(--ide-txt);border-radius:12px;padding:14px !important}
+
+/* إعادة الترتيب */
+#userAdmin.active{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;
+  grid-template-areas:"head head" "users users" "camp form" "camp move" "shared msgs" "deleted deleted"}
+#userAdmin > div.card:nth-of-type(1){grid-area:move;   --c:var(--ide-warn)}
+#userAdmin > div.card:nth-of-type(2){grid-area:users;  --c:var(--ide-acc)}
+#userAdmin > div.card:nth-of-type(3){grid-area:camp;   --c:var(--ide-ok)}
+#userAdmin > div.card:nth-of-type(4){grid-area:form;   --c:var(--ide-ok)}
+#userAdmin > div.card:nth-of-type(5){grid-area:shared; --c:var(--ide-kw)}
+#userAdmin > div.card:nth-of-type(6){grid-area:msgs;   --c:var(--ide-warn)}
+#userAdmin > div.card:nth-of-type(7){grid-area:deleted;--c:var(--ide-err)}
+
+/* شريط الطرفية */
+#userAdmin::before{grid-area:head;content:"root@vet-system:~/admin$ sudo manage --all-clinics ▍";
+  font-family:var(--ide-mono);direction:ltr;text-align:left;color:var(--ide-ok);background:#0d0d0d;
+  border:1px solid var(--ide-line);border-radius:8px;padding:10px 14px;font-size:13px}
+
+/* البطاقات كنوافذ محرر */
+#userAdmin > .card{background:var(--ide-panel) !important;color:var(--ide-txt) !important;
+  border:1px solid var(--ide-line);border-top:2px solid var(--c);
+  border-radius:8px;padding:12px 14px;margin:0;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+#userAdmin > .card div[style*="color:#777"],#userAdmin > .card span[style*="color:#777"]{color:var(--ide-dim) !important}
+#userAdmin > .card div[style*="color:#004e66"]{color:#9cdcfe !important}
+#userAdmin input[type=checkbox],#userAdmin input[type=radio]{accent-color:var(--ide-acc);color-scheme:dark}
+#userAdmin > .card > h3{position:relative;background:var(--ide-head);color:var(--ide-txt);margin:-12px -14px 12px;
+  padding:9px 14px 9px 70px;border-radius:7px 7px 0 0;border-bottom:1px solid var(--ide-line);
+  text-align:right;font-size:13px;font-family:var(--ide-mono)}
+#userAdmin > .card > h3::before{content:"// ";color:#6a9955}
+#userAdmin > .card > h3::after{content:"";position:absolute;left:14px;top:50%;width:10px;height:10px;margin-top:-5px;
+  border-radius:50%;background:#ff5f56;box-shadow:16px 0 #ffbd2e,32px 0 #27c93f}
+
+/* الحقول */
+#userAdmin input,#userAdmin select,#userAdmin textarea{background:#3c3c3c !important;color:var(--ide-txt) !important;
+  border:1px solid #555 !important;border-radius:4px;font-family:var(--ide-mono)}
+#userAdmin input:focus,#userAdmin select:focus,#userAdmin textarea:focus{border-color:var(--ide-acc) !important;
+  box-shadow:0 0 0 2px rgba(79,193,255,.25);outline:none}
+#userAdmin input[type=date],#userAdmin input[type=datetime-local],#userAdmin select{color-scheme:dark}
+#userAdmin textarea{min-height:80px}
+#userAdmin .ua-bar label{color:var(--ide-kw);font-family:var(--ide-mono);font-size:12px}
+#userAdmin .ua-grid label{color:var(--ide-txt)}
+
+/* الأزرار */
+#userAdmin button{background:transparent !important;border:1px solid currentColor !important;border-radius:4px;
+  font-family:var(--ide-mono);font-weight:normal;padding:6px 14px}
+#userAdmin button.save  {color:var(--ide-ok)}
+#userAdmin button.update{color:var(--ide-acc)}
+#userAdmin button.delete{color:var(--ide-err)}
+#userAdmin button:hover:not(:disabled){background:rgba(255,255,255,.07) !important;transform:none;box-shadow:none}
+
+/* الجداول */
+#userAdmin .table-container{border:1px solid var(--ide-line);border-radius:6px}
+#userAdmin table{font-family:var(--ide-mono)}
+#userAdmin th{background:var(--ide-head) !important;color:var(--ide-acc) !important;
+  border:1px solid var(--ide-line) !important;font-weight:normal}
+#userAdmin td{border:1px solid var(--ide-line) !important;color:var(--ide-txt)}
+#userAdmin tbody tr:nth-child(even) td{background:#2a2a2a}
+#userAdmin table tr:hover td{background:#094771 !important}
+#userAdmin .no-results{color:var(--ide-dim)}
+#ua_count,#ua_dCount{color:var(--ide-warn) !important;font-family:var(--ide-mono)}
+#ua_formState{font-family:var(--ide-mono);filter:brightness(1.8)}
+#userAdmin ::-webkit-scrollbar{width:10px;height:10px}
+#userAdmin ::-webkit-scrollbar-thumb{background:#424242;border-radius:5px}
+#userAdmin ::-webkit-scrollbar-track{background:var(--ide-bg)}
+
+/* نوافذ التعديل والإنشاء والتفاصيل */
+.ua-modal .modal-box{background:#252526;color:#d4d4d4;border:1px solid #3c3c3c;border-top:3px solid #4fc1ff}
+.ua-modal .modal-box h3{color:#4fc1ff;font-family:'Cascadia Code',Consolas,Tahoma,monospace}
+.ua-modal h4{background:#2d2d2d !important;color:#c586c0 !important}
+.ua-modal label{color:#d4d4d4}
+.ua-modal input,.ua-modal select{background:#3c3c3c !important;color:#d4d4d4 !important;border-color:#555 !important;color-scheme:dark}
+.ua-modal div[style*="color:#004e66"]{color:#9cdcfe !important}
+.ua-modal div[style*="#fff8e1"]{background:#332b00 !important;border-color:#665500 !important;color:#dcdcaa !important}
+.ua-modal pre{background:#1e1e1e !important;color:#ce9178 !important;border-color:#3c3c3c !important}
+
+@media(max-width:900px){
+  #userAdmin.active{grid-template-columns:minmax(0,1fr);
+    grid-template-areas:"head" "users" "camp" "form" "move" "shared" "msgs" "deleted"}
+}
+</style>
 <div class="card">
-  <h3>🔁 نقل مربٍّ إلى ولاية أخرى</h3>
-  <div class="ua-bar">
+  <h3>🔁 نقل مربٍّ إلى ولاية أخرى</h3>  <div class="ua-bar">
     <label>رقم الهاتف:</label><input id="ua_mvPhone" placeholder="رقم هاتف المربي" style="width:180px">
     <label>إلى عيادة:</label><select id="ua_mvTo"></select>
     <button class="update" onclick="ua_moveBreeder()">🔁 نقل</button>
@@ -2450,7 +2534,8 @@ async function ua_msgSave() {
     show_from: new Date(f).toISOString(), show_until: new Date(u).toISOString()
   });
   if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
-  showToast('✅ تم نشر الرسالة', 'success');
+   showToast('✅ تم نشر الرسالة', 'success');
+  if (_annCh && _annCh.send) _annCh.send({ type: 'broadcast', event: 'new', payload: {} });
   document.getElementById('ua_mTitle').value = ''; document.getElementById('ua_mBody').value = '';
   ua_msgLoad();
 }
@@ -2484,8 +2569,9 @@ async function annCheck() {
     m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
     m.innerHTML = '<div class="modal-box" style="max-width:480px"><div style="font-size:42px">📢</div>' +
       '<h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p>' +
-      '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button></div></div>';
+       '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button></div></div>';
     document.body.appendChild(m);
+    annBeep();
     m.querySelector('.confirm-btn').onclick = function () {
       seen.push(a.id);
       try { localStorage.setItem(key, JSON.stringify(seen.slice(-200))); } catch (e) {}
@@ -2495,7 +2581,33 @@ async function annCheck() {
   } catch (e) {}
 }
 setInterval(annCheck, 20000);
-/* ── النموذج الخارجي ── */
+
+/* ── تنبيه فوري عند نشر رسالة + صوت ── */
+var _annCh = null;
+function annBeep() {
+  try {
+    var a = new (window.AudioContext || window.webkitAudioContext)();
+    [[0, 660], [0.47, 880], [0.11, 1100]].forEach(function (n) {
+      var o = a.createOscillator(), g = a.createGain(), t = a.currentTime + n[0];
+      o.frequency.value = n[1];
+      g.gain.setValueAtTime(0.3, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      o.connect(g); g.connect(a.destination);
+      o.start(t); o.stop(t + 0.6);
+    });
+  } catch (e) {}
+}
+async function annListen() {
+  if (_annCh || !window._isLoggedIn || !window.SBAuth) return;
+  _annCh = true;
+  try {
+    var sb = await window.SBAuth.client();
+    _annCh = sb.channel('vet-ann')
+      .on('broadcast', { event: 'new' }, function () { _annNext = 0; setTimeout(annCheck, 1500); })
+      .subscribe();
+  } catch (e) { _annCh = null; }
+}
+setInterval(annListen, 5000);/* ── النموذج الخارجي ── */
 async function ua_loadFormState() {
   var el = document.getElementById('ua_formState');
   var r = await ua_rpc('public_form_info');
@@ -9290,8 +9402,7 @@ async function vr_saveToBreeder(r) {
   background:var(--tr-mask,#d9d9d9);pointer-events:none}
 #samples > #topBarMain label{color:#fff;font-weight:bold}
 #samples > #topBarMain input{width:180px;border:0;border-radius:8px;padding:8px 10px;font-weight:bold;font-size:15px !important;text-align:center}
-#samples > #topBarMain span{background:rgba(255,255,255,.22) !important}
-
+#samples > #topBarMain span:not(#fo_sharedChip){background:rgba(255,255,255,.22) !important}
 /* البطاقات المرقّمة */
 #samples .two-cards-row{gap:14px;counter-reset:smstep}
 #samples .two-cards-row > .card{background:#fff;border:1px solid var(--sm-line);border-top:4px solid var(--c);
