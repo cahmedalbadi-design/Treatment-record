@@ -18149,7 +18149,7 @@ window.SharedChip = (function () {
       if (r.error || !r.data || String(r.data.wilayat_id) === String(me.wilayat_id)) return;
       var el = chip(p);
       if (!el) return;
-      el.textContent = '🤝 الرقم مشترك مع ' + ((r.data.wilayat && r.data.wilayat.name) || 'عيادة أخرى');
+      el.textContent = '🤝 هذا المربي مشترك مع ' + ((r.data.wilayat && r.data.wilayat.name) || 'عيادة أخرى');
       el.style.display = 'inline-block';
     } catch (e) {}
   }
