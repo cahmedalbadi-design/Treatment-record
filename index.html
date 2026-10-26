@@ -1917,13 +1917,17 @@ function clinicInfoRefresh() {
   </div>
 </div>
   <div class="card">
-  <h3>🤝 مربون مسموح خدمتهم في كل العيادات</h3>
+  <h3>🤝 مربون مشتركون بين العيادات</h3>
   <div class="ua-bar">
     <label>رقم الهاتف:</label><input id="ua_shPhone" placeholder="رقم هاتف المربي" style="width:180px">
-    <button class="save" onclick="ua_shSet('', true)">➕ إضافة استثناء</button>
+  </div>
+  <div style="font-size:12px;font-weight:bold;color:#004e66;margin:6px 0">العيادات المسموح لها بخدمته:</div>
+  <div id="ua_shClinics" class="ua-grid" style="margin-bottom:8px"></div>
+  <div class="btns">
+    <button class="save" onclick="ua_shSave()">💾 حفظ</button>
     <button class="update" onclick="ua_shLoad()">🔄 تحديث</button>
   </div>
-  <table><thead><tr><th>رقم الهاتف</th><th>اسم المربي</th><th>عيادته الأصلية</th><th></th></tr></thead>
+  <table><thead><tr><th>رقم الهاتف</th><th>اسم المربي</th><th>عيادته الأصلية</th><th>مشترك مع</th><th></th></tr></thead>
     <tbody id="ua_shTb"></tbody></table>
 </div>
 <div class="card">
@@ -2149,6 +2153,9 @@ async function ua_init() {
       }).join('');
         document.getElementById('ua_mvTo').innerHTML = '<option value="">— اختر العيادة —</option>' +
       ua_clinics.map(function (c) { return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>'; }).join('');
+        document.getElementById('ua_shClinics').innerHTML = ua_clinics.map(function (c) {
+      return '<label><input type="checkbox" class="ua_shC" value="' + c.id + '"> ' + ua_esc(c.name) + '</label>';
+    }).join('');
     await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
@@ -2525,27 +2532,52 @@ async function ua_moveBreeder() {
   document.getElementById('ua_mvPhone').value = '';
   if (typeof bd_refreshDropdowns === 'function') bd_refreshDropdowns().catch(function () {});
 }
-  /* ── المربون المشتركون بين العيادات ── */
+/* ── المربون المشتركون بين العيادات ── */
+var ua_shData = [];
+function ua_clinicName(id) {
+  var c = ua_clinics.filter(function (x) { return String(x.id) === String(id); })[0];
+  return c ? c.name : id;
+}
+
 async function ua_shLoad() {
   var tb = document.getElementById('ua_shTb');
   var sb = await ua_sb();
-  var r = await sb.from('breeders').select('phone, name, wilayat:wilayat_id(name)')
+  var r = await sb.from('breeders').select('phone, name, shared_with, wilayat:wilayat_id(name)')
     .eq('is_shared', true).order('name');
-  if (r.error) { tb.innerHTML = '<tr><td colspan="4" style="color:red">' + ua_esc(r.error.message) + '</td></tr>'; return; }
-  tb.innerHTML = (r.data || []).map(function (b) {
+  if (r.error) { tb.innerHTML = '<tr><td colspan="5" style="color:red">' + ua_esc(r.error.message) + '</td></tr>'; return; }
+  ua_shData = r.data || [];
+  tb.innerHTML = ua_shData.map(function (b, i) {
     return '<tr><td>' + ua_esc(b.phone) + '</td><td class="nc">' + ua_esc(b.name) + '</td><td>' +
-      ua_esc(b.wilayat ? b.wilayat.name : '—') + '</td><td><button class="delete" style="padding:4px 12px" data-p="' +
-      ua_esc(b.phone) + '" onclick="ua_shSet(this.dataset.p, false)">✖ إلغاء الاستثناء</button></td></tr>';
-  }).join('') || '<tr><td colspan="4" class="no-results">لا يوجد مربون مستثنون</td></tr>';
+      ua_esc(b.wilayat ? b.wilayat.name : '—') + '</td><td>' +
+      ua_esc((b.shared_with || []).map(ua_clinicName).join('، ')) + '</td><td>' +
+      '<button class="update" style="padding:4px 12px" onclick="ua_shEdit(' + i + ')">✏️ تعديل</button> ' +
+      '<button class="delete" style="padding:4px 12px" onclick="ua_shSet(ua_shData[' + i + '].phone, [])">✖ إلغاء</button>' +
+      '</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="no-results">لا يوجد مربون مشتركون</td></tr>';
 }
 
-async function ua_shSet(phone, on) {
-  phone = String(phone || document.getElementById('ua_shPhone').value || '').trim();
-  if (!phone) { showToast('⚠️ أدخل رقم هاتف المربي', 'warning'); return; }
-  var r = await ua_rpc('admin_set_breeder_shared', { p_phone: phone, p_shared: on });
+function ua_shEdit(i) {
+  var b = ua_shData[i]; if (!b) return;
+  var s = (b.shared_with || []).map(String);
+  document.getElementById('ua_shPhone').value = b.phone;
+  document.querySelectorAll('.ua_shC').forEach(function (c) { c.checked = s.indexOf(c.value) !== -1; });
+  document.getElementById('ua_shPhone').scrollIntoView({ block: 'center' });
+}
+
+function ua_shSave() {
+  var phone = document.getElementById('ua_shPhone').value.trim();
+  var ids = [].map.call(document.querySelectorAll('.ua_shC:checked'), function (c) { return Number(c.value); });
+  if (!phone)      { showToast('⚠️ أدخل رقم هاتف المربي', 'warning'); return; }
+  if (!ids.length) { showToast('⚠️ اختر عيادة واحدة على الأقل — أو استخدم زر الإلغاء', 'warning'); return; }
+  ua_shSet(phone, ids);
+}
+
+async function ua_shSet(phone, ids) {
+  var r = await ua_rpc('admin_set_breeder_shared', { p_phone: phone, p_clinics: ids });
   if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
-  showToast(on ? '✅ أصبح ' + r.data + ' متاحاً لكل العيادات' : '✅ أُلغي استثناء ' + r.data, 'success');
-  if (on) document.getElementById('ua_shPhone').value = '';
+  showToast(ids.length ? '✅ تم حفظ العيادات المشتركة لـ ' + r.data : '✅ أُلغي اشتراك ' + r.data, 'success');
+  document.getElementById('ua_shPhone').value = '';
+  document.querySelectorAll('.ua_shC').forEach(function (c) { c.checked = false; });
   ua_shLoad();
 }
 /* ── الحملة الوطنية ── */
@@ -6387,6 +6419,7 @@ async function trSelectIncompleteCase(caseNumber) {
   <div class="top-group"><label for="bd_phoneInput">📞 اختر الرقم</label>
     <input list="bd_phoneList" id="bd_phoneInput" placeholder="اختر أو اكتب رقم الهاتف"><datalist id="bd_phoneList"></datalist>
   </div>
+  <span id="bd_sharedNote" style="display:none;background:#fff3cd;color:#7f4f00;border:1px solid #ffc107;border-radius:20px;padding:5px 14px;font-weight:bold;font-size:13px;"></span>
   <div class="top-group"><label for="bd_lastEditedPhone">آخر رقم تم التعديل عليه</label>
     <input type="text" id="bd_lastEditedPhone" readonly placeholder="—">
   </div>
@@ -6546,6 +6579,7 @@ function bd_fillFormWithData(data) {
 
 function bd_clearForm() {
   bd_isClearing = true;  // ← أضف هذا السطر
+    if (typeof bd_setSharedNote === "function") bd_setSharedNote("");
   window._bd_origPossession = null;
  // إخفاء شارة عدد المربين
 var bdCountBadge = document.getElementById("bd_fetchAllCount");
@@ -6785,10 +6819,26 @@ async function bd_performGlobalSearch() {
   }catch(err){tbody.innerHTML="<tr><td colspan='100' style='text-align:center'>خطأ: "+err.message+"</td></tr>";}
 }
 
+function bd_setSharedNote(t) {
+  var el = document.getElementById("bd_sharedNote");
+  if (!el) return;
+  el.textContent = t || "";
+  el.style.display = t ? "inline-block" : "none";
+}
+
 async function bd_loadCaseData(phone) {
+  bd_setSharedNote("");
   bd_showMessage("جاري جلب البيانات...", false, "info");
-  try{var res=await bd_callApi("bd_searchCaseData",{phone:phone});if(res.success)bd_fillFormWithData(res);else bd_showMessage(res.message,true);}
-  catch(err){bd_showMessage("خطأ: "+err.message,true);}
+  try {
+    var res = await bd_callApi("bd_searchCaseData", { phone: phone });
+    if (res.success) bd_fillFormWithData(res);
+    else if (res.shared) {
+      bd_setSharedNote("🤝 هذا المربي (" + res.name + ") مشترك مع عيادتك — عيادته الأصلية: " +
+                       (res.clinic || "—") + "، ولا يمكن تعديل بياناته من هنا");
+      bd_showMessage("🤝 مربٍّ مشترك — لا يمكن تعديل بياناته من هنا", false, "warning");
+    }
+    else bd_showMessage(res.message, true);
+  } catch (err) { bd_showMessage("خطأ: " + err.message, true); }
 }
 
 async function bd_updatePossession() {
@@ -15080,10 +15130,16 @@ if (sbw) showModal(reason, 'failed');
     /* ٤) جلب مربٍّ واحد برقم هاتفه */
     if (action === "bd_searchCaseData") {
           return sb.from("breeders").select(SELECT_COLS)
-        .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", txt(payload.phone)).maybeSingle()
+        .or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
-          if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
+          if (!r.data) return sb.from("breeders").select("name, wilayat:wilayat_id(name)")
+            .eq("phone", txt(payload.phone)).contains("shared_with", [me.wilayat_id]).maybeSingle()
+            .then(function (s) {
+              if (s.data) return { success: false, shared: true, name: txt(s.data.name),
+                                   clinic: s.data.wilayat ? txt(s.data.wilayat.name) : "" };
+              return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
+            });
           return Object.assign({ success: true }, toApp(r.data));
         });
     }
@@ -15245,13 +15301,14 @@ if (sbw) showModal(reason, 'failed');
     return init(true).then(function (c) {
       return Promise.all([
         c.rpc("breeder_clinic", { p_phone: txt(phone) }),
-        c.from("breeders").select("id").eq("phone", txt(phone)).eq("is_shared", true).maybeSingle()
+                c.from("breeders").select("id").eq("phone", txt(phone))
+          .contains("shared_with", [global._sbProfile.wilayat_id]).maybeSingle()
       ]);
     }).then(function (v) {
       var clinic = v[0].data, shared = !!(v[1] && v[1].data);
       if (shared)
         throw new Error("ℹ️ هذا المربي مسجَّل في " + (clinic || "عيادة أخرى") +
-          " ومسموح بخدمته في كل العيادات — لا حاجة لتسجيله، اكتب رقمه مباشرة في العلاج أو التحصين أو العينات");
+           " ومشترك مع عيادتك — لا حاجة لتسجيله، اكتب رقمه مباشرة في العلاج أو التحصين أو العينات");
       throw new Error(clinic
         ? "هذا المربي مسجَّل في " + clinic + " — يُخدم في عيادة ولايته فقط"
         : "رقم الهاتف مسجَّل مسبقاً");
@@ -15407,7 +15464,7 @@ function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, fal
     var phone = txt(d.phone);
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
 
-    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
          if (r.data) return r.data.id;
          throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
@@ -15641,7 +15698,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
     if (!phone) return Promise.resolve({ success: false, message: "رقم الهاتف مطلوب" });
     return sb.from("breeders")
       .select("name, possession_no, civil_id, holding_expiry, regions(name)")
-      .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", phone).maybeSingle()
+      .or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
@@ -15725,7 +15782,7 @@ function names(table, col, filterWilayat) {
     return trPageAll(function () {
       var q = sb.from(table).select(col).order(col).order("id");
             if (filterWilayat) q = (table === "breeders")
-        ? q.or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true")
+        ? q.or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}")
         : q.eq("wilayat_id", me.wilayat_id);
       return q;
     }).then(function (rows) {
@@ -16299,7 +16356,7 @@ function names(table, col, filterWilayat) {
   function breederData(p) {
        return sb.from("breeders")
       .select("name, possession_no, civil_id, location_lat, location_lng, location_acc, regions(name)")
-      .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", txt(p.phone)).maybeSingle()
+      .or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", txt(p.phone)).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
@@ -16483,7 +16540,7 @@ function names(table, col, filterWilayat) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col).order("id");
             if (filterW) q = (table === "breeders")
-        ? q.or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true")
+        ? q.or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}")
         : q.eq("wilayat_id", me.wilayat_id);
       return q;
     }).then(function (rows) {
@@ -17217,7 +17274,7 @@ function names(table, col, filterWilayat) {
     return pageAll(function () {
       var q = sb.from(table).select(col).order(col);
             if (byWilayat)  q = (table === "breeders")
-        ? q.or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true")
+        ? q.or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}")
         : q.eq("wilayat_id", me.wilayat_id);
       if (activeOnly) q = q.or("is_active.is.null,is_active.eq.true");
       return q;
@@ -17550,7 +17607,7 @@ function childRows(sampleId, d, tm, sm, keep) {
 
   function breederData(p) {
     return sb.from("breeders").select("name, possession_no, civil_id, regions(name)")
-      .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
+      .or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على بيانات" };
         var b = r.data;
