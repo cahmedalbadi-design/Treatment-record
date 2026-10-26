@@ -15407,7 +15407,7 @@ function diseaseId(n) { return findOrCreate(n, "diseases", "diseases", null, fal
     var phone = txt(d.phone);
     if (!phone) return Promise.reject(new Error("رقم هاتف المربي مطلوب"));
 
-    return sb.from("breeders").select("id").eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", phone).maybeSingle()
       .then(function (r) {
          if (r.data) return r.data.id;
          throw new Error("الرقم " + phone + " غير مسجَّل في سجل المربي — سجِّله أولاً من صفحة سجل المربي");
@@ -16299,7 +16299,7 @@ function names(table, col, filterWilayat) {
   function breederData(p) {
        return sb.from("breeders")
       .select("name, possession_no, civil_id, location_lat, location_lng, location_acc, regions(name)")
-      .eq("wilayat_id", me.wilayat_id).eq("phone", txt(p.phone)).maybeSingle()
+      .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", txt(p.phone)).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على المربي" };
