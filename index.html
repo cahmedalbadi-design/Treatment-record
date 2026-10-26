@@ -15641,7 +15641,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
     if (!phone) return Promise.resolve({ success: false, message: "رقم الهاتف مطلوب" });
     return sb.from("breeders")
       .select("name, possession_no, civil_id, holding_expiry, regions(name)")
-      .eq("wilayat_id", me.wilayat_id).eq("phone", phone).maybeSingle()
+      .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
@@ -17550,7 +17550,7 @@ function childRows(sampleId, d, tm, sm, keep) {
 
   function breederData(p) {
     return sb.from("breeders").select("name, possession_no, civil_id, regions(name)")
-      .eq("wilayat_id", me.wilayat_id).eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
+      .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", txt(p.phone)).maybeSingle().then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: false, message: "لم يتم العثور على بيانات" };
         var b = r.data;
