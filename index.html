@@ -1916,6 +1916,16 @@ function clinicInfoRefresh() {
     <button class="delete" onclick="ua_setForm(false)">🔴 إغلاق النموذج</button>
   </div>
 </div>
+  <div class="card">
+  <h3>🤝 مربون مسموح خدمتهم في كل العيادات</h3>
+  <div class="ua-bar">
+    <label>رقم الهاتف:</label><input id="ua_shPhone" placeholder="رقم هاتف المربي" style="width:180px">
+    <button class="save" onclick="ua_shSet('', true)">➕ إضافة استثناء</button>
+    <button class="update" onclick="ua_shLoad()">🔄 تحديث</button>
+  </div>
+  <table><thead><tr><th>رقم الهاتف</th><th>اسم المربي</th><th>عيادته الأصلية</th><th></th></tr></thead>
+    <tbody id="ua_shTb"></tbody></table>
+</div>
 <div class="card">
   <h3>📢 رسائل منبثقة للمستخدمين</h3>
   <div class="ua-bar">
@@ -2139,7 +2149,7 @@ async function ua_init() {
       }).join('');
         document.getElementById('ua_mvTo').innerHTML = '<option value="">— اختر العيادة —</option>' +
       ua_clinics.map(function (c) { return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>'; }).join('');
-    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad()]);
+    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -2514,6 +2524,29 @@ async function ua_moveBreeder() {
   showToast('✅ تم النقل: ' + r.data, 'success');
   document.getElementById('ua_mvPhone').value = '';
   if (typeof bd_refreshDropdowns === 'function') bd_refreshDropdowns().catch(function () {});
+}
+  /* ── المربون المشتركون بين العيادات ── */
+async function ua_shLoad() {
+  var tb = document.getElementById('ua_shTb');
+  var sb = await ua_sb();
+  var r = await sb.from('breeders').select('phone, name, wilayat:wilayat_id(name)')
+    .eq('is_shared', true).order('name');
+  if (r.error) { tb.innerHTML = '<tr><td colspan="4" style="color:red">' + ua_esc(r.error.message) + '</td></tr>'; return; }
+  tb.innerHTML = (r.data || []).map(function (b) {
+    return '<tr><td>' + ua_esc(b.phone) + '</td><td class="nc">' + ua_esc(b.name) + '</td><td>' +
+      ua_esc(b.wilayat ? b.wilayat.name : '—') + '</td><td><button class="delete" style="padding:4px 12px" data-p="' +
+      ua_esc(b.phone) + '" onclick="ua_shSet(this.dataset.p, false)">✖ إلغاء الاستثناء</button></td></tr>';
+  }).join('') || '<tr><td colspan="4" class="no-results">لا يوجد مربون مستثنون</td></tr>';
+}
+
+async function ua_shSet(phone, on) {
+  phone = String(phone || document.getElementById('ua_shPhone').value || '').trim();
+  if (!phone) { showToast('⚠️ أدخل رقم هاتف المربي', 'warning'); return; }
+  var r = await ua_rpc('admin_set_breeder_shared', { p_phone: phone, p_shared: on });
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  showToast(on ? '✅ أصبح ' + r.data + ' متاحاً لكل العيادات' : '✅ أُلغي استثناء ' + r.data, 'success');
+  if (on) document.getElementById('ua_shPhone').value = '';
+  ua_shLoad();
 }
 /* ── الحملة الوطنية ── */
 function ua_calcDays() {
@@ -15047,7 +15080,7 @@ if (sbw) showModal(reason, 'failed');
     /* ٤) جلب مربٍّ واحد برقم هاتفه */
     if (action === "bd_searchCaseData") {
           return sb.from("breeders").select(SELECT_COLS)
-        .eq("wilayat_id", me.wilayat_id).eq("phone", txt(payload.phone)).maybeSingle()
+        .or("wilayat_id.eq." + me.wilayat_id + ",is_shared.eq.true").eq("phone", txt(payload.phone)).maybeSingle()
         .then(function (r) {
           if (r.error) throw r.error;
           if (!r.data) return { success: false, message: "لم يتم العثور على بيانات لهذا الرقم" };
