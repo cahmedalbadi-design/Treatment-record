@@ -4973,7 +4973,7 @@ function trfillFormWithData(data) {
   try {
     trsafeSet("tr_caseNumber",      data.caseNumber);
     trupdateMirrorCaseNumber();
-    trsafeSet("tr_phoneInput",      data.phone);
+    if (window.SharedChip) SharedChip.check('tr', data.phone);
     trsafeSet("tr_nameInput",       data.name);
     trsafeSet("tr_possessionInput", data.possession);
     trsafeSet("tr_regionInput",     data.region);
@@ -5122,6 +5122,7 @@ function trupdateMirrorCaseNumber() {
 
 /** جلب بيانات المربي بناءً على رقم الهاتف */
 async function trfetchBreederData(phone) {
+  if (window.SharedChip) SharedChip.check('tr', phone);
   trblockButtons();
   const ids = [
     "tr_nameInput","tr_possessionInput","tr_regionInput",
@@ -7938,6 +7939,7 @@ async function vaccFetchBreederData(phone) {
 
 async function vaccFetchVaccinationDataByPhone(phone, showWarning) {
   var container = document.getElementById('vacc_vaccinationDataDisplay');
+    if (window.SharedChip) SharedChip.check('vacc', phone);
   if (!phone) { container.innerHTML = ''; return; }
   container.innerHTML = '<p style="text-align:center;font-weight:bold;font-size:19px;">جاري جلب البيانات...</p>';
   try {
@@ -8047,6 +8049,7 @@ function vaccClearForm() {
  ].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   document.querySelectorAll('#vaccination .inner-table input').forEach(function(el){ el.value=''; });
   GeoLoc.clear('vacc');
+  if (window.SharedChip) SharedChip.hide('vacc');
   document.getElementById('vacc_vaccinationDataDisplay').innerHTML = '';
   vaccClearTopBarMessage();
 }
@@ -9610,6 +9613,7 @@ function fofillFormWithData(data) {
   if(data.caseNumberrt&&data.caseNumberrt.toString().trim()!==''){lastSampleNumber=data.caseNumberrt.toString().trim();fosafeSet('specialsample',lastSampleNumber);}
   var fields = ['phoneInput:phone','nameInput:name','possessionInput:possession','regionInput:region','civilInput:civil','financialDate:financialDate','animalType:animalType','gender:gender','age:age','diseaseDate:diseaseDate','anatomicalFeature:anatomicalFeature','pathologyDesc:pathologyDesc','sickCount:sickCount','contactCount:contactCount','deathCount:deathCount','sampleTakenDate:sampleTakenDate','sampleSentDate:sampleSentDate','suspectedDisease:suspectedDisease','dataEntryInput:dataEntry','dataUpdaterInput:dataUpdater','notes:notes'];
     fields.forEach(function(f){var p=f.split(':');fosafeSet(p[0],data[p[1]]);});
+    if (window.SharedChip) SharedChip.check('fo', data.phone);
   /* إيقاف التعبئة التلقائية حتى يبقى اسم مُنشئ العينة ومحدّثها ظاهراً */
   ['dataEntryInput', 'dataUpdaterInput'].forEach(function (k) {
     var el = document.getElementById(k);
@@ -9632,6 +9636,7 @@ function fochearForm() {
   ids.forEach(function(id){fosafeSet(id,'');});
   fo_stClear();
   fo_atLoad('');
+    if (window.SharedChip) SharedChip.hide('fo');
 }
 
 function focollectFormData() {
@@ -9672,7 +9677,7 @@ async function foloadUniqueCount() {
 
 async function fofetchBreederData(phone) {
   var card = document.querySelector('#samples .two-cards-row .card');
-
+    if (window.SharedChip) SharedChip.check('fo', phone);
   if (!phone) {
     ['nameInput','possessionInput','regionInput','civilInput'].forEach(function(id){
       document.getElementById(id).value='';
@@ -18110,6 +18115,45 @@ window.GeoLoc = (function () {
   document.head.appendChild(st);
 
   return { set: set, clear: clear, get: get, fresh: fresh, capture: capture };
+})();
+</script>
+  <script>
+/* ═══ شارة المربي المشترك — العلاج والتحصين والعينات ═══ */
+window.SharedChip = (function () {
+  var BARS = { tr: '#treatment > .top-bar', vacc: '#vacc_topBarMain', fo: '#topBarMain' };
+  function chip(p) {
+    var el = document.getElementById(p + '_sharedChip');
+    if (el) return el;
+    var bar = document.querySelector(BARS[p]);
+    if (!bar) return null;
+    el = document.createElement('span');
+    el.id = p + '_sharedChip';
+    el.style.cssText = 'display:none;background:#fff3cd;color:#7f4f00;border:1px solid #ffc107;' +
+      'border-radius:20px;padding:5px 14px;font-weight:bold;font-size:13px;white-space:nowrap;';
+    bar.appendChild(el);
+    return el;
+  }
+  function hide(p) {
+    var el = document.getElementById(p + '_sharedChip');
+    if (el) el.style.display = 'none';
+  }
+  async function check(p, phone) {
+    hide(p);
+    phone = String(phone || '').trim();
+    var me = window._sbProfile;
+    if (!phone || !me || !window.SBAuth) return;
+    try {
+      var sb = await window.SBAuth.client();
+      var r = await sb.from('breeders').select('wilayat_id, wilayat:wilayat_id(name)')
+        .eq('phone', phone).contains('shared_with', [me.wilayat_id]).maybeSingle();
+      if (r.error || !r.data || String(r.data.wilayat_id) === String(me.wilayat_id)) return;
+      var el = chip(p);
+      if (!el) return;
+      el.textContent = '🤝 الرقم مشترك مع ' + ((r.data.wilayat && r.data.wilayat.name) || 'عيادة أخرى');
+      el.style.display = 'inline-block';
+    } catch (e) {}
+  }
+  return { check: check, hide: hide };
 })();
 </script>
 </body>
