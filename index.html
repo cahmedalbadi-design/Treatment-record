@@ -5084,7 +5084,8 @@ function trcollectFormData() {
 function trfillFormWithData(data) {
   try {
     trsafeSet("tr_caseNumber",      data.caseNumber);
-    trupdateMirrorCaseNumber();
+        trupdateMirrorCaseNumber();
+    trsafeSet("tr_phoneInput",      data.phone);
     if (window.SharedChip) SharedChip.check('tr', data.phone);
     trsafeSet("tr_nameInput",       data.name);
     trsafeSet("tr_possessionInput", data.possession);
