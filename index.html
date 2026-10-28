@@ -2897,6 +2897,8 @@ function ua_saveCampaign() {
 <div class="card" id="ac_dailyWrap">
   <h3>📋 حالات السجل اليومي في العيادات</h3>
   <div class="fb">
+    <label>التاريخ:</label><input type="date" id="ac_dDate" onchange="ac_loadDaily()">
+    <button class="bp" style="background:#95a5a6" onclick="document.getElementById('ac_dDate').value='';ac_loadDaily()">📅 اليوم</button>
     <button class="bp" onclick="ac_loadDaily()">🔄 تحديث</button>
     <span id="ac_dStatus" style="font-weight:bold;color:#00b8d9"></span>
   </div>
@@ -3051,8 +3053,16 @@ async function ac_loadDaily() {
     var w  = await sb.from('wilayat').select('id, name, is_central').order('name');
     if (w.error) throw w.error;
     var clinics = (w.data || []).filter(function (x) { return !x.is_central; });
-    var now  = new Date();
-    var day  = now.toLocaleDateString('en-CA');
+       var now   = new Date();
+    var today = now.toLocaleDateString('en-CA');
+    var dEl   = document.getElementById('ac_dDate');
+    if (dEl && !dEl.value) dEl.value = today;
+    var day   = (dEl && dEl.value) || today;
+    if (day > today) {
+      showToast('⚠️ لا يمكن اختيار تاريخ في المستقبل', 'warning');
+      dEl.value = today; day = today;
+    }
+    var isToday = (day === today);
     var time = now.toLocaleTimeString('ar-OM', { hour: '2-digit', minute: '2-digit' });
 
     var counts = await Promise.all(clinics.map(function (c) {
@@ -3066,7 +3076,8 @@ async function ac_loadDaily() {
       var n = counts[i], cell;
       if (n === null) cell = '<td style="color:#e67e22">⚠️ تعذّر الجلب</td>';
       else if (n > 0) { total += n; cell = '<td style="font-weight:bold;color:#1b5e20;font-size:15px">' + n + '</td>'; }
-      else cell = '<td style="color:#c62828;font-weight:bold">لم يتم تسجيل أي حالة إلى الساعة ' + time + '</td>';
+            else cell = '<td style="color:#c62828;font-weight:bold">' +
+        (isToday ? 'لم يتم تسجيل أي حالة إلى الساعة ' + time : 'لا توجد حالات مسجّلة في هذا اليوم') + '</td>';
       return '<tr><td class="nc">' + escHtml(c.name) + '</td>' + cell + '</tr>';
     }).join('') || '<tr><td colspan="2" class="no-results">لا توجد عيادات</td></tr>';
 
