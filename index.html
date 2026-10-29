@@ -2187,6 +2187,21 @@ function clinicInfoRefresh() {
     </tr></thead><tbody id="ua_dTb"></tbody></table>
   </div>
 </div>
+  <div class="card" style="grid-column:1/-1;--c:var(--ide-acc)">
+  <h3>🔔 الإشعارات الفورية</h3>
+  <div class="ua-bar">
+    <label>إلى:</label><select id="ua_pTo"></select>
+    <input id="ua_pTitle" placeholder="العنوان" style="width:180px">
+    <input id="ua_pBody" placeholder="نص الإشعار" style="flex:1;min-width:200px">
+    <button class="save" onclick="ua_pushSend()">📢 إرسال</button>
+  </div>
+  <div class="ua-bar">
+    <label>تنبيهات النظام إلى:</label><select id="ua_pAlertTo"></select>
+    <label><input type="checkbox" id="ua_pAlertOn"> مفعّلة</label>
+    <button class="update" onclick="ua_pushSave()">💾 حفظ</button>
+  </div>
+  <div style="font-size:11px;color:#777">تنبيهات النظام = الحالات غير المكتملة والعينات المتأخرة. تصل فقط لمن وافق على الإشعارات في جهازه.</div>
+</div>
 <script>
 var ua_users = [], ua_clinics = [];
 
@@ -2377,6 +2392,7 @@ async function ua_load() {
   }
   ua_users = r.data || [];
   ua_render();
+  ua_pushInit();
 }
 
 function ua_listLabel(v, allTxt) {
@@ -13715,7 +13731,10 @@ function sendTelegram(text) { sendAlert(text); }
  
 var _notified = false;
 
-function sendTelegram(text) { sendAlert(text); }
+function sendTelegram(text) {
+  sendAlert(text);
+  if (window.pushCall) pushCall({ action: 'alert', title: 'تنبيه النظام', body: text }).catch(function () {});
+}
   /* ══════════════════════════════════════════════════════
      ١. الحالات العلاجية غير المكتملة
      ══════════════════════════════════════════════════════ */
@@ -14234,8 +14253,8 @@ document.addEventListener("app:login", function () {
 global.fetch = function (input, init) {
     var url = (typeof input === 'string') ? input : ((input && input.url) || '');
 
-     var silent = url.indexOf('/functions/v1/notify') !== -1;
-    /* ── Supabase ── */
+     var silent = /\/functions\/v1\/(notify|push)/.test(url);
+  /* ── Supabase ── */
     var isSb  = /\/(rest|auth)\/v1\//.test(url);
     var sbw   = sbWriteMethod(url, init);
     var sbKey = '';
@@ -17572,6 +17591,66 @@ nav button[onclick*="'login'"] .nav-ico{margin:0}
     return p;
   };
 })(window);
+</script>
+  <script>
+/* ═══ إشعارات Web Push ═══ */
+(function (g) {
+  var VAPID_PUBLIC = "BCDZMmp_JpQm-cnEEJnjYCiOVRptNJBwylSDGDssyS1-ReuIDW3q5EZKzGz0NudipY0qjmQQjiMV-xx7a-zXS7k";
+  g.pushCall = function (body) {
+    return g.SBAuth.client().then(function (sb) { return sb.functions.invoke('push', { body: body }); });
+  };
+  function key(s) {
+    var p = (s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    return Uint8Array.from(atob(p), function (c) { return c.charCodeAt(0); });
+  }
+  function subscribe() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in g)) return;
+    Notification.requestPermission().then(async function (p) {
+      if (p !== 'granted') return;
+      try {
+        await navigator.serviceWorker.register('sw.js');
+        var reg = await navigator.serviceWorker.ready;
+        var sub = await reg.pushManager.getSubscription() ||
+          await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key(VAPID_PUBLIC) });
+        await g.pushCall({ action: 'sub', sub: sub.toJSON() });
+      } catch (e) { console.warn('[Push]', e.message); }
+    });
+  }
+  /* طلب الإذن مع أول نقرة بعد الدخول — شرط في iPhone */
+  document.addEventListener('app:login', function () {
+    document.addEventListener('click', subscribe, { once: true });
+  });
+})(window);
+
+function ua_pushInit() {
+  var opts = ua_users.filter(function (u) { return u.is_active !== false; }).map(function (u) {
+    return '<option value="' + u.id + '">' + escHtml(u.full_name) + '</option>';
+  }).join('');
+  document.getElementById('ua_pTo').innerHTML = '<option value="all">كل المستخدمين</option>' + opts;
+  document.getElementById('ua_pAlertTo').innerHTML = '<option value="">— اختر —</option>' + opts;
+  pushCall({ action: 'getSettings' }).then(function (r) {
+    var c = r.data || {};
+    document.getElementById('ua_pAlertTo').value = c.to || '';
+    document.getElementById('ua_pAlertOn').checked = !!c.enabled;
+  });
+}
+function ua_pushSend() {
+  var b = document.getElementById('ua_pBody').value.trim();
+  if (!b) { showToast('⚠️ اكتب نص الإشعار', 'warning'); return; }
+  pushCall({ action: 'send', to: document.getElementById('ua_pTo').value,
+             title: document.getElementById('ua_pTitle').value.trim(), body: b })
+    .then(function (r) {
+      if (r.error || !r.data || r.data.error) { showToast('❌ تعذّر الإرسال', 'error'); return; }
+      showToast('✅ أُرسل إلى ' + r.data.sent + ' جهاز', 'success');
+      document.getElementById('ua_pBody').value = '';
+    });
+}
+function ua_pushSave() {
+  pushCall({ action: 'setSettings', value: {
+    enabled: document.getElementById('ua_pAlertOn').checked,
+    to: document.getElementById('ua_pAlertTo').value || null } })
+    .then(function (r) { showToast(r.error ? '❌ تعذّر الحفظ' : '✅ تم الحفظ', r.error ? 'error' : 'success'); });
+}
 </script>
 </body>
 </html>
