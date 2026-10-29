@@ -2087,6 +2087,10 @@ function clinicInfoRefresh() {
 }
 #userAdmin .ua-bar input[type=checkbox]{width:18px !important;height:18px;min-height:0;padding:0;margin:0;flex:none}
 #userAdmin .ua-bar label:has(input[type=checkbox]){display:inline-flex;align-items:center;gap:6px}
+@media(min-width:651px){
+  #userAdmin > .card{min-width:0;overflow-x:auto}
+  #userAdmin > .card > table td{white-space:normal}
+}
 </style>
 <div class="card">
   <h3>🔁 نقل مربٍّ إلى ولاية أخرى</h3>  <div class="ua-bar">
