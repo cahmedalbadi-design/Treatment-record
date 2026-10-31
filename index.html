@@ -1723,22 +1723,22 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 
     <label style="font-size:13px;font-weight:bold;color:#004e66;display:block;margin-bottom:5px;">من تاريخ :</label>
-    <input type="date" id="camp_dateFrom" dir="ltr"
+    <input type="date" id="camp_dateFrom" dir="ltr" readonly tabindex="-1"
       style="width:100%;padding:7px 9px;border:2px solid #ddd;border-radius:5px;
              font-size:14px;font-family:inherit;margin-bottom:10px;color:#333;">
 
     <label style="font-size:13px;font-weight:bold;color:#004e66;display:block;margin-bottom:5px;">إلى تاريخ :</label>
-    <input type="date" id="camp_dateTo" dir="ltr"
+    <input type="date" id="camp_dateTo" dir="ltr" readonly tabindex="-1"
       style="width:100%;padding:7px 9px;border:2px solid #ddd;border-radius:5px;
              font-size:14px;font-family:inherit;margin-bottom:10px;color:#333;">
 
     <label style="font-size:13px;font-weight:bold;color:#004e66;display:block;margin-bottom:5px;">عدد أيام الحملة :</label>
-    <input type="number" id="camp_days" min="0" placeholder="أدخل عدد الأيام يدوياً"
+<input type="number" id="camp_days" min="0" readonly tabindex="-1" placeholder="—"
       style="width:100%;padding:7px 9px;border:2px solid #ddd;border-radius:5px;
              font-size:14px;font-family:inherit;margin-bottom:10px;color:#333;">
 
     <label style="font-size:13px;font-weight:bold;color:#004e66;display:block;margin-bottom:5px;">عدد الحيوانات المستهدفة :</label>
-    <input type="number" id="camp_target" min="0" placeholder="أدخل العدد المستهدف يدوياً"
+    <input type="number" id="camp_target" min="0" readonly tabindex="-1" placeholder="—"
       style="width:100%;padding:7px 9px;border:2px solid #ddd;border-radius:5px;
              font-size:14px;font-family:inherit;margin-bottom:12px;color:#333;">
 
@@ -2202,10 +2202,11 @@ function clinicInfoRefresh() {
     <button class="save" onclick="ua_pushSend()">📢 إرسال</button>
   </div>
   <div class="ua-bar">
-    <label>تنبيهات النظام إلى:</label><select id="ua_pAlertTo"></select>
-    <label><input type="checkbox" id="ua_pAlertOn"> مفعّلة</label>
+    <label>تنبيهات النظام إلى:</label><select id="ua_pAlertTo" onchange="ua_pushAdd(this)"></select>
+    <label><input type="checkbox" id="ua_pAlertOn" onchange="ua_pushSave()"> مفعّلة</label>
     <button class="update" onclick="ua_pushSave()">💾 حفظ</button>
   </div>
+  <div id="ua_pAlertList" style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px"></div>
   <div style="font-size:11px;color:#777">تنبيهات النظام = الحالات غير المكتملة والعينات المتأخرة. تصل فقط لمن وافق على الإشعارات في جهازه.</div>
 </div>
 <script>
@@ -8526,6 +8527,8 @@ async function vaccInit() {
     <h3>متابعة طلبات التحصين</h3>
 
     <div class="toolbar">
+      <label>الموسم:</label>
+      <select id="vr_season" onchange="vr_loadData()"></select>
       <label>بحث:</label>
       <input type="text" id="vr_searchInput" placeholder="رقم الهاتف أو الاسم أو المنطقة" style="width:260px" oninput="if(vr_dataLoaded) vr_render()">
       <label>الحالة:</label>
@@ -8603,6 +8606,11 @@ async function vaccInit() {
 // =====================================================
 var vr_allData = [];
 var vr_dataLoaded = false;
+var vr_season = null;
+/* الموسم يبدأ 1 مايو — موسم 2026 = من مايو 2026 إلى أبريل 2027 */
+function vrSeasonNow() { var d = new Date(); return d.getMonth() < 4 ? d.getFullYear() - 1 : d.getFullYear(); }
+function vrSeasonLabel(s) { return s + '/' + (s + 1); }
+function vr_isPast() { return vr_season !== null && vr_season !== vrSeasonNow(); }
 var vr_registeredPhones = new Set();
 // إخفاء شاشة التحميل
 function vr_hideLoadingOverlay() {
@@ -8671,6 +8679,12 @@ function vr_requestSummary(r) {
 function vr_escapeHtml(s) { return escHtml(s); }
 
 async function vr_loadData() {
+  var vrSel = document.getElementById('vr_season');
+  if (vrSel && !vrSel.options.length) {
+    for (var s = vrSeasonNow(); s >= 2026; s--)
+      vrSel.add(new Option('موسم ' + vrSeasonLabel(s) + (s === vrSeasonNow() ? ' (الحالي)' : ''), s));
+  }
+  vr_season = vrSel ? Number(vrSel.value) : vrSeasonNow();
   vr_showMsg('جاري تحميل البيانات...', false);
   document.getElementById("vr_searchResultsTable").style.display = "none";
 
@@ -8994,6 +9008,32 @@ function vr_locBtn(r) {
     'style="padding:2px 8px;font-size:11px;border-radius:10px;margin-right:4px;border:none;cursor:pointer;' +
     'background:' + (weak ? '#e67e22' : '#16a085') + ';color:#fff;">📍 الموقع</button>';
 }
+var VR_REFUSE_TAG = '⛔ سبب رفض التحصين: ';
+var VR_REFUSE_RE  = /\n?⛔ سبب رفض التحصين:[^\n]*/g;
+
+function vr__askReason() {
+  return new Promise(function (resolve) {
+    var m = document.createElement('div');
+    m.className = 'custom-modal';
+    m.innerHTML = '<div class="modal-box"><h3>سبب رفض التحصين</h3>' +
+      '<textarea id="vrReasonTxt" rows="3" placeholder="اكتب سبب الرفض..." ' +
+      'style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;font-family:inherit;font-size:15px;resize:vertical"></textarea>' +
+      '<div id="vrReasonErr" style="color:#c0392b;font-size:13px;min-height:18px;margin-top:4px"></div>' +
+      '<div class="modal-buttons"><button class="confirm-btn">حفظ</button>' +
+      '<button class="cancel-btn">إلغاء</button></div></div>';
+    document.body.appendChild(m);
+    var t = m.querySelector('#vrReasonTxt');
+    setTimeout(function () { t.focus(); }, 50);
+    function done(v) { m.remove(); resolve(v); }
+    m.querySelector('.confirm-btn').onclick = function () {
+      var v = t.value.replace(/\s+/g, ' ').trim();
+      if (!v) { m.querySelector('#vrReasonErr').textContent = 'الرجاء كتابة السبب'; t.focus(); return; }
+      done(v);
+    };
+    m.querySelector('.cancel-btn').onclick = function () { done(null); };
+    m.onclick = function (e) { if (e.target === m) done(null); };
+  });
+}
 
 function vr__confirm(title, html) { return ask(html, { title: title, html: true }); }
 
@@ -9004,12 +9044,23 @@ async function vr_toggleRefused(phone) {
   phone = String(phone).trim();
   var r = vr_allData.filter(function (x) { return String(x.phone).trim() === phone; })[0];
   if (!r) return;
+  if (vr_isPast()) {
+    var vrOld = (String(r.notes || '').match(/⛔ سبب رفض التحصين:\s*([^\n]*)/) || [])[1];
+    showToast('🔒 موسم سابق — للعرض فقط' + (vrOld ? '\nسبب الرفض: ' + vrOld : ''), 'warning');
+    return;
+  }
   var makeRefused = !vr_isRefused(r);
+  var vrReason = (String(r.notes || '').match(/⛔ سبب رفض التحصين:\s*([^\n]*)/) || [])[1] || '';
 
   var ok = await vr__confirm(
     makeRefused ? '⛔ تسجيل رفض التحصين' : '↩️ إلغاء رفض التحصين',
     (makeRefused ? 'سيتم تسجيل أن المربي <strong>' : 'سيتم إلغاء حالة الرفض للمربي <strong>') +
-    vr_escapeHtml(r.name) + '</strong> (' + vr_escapeHtml(phone) + ').'
+    vr_escapeHtml(r.name) + '</strong> (' + vr_escapeHtml(phone) + ').' +
+    (makeRefused ? '' :
+      '<div style="margin-top:12px;padding:10px 12px;background:#f3e5f5;border:1px solid #8e44ad;' +
+      'border-radius:8px;color:#4a235a;text-align:right"><b>سبب الرفض:</b> ' +
+      (vrReason ? vr_escapeHtml(vrReason) : 'غير مسجَّل') + '</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:#888">سيُحذف السبب عند إلغاء الرفض</div>')
   );
   if (!ok) return;
 
@@ -9018,17 +9069,27 @@ async function vr_toggleRefused(phone) {
     var sb = await window.SBAuth.client();
     var q = await sb.from('vaccination_requests').select('id')
       .eq('wilayat_id', window._sbProfile.wilayat_id).eq('phone', phone)
+      .eq('season', vr_season)
       .order('entry_date', { ascending: false }).order('id', { ascending: false }).limit(1);
     if (q.error) throw q.error;
     var req = q.data && q.data[0];
     if (!req) throw new Error('لا يوجد طلب تحصين لهذا الرقم');
 
-        var u = await sb.from('vaccination_requests')
-      .update({ is_refused: makeRefused }).eq('id', req.id).select('id');
+    var cur = await sb.from('vaccination_requests').select('notes').eq('id', req.id).single();
+    if (cur.error) throw cur.error;
+    var newNotes = String(cur.data.notes || '').replace(VR_REFUSE_RE, '').trim();
+    if (makeRefused) {
+      var reason = await vr__askReason();
+      if (reason === null) throw new Error('تم الإلغاء — لم يُسجَّل الرفض');
+      newNotes = (newNotes ? newNotes + '\n' : '') + VR_REFUSE_TAG + reason;
+    }
+    var u = await sb.from('vaccination_requests')
+      .update({ is_refused: makeRefused, notes: newNotes }).eq('id', req.id).select('id');
     if (u.error) throw u.error;
     if (!u.data || !u.data.length) throw new Error('لم يُحفظ التغيير — تحقق من صلاحيات التعديل على طلبات التحصين');
 
     r.refused = makeRefused;
+    r.notes   = newNotes;
     vr_render();
     showToast(makeRefused ? '✅ تم تسجيل رفض التحصين' : '✅ تم إلغاء حالة الرفض', 'success');
   } catch (e) {
@@ -9156,7 +9217,7 @@ async function vr_saveToBreeder(r) {
 function vr_printTable() {
   var t = function (id) { return document.getElementById(id).textContent; };
   expTable('#vr_searchResultsTable', 'متابعة طلبات التحصين', 'pdf', true,
-    'الإجمالي: ' + t('vr_statTotal') + ' | المحصنون: ' + t('vr_statVacc') +
+    'موسم ' + vrSeasonLabel(vr_season || vrSeasonNow()) + ' | الإجمالي: ' + t('vr_statTotal') + ' | المحصنون: ' + t('vr_statVacc') +
     ' | غير المحصنين: ' + t('vr_statNot') + ' | رفض التحصين: ' + t('vr_statRefused') +
     ' | إجمالي الحيوانات: ' + t('vr_totalAnimals'));
 }
@@ -10075,6 +10136,7 @@ function fin_renderFinancialData(data, annualTotal) {
 
   if (!data || data.length === 0) {
     annualInput.value = '0 ريال';
+    fin_setRowCount(0);
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#999">لا توجد بيانات للفترة المحددة</td></tr>';
     return;
   }
@@ -10092,6 +10154,21 @@ function fin_renderFinancialData(data, annualTotal) {
     tbody.appendChild(tr);
   }
   annualInput.value = Number(displayedTotal).toLocaleString('ar-SA') + ' ريال';
+  fin_setRowCount(data.length);
+}
+
+function fin_setRowCount(n) {
+  var el = document.getElementById('fin_rowCount');
+  if (!el) {
+    var ref = document.getElementById('fin_annualTotal');
+    if (!ref) return;
+    el = document.createElement('span');
+    el.id = 'fin_rowCount';
+    el.style.cssText = 'display:inline-block;margin:6px 8px;padding:6px 14px;border-radius:20px;'
+      + 'background:#2980b9;color:#fff;font-weight:bold;font-size:14px;white-space:nowrap';
+    ref.insertAdjacentElement('afterend', el);
+  }
+  el.textContent = 'عدد المعاملات: ' + Number(n).toLocaleString('ar-SA');
 }
 
 function fin_showToast(msg, type) { notify(msg, type === 'error'); }
@@ -15465,8 +15542,9 @@ function names(table, col, filterWilayat) {
       pageAll(function () {
         return sb.from("vaccination_requests_view")
                  .select("phone,name,area,possession,civil,financial_date,notes," +
-                         "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
+                                                 "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
                  .eq("wilayat_id", me.wilayat_id)
+                 .eq("season", global.vr_season || global.vrSeasonNow())
                  .order("name");
       }),
       pageAll(function () {
@@ -16961,6 +17039,7 @@ function childRows(sampleId, d, tm, sm, keep) {
   function latestReq(phone) {
     return sb.from("vaccination_requests").select("id")
       .eq("wilayat_id", me.wilayat_id).eq("phone", phone)
+      .eq("season", g.vrSeasonNow())
       .order("entry_date", { ascending: false }).order("id", { ascending: false }).limit(1)
       .then(function (r) {
         if (r.error) throw r.error;
@@ -16974,12 +17053,13 @@ function childRows(sampleId, d, tm, sm, keep) {
     /* منع التكرار: الرقم لديه طلب تحصين مسجَّل مسبقاً */
     var ex = await sb.from("vaccination_requests").select("id, entry_date")
       .eq("wilayat_id", me.wilayat_id).eq("phone", phone)
+      .eq("season", g.vrSeasonNow())
       .order("entry_date", { ascending: false }).limit(1);
     if (ex.error) throw ex.error;
     if (ex.data && ex.data.length) {
       var dt = ex.data[0].entry_date;
       return { success: false,
-               message: "⚠️ هذا الرقم لديه طلب تحصين مسجَّل مسبقاً" +
+          message: "⚠️ هذا الرقم لديه طلب تحصين مسجَّل مسبقاً في الموسم الحالي" +
                         (dt ? " بتاريخ " + dmy(dt) : "") +
                         " — استخدم زر (✏️ تحديث طلبات التحصين)" };
     }
@@ -17654,17 +17734,49 @@ nav button[onclick*="'login'"] .nav-ico{margin:0}
   });
 })(window);
 
+var ua_pAlertIds = [];
+
 function ua_pushInit() {
   var opts = ua_users.filter(function (u) { return u.is_active !== false; }).map(function (u) {
     return '<option value="' + u.id + '">' + escHtml(u.full_name) + '</option>';
   }).join('');
   document.getElementById('ua_pTo').innerHTML = '<option value="all">كل المستخدمين</option>' + opts;
-  document.getElementById('ua_pAlertTo').innerHTML = '<option value="">— اختر —</option>' + opts;
+  document.getElementById('ua_pAlertTo').innerHTML = '<option value="">— اختر لإضافته —</option>' + opts;
   pushCall({ action: 'getSettings' }).then(function (r) {
     var c = r.data || {};
-    document.getElementById('ua_pAlertTo').value = c.to || '';
+    ua_pAlertIds = Array.isArray(c.to) ? c.to.slice() : (c.to ? [c.to] : []);
     document.getElementById('ua_pAlertOn').checked = !!c.enabled;
+    ua_pushRender();
   });
+}
+
+function ua_pushRender() {
+  var box = document.getElementById('ua_pAlertList');
+  if (!box) return;
+  box.innerHTML = ua_pAlertIds.length ? ua_pAlertIds.map(function (id) {
+    var u = ua_users.filter(function (x) { return x.id === id; })[0];
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:#2d2d2d;' +
+      'border:1px solid #4fc1ff;border-radius:20px;padding:3px 6px 3px 12px;font-size:12px">' +
+      escHtml(u ? u.full_name : 'مستخدم غير موجود') +
+      '<button class="delete" style="padding:0 8px;line-height:20px" title="حذف" ' +
+      'onclick="ua_pushDel(\'' + id + '\')">✕</button></span>';
+  }).join('') : '<span style="color:#858585;font-size:12px">لم يُحدَّد أي مستخدم</span>';
+}
+
+function ua_pushAdd(sel) {
+  var id = sel.value;
+  sel.value = '';
+  if (!id) return;
+  if (ua_pAlertIds.indexOf(id) !== -1) { showToast('⚠️ المستخدم مضاف مسبقاً', 'warning'); return; }
+  ua_pAlertIds.push(id);
+  ua_pushRender();
+  ua_pushSave();
+}
+
+function ua_pushDel(id) {
+  ua_pAlertIds = ua_pAlertIds.filter(function (x) { return x !== id; });
+  ua_pushRender();
+  ua_pushSave();
 }
 function ua_pushSend() {
   var b = document.getElementById('ua_pBody').value.trim();
@@ -17680,7 +17792,7 @@ function ua_pushSend() {
 function ua_pushSave() {
   pushCall({ action: 'setSettings', value: {
     enabled: document.getElementById('ua_pAlertOn').checked,
-    to: document.getElementById('ua_pAlertTo').value || null } })
+    to: ua_pAlertIds } })
     .then(function (r) { showToast(r.error ? '❌ تعذّر الحفظ' : '✅ تم الحفظ', r.error ? 'error' : 'success'); });
 }
 </script>
