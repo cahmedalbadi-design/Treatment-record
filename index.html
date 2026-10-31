@@ -2209,6 +2209,21 @@ function clinicInfoRefresh() {
   <div id="ua_pAlertList" style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px"></div>
   <div style="font-size:11px;color:#777">تنبيهات النظام = الحالات غير المكتملة والعينات المتأخرة. تصل فقط لمن وافق على الإشعارات في جهازه.</div>
 </div>
+<div class="card" style="grid-column:1/-1;--c:var(--ide-ok)">
+  <h3>🗺️ إدارة المناطق</h3>
+  <div class="ua-bar">
+    <label>العيادة:</label><select id="ua_rgClinic" onchange="ua_rgLoad()"></select>
+    <input id="ua_rgQ" placeholder="بحث في المناطق..." oninput="ua_rgRender()" style="width:180px">
+    <input id="ua_rgNew" placeholder="اسم منطقة جديدة" style="width:200px">
+    <button class="save" onclick="ua_rgAdd()">➕ إضافة</button>
+    <span id="ua_rgCount" style="font-weight:bold"></span>
+  </div>
+  <div class="table-container" style="max-height:50vh">
+    <table><thead><tr><th>المنطقة</th><th>عدد المربين</th><th></th></tr></thead>
+      <tbody id="ua_rgTb"></tbody></table>
+  </div>
+  <div style="font-size:11px;color:#777">الدمج ينقل مربي المنطقة إلى المنطقة المختارة ثم يحذفها. الحذف متاح فقط للمناطق التي لا مربين عليها.</div>
+</div>
 <script>
 var ua_users = [], ua_clinics = [];
 
@@ -2384,7 +2399,10 @@ async function ua_init() {
         document.getElementById('ua_shClinics').innerHTML = ua_clinics.map(function (c) {
       return '<label><input type="checkbox" class="ua_shC" value="' + c.id + '"> ' + ua_esc(c.name) + '</label>';
     }).join('');
-    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad()]);
+        document.getElementById('ua_rgClinic').innerHTML = ua_clinics.map(function (c) {
+      return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
+    }).join('');
+    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad(), ua_rgLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -2465,6 +2483,17 @@ function ua_edit(id) {
   m.innerHTML =
     '<div class="modal-box">' +
       '<h3>✏️ ' + ua_esc(u.full_name) + ' <small style="color:#888">(' + ua_esc(u.username) + ')</small></h3>' +
+
+      '<h4>👤 البيانات الأساسية</h4>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        '<div><div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#004e66">الاسم الكامل</div>' +
+          '<input id="ua_eName" value="' + ua_esc(u.full_name) + '" style="width:100%;padding:6px 8px"></div>' +
+        '<div><div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#004e66">المسمى الوظيفي</div>' +
+          '<input id="ua_eJob" value="' + ua_esc(u.job_title) + '" style="width:100%;padding:6px 8px"></div>' +
+        '<div><div style="font-size:12px;font-weight:bold;margin-bottom:4px;color:#004e66">اسم المستخدم (للدخول)</div>' +
+          '<input id="ua_eUser" value="' + ua_esc(u.username) + '" readonly ' +
+          'title="تغيير اسم الدخول يتطلب تعديل خدمة admin-users" style="width:100%;padding:6px 8px;opacity:.6"></div>' +
+      '</div>' +
 
       '<h4>🏥 النوع والعيادة</h4>' +
       '<div class="ua-inline">' +
@@ -2571,11 +2600,16 @@ function ua_edit(id) {
       until = new Date(v).toISOString();
     }
 
+    var nm = q('#ua_eName').value.trim(), job = q('#ua_eJob').value.trim();
+    if (!nm) { showToast('⚠️ الاسم الكامل مطلوب', 'warning'); return; }
+
     var btn = q('#ua_save'); btn.disabled = true; btn.textContent = '⏳ جاري الحفظ...';
     var r = await ua_rpc('admin_update_user', {
       p_id: u.id, p_wilayat: wil, p_supervisor: sup,
       p_pages: pages, p_actions: actions, p_active: active, p_until: until
     });
+    if (!r.error && (nm !== (u.full_name || '') || job !== (u.job_title || '')))
+      r = await ua_rpc('admin_update_user_info', { p_id: u.id, p_name: nm, p_job: job });
     if (r.error) {
       showToast('❌ ' + r.error.message, 'error');
       btn.disabled = false; btn.textContent = '💾 حفظ';
@@ -2836,6 +2870,100 @@ async function ua_shSet(phone, ids) {
   document.getElementById('ua_shPhone').value = '';
   document.querySelectorAll('.ua_shC').forEach(function (c) { c.checked = false; });
   ua_shLoad();
+}
+/* ── إدارة المناطق ── */
+var ua_rg = [];
+
+async function ua_rgLoad() {
+  var w  = Number(document.getElementById('ua_rgClinic').value);
+  var tb = document.getElementById('ua_rgTb');
+  if (!w) { tb.innerHTML = ''; return; }
+  tb.innerHTML = '<tr><td colspan="3">⏳ جاري التحميل...</td></tr>';
+  var r = await ua_rpc('admin_list_regions', { p_wilayat: w });
+  if (r.error) {
+    tb.innerHTML = '<tr><td colspan="3" style="color:red">' + ua_esc(r.error.message) + '</td></tr>';
+    return;
+  }
+  ua_rg = r.data || [];
+  ua_rgRender();
+}
+
+function ua_rgRender() {
+  var q = (document.getElementById('ua_rgQ').value || '').trim();
+  var rows = ua_rg.filter(function (x) { return !q || x.name.indexOf(q) !== -1; });
+  document.getElementById('ua_rgCount').textContent = ua_rg.length + ' منطقة';
+  document.getElementById('ua_rgTb').innerHTML = rows.map(function (x) {
+    return '<tr><td class="nc">' + ua_esc(x.name) + '</td><td>' + x.breeders + '</td><td>' +
+      '<button class="update" style="padding:4px 10px" onclick="ua_rgRename(' + x.id + ')">✏️ تعديل</button> ' +
+      '<button class="update" style="padding:4px 10px" onclick="ua_rgMerge(' + x.id + ')">🔗 دمج</button> ' +
+      '<button class="delete" style="padding:4px 10px" onclick="ua_rgDel(' + x.id + ')">🗑️ حذف</button>' +
+      '</td></tr>';
+  }).join('') || '<tr><td colspan="3" class="no-results">لا توجد مناطق</td></tr>';
+}
+
+function ua_rgGet(id) { return ua_rg.filter(function (x) { return x.id === id; })[0]; }
+
+function ua_rgDone(r, msg) {
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return false; }
+  showToast('✅ ' + msg, 'success');
+  ua_rgLoad();
+  if (typeof bd_refreshDropdowns === 'function') bd_refreshDropdowns().catch(function () {});
+  return true;
+}
+
+async function ua_rgAdd() {
+  var el = document.getElementById('ua_rgNew'), n = el.value.trim();
+  if (!n) { showToast('⚠️ اكتب اسم المنطقة', 'warning'); return; }
+  var r = await ua_rpc('admin_region_add', {
+    p_wilayat: Number(document.getElementById('ua_rgClinic').value), p_name: n });
+  if (ua_rgDone(r, 'تمت إضافة ' + n)) el.value = '';
+}
+
+async function ua_rgRename(id) {
+  var x = ua_rgGet(id); if (!x) return;
+  var n = await ua_dialog({ title: '✏️ تعديل اسم المنطقة',
+    msg: 'الاسم الحالي: <b>' + ua_esc(x.name) + '</b>', input: 'text', ph: 'الاسم الجديد', ok: 'حفظ' });
+  if (n === null) return;
+  n = String(n).trim();
+  if (!n || n === x.name) return;
+  ua_rgDone(await ua_rpc('admin_region_rename', { p_id: id, p_name: n }), 'تم تعديل الاسم إلى ' + n);
+}
+
+function ua_rgMerge(id) {
+  var x = ua_rgGet(id); if (!x) return;
+  var opts = ua_rg.filter(function (y) { return y.id !== id; }).map(function (y) {
+    return '<option value="' + y.id + '">' + ua_esc(y.name) + ' (' + y.breeders + ')</option>';
+  }).join('');
+  var m = document.createElement('div');
+  m.className = 'custom-modal ua-modal';
+  m.innerHTML = '<div class="modal-box"><h3>🔗 دمج منطقة</h3>' +
+    '<div style="margin-bottom:12px;line-height:1.9">ينتقل مربو <b>' + ua_esc(x.name) + '</b> (' + x.breeders +
+    ') إلى المنطقة المختارة، ثم تُحذف هذه المنطقة.</div>' +
+    '<select id="ua_rgTo" style="width:100%;margin-bottom:14px">' +
+    '<option value="">— اختر المنطقة الصحيحة —</option>' + opts + '</select>' +
+    '<div class="modal-buttons"><button class="confirm-btn">دمج</button>' +
+    '<button class="cancel-btn">إلغاء</button></div></div>';
+  document.body.appendChild(m);
+  m.querySelector('.cancel-btn').onclick = function () { m.remove(); };
+  m.querySelector('.confirm-btn').onclick = async function () {
+    var to = Number(m.querySelector('#ua_rgTo').value);
+    if (!to) { showToast('⚠️ اختر المنطقة الصحيحة', 'warning'); return; }
+    m.remove();
+    var r = await ua_rpc('admin_region_merge', { p_from: id, p_to: to });
+    ua_rgDone(r, 'تم الدمج' + (r.data ? ' ونقل ' + r.data + ' مربٍّ' : ''));
+  };
+}
+
+async function ua_rgDel(id) {
+  var x = ua_rgGet(id); if (!x) return;
+  if (x.breeders > 0) {
+    showToast('⚠️ على هذه المنطقة ' + x.breeders + ' مربٍّ — استخدم الدمج بدل الحذف', 'warning');
+    return;
+  }
+  var ok = await ua_dialog({ title: '🗑️ حذف منطقة',
+    msg: 'حذف <b>' + ua_esc(x.name) + '</b> نهائياً؟', ok: 'حذف', danger: true });
+  if (!ok) return;
+  ua_rgDone(await ua_rpc('admin_region_delete', { p_id: id }), 'تم حذف ' + x.name);
 }
 /* ── الحملة الوطنية ── */
 function ua_calcDays() {
@@ -6725,12 +6853,7 @@ function bd_validateCommon() {
     document.getElementById("bd_nameInput").focus();
     return false;
   }
-  if (!bd_getValue("bd_regionInput")) {
-    bd_showMessage("المنطقة مطلوبة", true);
-    document.getElementById("bd_regionInput").focus();
-    return false;
-  }
-
+  if (!bd_regionValid()) return false;
   var civil = bd_getValue("bd_civilInput");
   if (civil && !/^[0-9]{1,15}$/.test(civil)) {
     bd_showMessage("الرقم المدني يجب أن يكون أرقاماً فقط", true); return false;
@@ -6763,7 +6886,24 @@ function bd_validateCommon() {
   }
   return true;
 }
-
+/* المنطقة يجب أن تكون من قائمة مناطق العيادة */
+function bd_regionValid() {
+  var v = bd_getValue("bd_regionInput");
+  if (!v) {
+    bd_showMessage("المنطقة مطلوبة", true);
+    document.getElementById("bd_regionInput").focus();
+    return false;
+  }
+  var ok = Array.prototype.some.call(
+    document.querySelectorAll("#bd_regionList option"),
+    function (o) { return o.value === v; });
+  if (!ok) {
+    bd_showMessage("المنطقة «" + v + "» غير موجودة في القائمة — اخترها من الاقتراحات", true);
+    document.getElementById("bd_regionInput").focus();
+    return false;
+  }
+  return true;
+}
 function bd_validateSave() {
   if (bd_getValue("bd_private") !== "") {
     bd_showMessage("أنت في وضع التحديث — استخدم زر التحديث", true); return false;
@@ -6975,7 +7115,7 @@ async function bd_saveVaccination() {
   if(!phone){bd_showMessage("أختر رقم الهاتف من البحث",true);return;}
   if(!casePhone){bd_showMessage("رقم الهاتف مطلوب",true);return;}
   if(!name){bd_showMessage("الاسم مطلوب",true);return;}
-  if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);document.getElementById("bd_regionInput").focus();return;}
+    if(!bd_regionValid())return;
   var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
   if(![goat,sheep,cow].some(function(v){return v!==""&&Number(v)>0;})){bd_showMessage("يجب إدخال عدد حيوان واحد على الأقل",true);return;}
 
@@ -7001,7 +7141,7 @@ async function bd_updateVaccination() {
     var phone=bd_getValue("bd_phoneInput"),name=bd_getValue("bd_nameInput");
   if(!phone){bd_showMessage("الرجاء اختيار الرقم",true);return;}
   if(!name){bd_showMessage("الاسم مطلوب",true);return;}
-  if(!bd_getValue("bd_regionInput")){bd_showMessage("المنطقة مطلوبة",true);document.getElementById("bd_regionInput").focus();return;}
+  if(!bd_regionValid())return;
   var _np=bd_getValue("bd_newPhoneInput");
   if(_np&&_np!==phone){bd_showMessage("لتغيير رقم الهاتف استخدم زر (تحديث) لسجل المربي أولاً",true);return;}
   var goat=bd_getValue("bd_animal_goat"),sheep=bd_getValue("bd_animal_sheep"),cow=bd_getValue("bd_animal_cow");
@@ -14599,17 +14739,8 @@ window.SBU = (function (g) {
     return sb.from("regions").select("id")
       .eq("wilayat_id", me.wilayat_id).eq("name", n).maybeSingle()
       .then(function (r) {
-        if (r.data) return r.data.id;
-        return sb.from("regions")
-          .insert({ wilayat_id: me.wilayat_id, name: n })
-          .select("id").single()
-          .then(function (ins) {
-            if (ins.data) return ins.data.id;
-            /* المنطقة موجودة مسبقاً — أعد قراءتها بدل الفشل */
-            return sb.from("regions").select("id")
-              .eq("wilayat_id", me.wilayat_id).eq("name", n).maybeSingle()
-              .then(function (r2) { return r2.data ? r2.data.id : null; });
-          });
+              if (r.data) return r.data.id;
+        throw new Error("المنطقة «" + n + "» غير موجودة في قائمة مناطق العيادة — اخترها من القائمة أو اطلب إضافتها من مدير النظام");
       });
   }
 
@@ -16694,8 +16825,7 @@ function idsFor(key, table, names) {
     return sb.from("regions").select("id").eq("wilayat_id", me.wilayat_id).eq("name", n)
       .maybeSingle().then(function (r) {
         if (r.data) return r.data.id;
-        return sb.from("regions").insert({ wilayat_id: me.wilayat_id, name: n })
-          .select("id").single().then(function (i) { return i.data ? i.data.id : null; });
+        throw new Error("المنطقة «" + n + "» غير موجودة في قائمة مناطق العيادة");
       });
   }
 
