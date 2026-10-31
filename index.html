@@ -44,7 +44,7 @@ body {
 }
 :root {
   --app-bg-img:
-    linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.55)),
+    linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.10)),
     url("https://dlivsidtmmtvrqhtxmlu.supabase.co/storage/v1/object/public/assets/artsa.png");
 }
 body,
@@ -1893,8 +1893,8 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
       <div id="bgLightRow" style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">تفتيح الصورة:</label>
-        <input type="range" id="bgLight" min="0" max="90" value="55" style="flex:1" oninput="apBgUI()">
-        <span id="bgLightVal" style="min-width:35px;font-weight:bold;color:#00b8d9">55%</span>
+        <input type="range" id="bgLight" min="0" max="90" value="10" style="flex:1" oninput="apBgUI()">
+        <span id="bgLightVal" style="min-width:35px;font-weight:bold;color:#00b8d9">10%</span>
       </div>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">لون النص:</label>
@@ -12898,7 +12898,7 @@ function saveAppearance() {
 function resetAppearance() {
 ['app_bg','app_bg_mode','app_bg_light','app_txt','app_fs','app_nav','app_card'].forEach(function(k){localStorage.removeItem(k);});
   document.getElementById('bgMode').value = 'img';
-  document.getElementById('bgLight').value = 55;
+  document.getElementById('bgLight').value = 10;
   document.querySelectorAll('.card').forEach(function(c){c.style.background='';});
   document.getElementById('navColor').value='#000000';
   document.body.style.color=''; apFont(13);
@@ -12914,7 +12914,7 @@ function resetAppearance() {
 (function applyAppearance(){
   var bg=localStorage.getItem('app_bg'),txt=localStorage.getItem('app_txt'),
       fs=localStorage.getItem('app_fs'),nav=localStorage.getItem('app_nav');
-    var bgMode=localStorage.getItem('app_bg_mode')||'img', bgLight=localStorage.getItem('app_bg_light')||55;
+    var bgMode=localStorage.getItem('app_bg_mode')||'img', bgLight=localStorage.getItem('app_bg_light')||10;
   var bgC=document.getElementById('bgColor'), bgM=document.getElementById('bgMode'), bgL=document.getElementById('bgLight');
   if(bg&&bgC)bgC.value=bg; if(bgM)bgM.value=bgMode; if(bgL)bgL.value=bgLight;
   apBgApply(bgMode, bg||'#d9d9d9', bgLight);
