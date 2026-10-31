@@ -2746,9 +2746,17 @@ async function annCheck() {
     if (!a) return;
     var m = document.createElement('div');
     m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
-    m.innerHTML = '<div class="modal-box" style="max-width:480px"><div style="font-size:42px">📢</div>' +
-      '<h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p>' +
-       '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button></div></div>';
+    var annBody = escHtml(a.body)
+      .replace(/\*\*([\s\S]+?)\*\*/g, '<b>$1</b>')   /* **نص** ← نص عريض */
+      .replace(/\*\*/g, '');                          /* إزالة أي ** متبقية بلا إغلاق */
+    m.innerHTML =
+      '<div class="modal-box" style="max-width:520px;max-height:90vh;display:flex;flex-direction:column;padding:20px 22px">' +
+        '<div style="font-size:38px;flex-shrink:0">📢</div>' +
+        '<h3 style="flex-shrink:0">' + escHtml(a.title) + '</h3>' +
+        '<div style="flex:1;overflow-y:auto;text-align:right;white-space:pre-line;line-height:1.9;' +
+          'font-size:14px;color:#333;padding:0 4px;margin-bottom:14px">' + annBody + '</div>' +
+        '<div class="modal-buttons" style="flex-shrink:0"><button class="confirm-btn">تم الاطلاع</button></div>' +
+      '</div>';
     document.body.appendChild(m);
     annBeep();
     m.querySelector('.confirm-btn').onclick = function () {
