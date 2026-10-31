@@ -737,6 +737,12 @@ nav::before {
 }
 body.nav-open nav { transform: translateX(0); visibility: visible; }
 html { overflow-x: hidden; }
+@media screen and (max-width:700px){
+  html, body { max-width:100%; overflow-x:clip; }
+  /* الشهادة بحجم A4 — تُسحب أفقياً داخل الصفحة بدل أن تزيح الشاشة كلها */
+  #settings.page { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  #settings .paper-container { margin:10px 0; }
+}
 nav button { width: calc(100% - 10px); text-align: right; margin: 4px 5px; }
 nav button:hover { transform: translateX(-4px); }
 nav button.nav-active { transform: translateX(-6px) scale(1.02) !important; }
@@ -751,6 +757,8 @@ nav button.nav-active { transform: translateX(-6px) scale(1.02) !important; }
 }
 body.nav-open #navBackdrop { opacity: 1; pointer-events: auto; }
 @media print { #navToggle, #navBackdrop { display: none !important; } body { padding-top: 0 !important; } }
+.page { zoom: var(--ui-zoom, 1); }
+@media print { .page { zoom: 1 !important; } }
 .who-line{display:none;font-size:12px;font-weight:bold;color:#3d6370;background:#f4fafc;border:1px dashed #b3dce6;border-radius:8px;padding:6px 10px;margin-bottom:10px}</style>
 <base target="_blank">
 <script>
@@ -883,21 +891,22 @@ window.attachPop = function (btn, pop, onOpen) {
     if (!isOpen()) return;
     var r = btn.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
     if (!r.width || r.bottom < 0 || r.top > H) { close(); return; }
-    var pw = pop.offsetWidth, ph = pop.offsetHeight;
+        var pg = pop.closest('.page'), z = pg ? (parseFloat(getComputedStyle(pg).zoom) || 1) : 1;
+    var pw = pop.offsetWidth * z, ph = pop.offsetHeight * z;
     var side = W > 700 && r.left > pw + 24;
     pop.classList.toggle(sideCls, side);
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2, left, top;
     if (side) {
       left = r.left - pw - 12;
       top  = Math.max(70, Math.min(cy - 40, H - ph - 10));
-      pop.style.setProperty('--ay', Math.max(18, Math.min(cy - top, ph - 18)) + 'px');
+     pop.style.setProperty('--ay', Math.max(18, Math.min(cy - top, ph - 18)) / z + 'px');
     } else {
       left = Math.max(10, Math.min(cx - pw / 2, W - pw - 10));
       top  = Math.max(10, Math.min(r.bottom + 10, H - ph - 10));
-      pop.style.setProperty('--ax', Math.max(18, Math.min(cx - left, pw - 18)) + 'px');
+    pop.style.setProperty('--ax', Math.max(18, Math.min(cx - left, pw - 18)) / z + 'px');
     }
-    pop.style.left = left + 'px';
-    pop.style.top  = top + 'px';
+    pop.style.left = (left / z) + 'px';
+    pop.style.top  = (top / z) + 'px';
   }
   btn.onclick = function (e) {
     e.stopPropagation();
@@ -1875,12 +1884,17 @@ document.addEventListener('DOMContentLoaded', function () {
     <div id="settingsPanel" style="background:#f8ffff;border:3px solid #00b8d9;border-radius:8px;padding:15px;height:100%;">
       <h3 style="margin:0 0 12px 0;color:#00b8d9">⚙️ ضبط المظهر</h3>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">لون الخلفية:</label>
-        <input type="color" id="bgColor" value="#d9d9d9" oninput="document.body.style.background=this.value">
+        <label style="font-weight:bold;width:130px">الخلفية:</label>
+        <select id="bgMode" onchange="apBgUI()" style="padding:4px 8px;border:2px solid #00b8d9;border-radius:4px;font-family:inherit">
+          <option value="img">🖼️ صورة</option>
+          <option value="color">🎨 لون سادة</option>
+        </select>
+        <input type="color" id="bgColor" value="#d9d9d9" oninput="apBgUI()">
       </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label style="font-weight:bold;width:130px">لون البطاقات:</label>
-        <input type="color" id="cardColor" value="#f8ffff" oninput="document.querySelectorAll('.card').forEach(function(c){c.style.background=this.value}.bind(this))">
+      <div id="bgLightRow" style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-weight:bold;width:130px">تفتيح الصورة:</label>
+        <input type="range" id="bgLight" min="0" max="90" value="55" style="flex:1" oninput="apBgUI()">
+        <span id="bgLightVal" style="min-width:35px;font-weight:bold;color:#00b8d9">55%</span>
       </div>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">لون النص:</label>
@@ -1888,12 +1902,18 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">حجم الخط:</label>
-        <input type="range" id="fontSize" min="10" max="20" value="13" style="flex:1" oninput="document.body.style.fontSize=this.value+'px';document.getElementById('fontSizeVal').textContent=this.value+'px'">
-        <span id="fontSizeVal" style="min-width:35px;font-weight:bold;color:#00b8d9">13px</span>
+        <input type="hidden" id="fontSize" value="13">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px">
+          <button type="button" onclick="apFontStep(-1)" title="تصغير"
+            style="width:38px;height:38px;padding:0;border-radius:50%;background:#00b8d9;color:#fff;font-size:20px;line-height:1">−</button>
+          <span id="fontSizeVal" style="min-width:52px;text-align:center;font-weight:bold;color:#00b8d9;font-size:15px">13px</span>
+          <button type="button" onclick="apFontStep(1)" title="تكبير"
+            style="width:38px;height:38px;padding:0;border-radius:50%;background:#00b8d9;color:#fff;font-size:20px;line-height:1">+</button>
+        </div>
       </div>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">لون الشريط:</label>
-        <input type="color" id="navColor" value="#333333" oninput="document.querySelector('nav').style.background=this.value">
+        <input type="color" id="navColor" value="#000000" oninput="document.querySelector('nav').style.background=this.value">
       </div>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">حجم الإشعارات:</label>
@@ -2224,6 +2244,65 @@ function clinicInfoRefresh() {
   </div>
   <div style="font-size:11px;color:#777">الدمج ينقل مربي المنطقة إلى المنطقة المختارة ثم يحذفها. الحذف متاح فقط للمناطق التي لا مربين عليها.</div>
 </div>
+<div class="card" style="grid-column:1/-1;--c:var(--ide-kw)">
+  <h3>🖼️ خلفية النظام لجميع المستخدمين</h3>
+  <div id="ua_bgPrev" style="height:150px;border-radius:8px;border:1px solid #3c3c3c;margin-bottom:10px;
+       background:#1e1e1e center/cover no-repeat"></div>
+  <div class="ua-bar">
+    <span id="ua_bgState" style="font-size:12px">—</span>
+    <input type="file" id="ua_bgFile" accept="image/*" style="display:none" onchange="ua_bgPick(this)">
+    <button class="update" onclick="document.getElementById('ua_bgFile').click()">📂 اختيار صورة</button>
+    <button class="save" onclick="ua_bgSave()">💾 تطبيق على الجميع</button>
+    <button class="delete" onclick="ua_bgReset()">↺ الصورة الافتراضية</button>
+  </div>
+  <div style="font-size:11px;color:#777">تُصغَّر الصورة تلقائياً إلى 1920px. تظهر للمستخدمين عند فتح الصفحة أو تسجيل الدخول التالي.</div>
+</div>
+<script>
+function ua_bgShow(url) {
+  document.getElementById('ua_bgPrev').style.backgroundImage = 'url("' + (url || AP_BG_DEFAULT) + '")';
+  document.getElementById('ua_bgState').textContent = url ? '🟢 صورة مخصصة مطبَّقة' : 'الصورة الافتراضية';
+}
+async function ua_bgLoad() {
+  var sb = await ua_sb();
+  var r = await sb.from('app_settings').select('value').eq('key', 'bg_image').maybeSingle();
+  ua_bgShow(r.data && r.data.value);
+}
+function ua_bgPick(inp) {
+  var f = inp.files && inp.files[0]; inp.value = '';
+  if (!f) return;
+  if (!/^image\//.test(f.type)) { showToast('⚠️ اختر ملف صورة', 'warning'); return; }
+  apShrinkImage(f, 1920, function (b) {
+    if (!b) { showToast('❌ تعذّر قراءة الصورة', 'error'); return; }
+    window._uaBgBlob = b;
+    document.getElementById('ua_bgPrev').style.backgroundImage = 'url("' + URL.createObjectURL(b) + '")';
+    document.getElementById('ua_bgState').textContent = '👁️ معاينة — لم تُطبَّق بعد (' + Math.round(b.size / 1024) + ' KB)';
+  });
+}
+async function ua_bgSave() {
+  if (!window._uaBgBlob) { showToast('⚠️ اختر صورة أولاً', 'warning'); return; }
+  showToast('⏳ جاري رفع الصورة...', 'info');
+  try {
+    var sb = await ua_sb(), path = 'bg/' + Date.now() + '.jpg';
+    var up = await sb.storage.from('assets').upload(path, window._uaBgBlob, { contentType: 'image/jpeg' });
+    if (up.error) throw up.error;
+    var url = sb.storage.from('assets').getPublicUrl(path).data.publicUrl;
+    var r = await sb.from('app_settings').upsert({ key: 'bg_image', value: url, updated_at: new Date().toISOString() });
+    if (r.error) throw r.error;
+    window._uaBgBlob = null;
+    apSetSystemBg(url); ua_bgShow(url);
+    showToast('✅ تم تطبيق الخلفية على جميع المستخدمين', 'success');
+  } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
+}
+async function ua_bgReset() {
+  var ok = await ask('إرجاع الخلفية الافتراضية لجميع المستخدمين؟');
+  if (!ok) return;
+  var sb = await ua_sb();
+  var r = await sb.from('app_settings').delete().eq('key', 'bg_image');
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  apSetSystemBg(null); ua_bgShow(null);
+  showToast('✅ تمت إعادة الخلفية الافتراضية', 'success');
+}
+</script>
 <script>
 var ua_users = [], ua_clinics = [];
 
@@ -2402,7 +2481,7 @@ async function ua_init() {
         document.getElementById('ua_rgClinic').innerHTML = ua_clinics.map(function (c) {
       return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
     }).join('');
-    await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad(), ua_rgLoad()]);
+        await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad(), ua_rgLoad(), ua_bgLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -2746,17 +2825,9 @@ async function annCheck() {
     if (!a) return;
     var m = document.createElement('div');
     m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
-    var annBody = escHtml(a.body)
-      .replace(/\*\*([\s\S]+?)\*\*/g, '<b>$1</b>')   /* **نص** ← نص عريض */
-      .replace(/\*\*/g, '');                          /* إزالة أي ** متبقية بلا إغلاق */
-    m.innerHTML =
-      '<div class="modal-box" style="max-width:520px;max-height:90vh;display:flex;flex-direction:column;padding:20px 22px">' +
-        '<div style="font-size:38px;flex-shrink:0">📢</div>' +
-        '<h3 style="flex-shrink:0">' + escHtml(a.title) + '</h3>' +
-        '<div style="flex:1;overflow-y:auto;text-align:right;white-space:pre-line;line-height:1.9;' +
-          'font-size:14px;color:#333;padding:0 4px;margin-bottom:14px">' + annBody + '</div>' +
-        '<div class="modal-buttons" style="flex-shrink:0"><button class="confirm-btn">تم الاطلاع</button></div>' +
-      '</div>';
+    m.innerHTML = '<div class="modal-box" style="max-width:480px"><div style="font-size:42px">📢</div>' +
+      '<h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p>' +
+       '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button></div></div>';
     document.body.appendChild(m);
     annBeep();
     m.querySelector('.confirm-btn').onclick = function () {
@@ -8644,6 +8715,20 @@ async function vaccInit() {
 <style>
 #vaccinationRequests .toolbar { position:sticky; top:0; z-index:10; background:#eef9fb; }
 #vaccinationRequests .stats   { position:sticky; top:56px; z-index:9; background:#fff; padding:4px 0; }
+@media (max-width:700px){
+  /* كل عنوان بجانب حقله: عمود للعناوين وعمود للحقول */
+  #vaccinationRequests .toolbar{position:static;display:grid;
+    grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:center}
+  #vaccinationRequests .toolbar input,
+  #vaccinationRequests .toolbar select{width:100% !important;min-width:0}
+  #vr_vaccineFilterWrap,#vr_countRange,
+  #vaccinationRequests .toolbar > button{grid-column:1/-1}
+  /* بطاقات الإحصاء تلتف بدل أن تخرج عن الشاشة */
+  #vaccinationRequests .stats{position:static;display:flex;flex-wrap:wrap;
+    justify-content:center;gap:6px;overflow:visible}
+  #vaccinationRequests .stat-box{flex:1 1 calc(33% - 6px);min-width:0;
+    font-size:12px;padding:6px 8px;text-align:center}
+}
 </style>
 <div id="vr_loadingOverlay" style="
   position: absolute;
@@ -12740,26 +12825,87 @@ async function rpt_saveDates() {
 #comprehensiveReport tr.sec td{background:#f0eeff !important;color:#4834d4 !important;font-weight:bold;text-align:right;padding-right:12px}
 </style>
 <!-- ===== Script العام للمظهر ===== --><script>
+var AP_BG_DEFAULT = 'https://dlivsidtmmtvrqhtxmlu.supabase.co/storage/v1/object/public/assets/artsa.png';
+var AP_BG_IMG = (function () { try { return localStorage.getItem('app_sys_bg') || AP_BG_DEFAULT; } catch (e) { return AP_BG_DEFAULT; } })();
+
+/* خلفية النظام التي يحددها المدير */
+function apSetSystemBg(url) {
+  AP_BG_IMG = url || AP_BG_DEFAULT;
+  try { localStorage.setItem('app_sys_bg', url || ''); } catch (e) {}
+  if (document.getElementById('bgMode')) apBgUI();
+}
+function apLoadSystemBg() {
+  if (!window.SBAuth) return;
+  SBAuth.client(true).then(function (sb) {
+    return sb.from('app_settings').select('value').eq('key', 'bg_image').maybeSingle();
+  }).then(function (r) { if (r && !r.error) apSetSystemBg(r.data && r.data.value); })
+    .catch(function () {});
+}
+window.addEventListener('load', function () { setTimeout(apLoadSystemBg, 500); });
+document.addEventListener('app:login', apLoadSystemBg);
+function apFont(v) {
+  v = Math.min(20, Math.max(10, Number(v) || 13));
+  document.documentElement.style.setProperty('--ui-zoom', v / 13);
+  var i = document.getElementById('fontSize');    if (i) i.value = v;
+  var l = document.getElementById('fontSizeVal'); if (l) l.textContent = v + 'px';
+}
+function apShrinkImage(file, max, cb) {
+  var img = new Image(), url = URL.createObjectURL(file);
+  img.onload = function () {
+    var s = Math.min(1, max / Math.max(img.width, img.height));
+    var c = document.createElement('canvas');
+    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    c.toBlob(function (b) { cb(b); }, 'image/jpeg', 0.85);
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); cb(null); };
+  img.src = url;
+}
+function apFontStep(d) {
+  apFont((Number(document.getElementById('fontSize').value) || 13) + d);
+}
+/* تطبيق الخلفية عبر المتغير --app-bg-img (يشمل الغطاء خلف الأشرطة العلوية) */
+function apBgApply(mode, color, light) {
+  var a = (Number(light) || 0) / 100;
+  var v = mode === 'color'
+    ? 'linear-gradient(' + color + ',' + color + ')'
+    : 'linear-gradient(rgba(255,255,255,' + a + '),rgba(255,255,255,' + a + ')),url("' + AP_BG_IMG + '")';
+  document.documentElement.style.setProperty('--app-bg-img', v);
+  var c = document.getElementById('bgColor'), r = document.getElementById('bgLightRow');
+  if (c) { c.disabled = mode !== 'color'; c.style.opacity = mode === 'color' ? 1 : .4; }
+  if (r) r.style.display = mode === 'color' ? 'none' : 'flex';
+  var lv = document.getElementById('bgLightVal'); if (lv) lv.textContent = Math.round(a * 100) + '%';
+}
+function apBgUI() {
+  apBgApply(document.getElementById('bgMode').value,
+            document.getElementById('bgColor').value,
+            document.getElementById('bgLight').value);
+}
+
 function saveAppearance() {
+  localStorage.setItem('app_bg_mode', document.getElementById('bgMode').value);
   localStorage.setItem('app_bg', document.getElementById('bgColor').value);
+  localStorage.setItem('app_bg_light', document.getElementById('bgLight').value);
   localStorage.setItem('app_txt', document.getElementById('txtColor').value);
   localStorage.setItem('app_fs', document.getElementById('fontSize').value);
   localStorage.setItem('app_nav', document.getElementById('navColor').value);
-  localStorage.setItem('app_card', document.getElementById('cardColor').value);
   localStorage.setItem('toastSize', document.getElementById('toastSize').value);
   showToast('✅ تم حفظ إعدادات المظهر', 'success');
 }
 
  
 function resetAppearance() {
-['app_bg','app_txt','app_fs','app_nav','app_card'].forEach(function(k){localStorage.removeItem(k);});
-  document.querySelectorAll('.card').forEach(function(c){c.style.background='#f8ffff';});
-  document.getElementById('cardColor').value='#f8ffff';
-  document.body.style.background='#d9d9d9'; document.body.style.color=''; document.body.style.fontSize='13px';
-  document.querySelector('nav').style.background='#333';
+['app_bg','app_bg_mode','app_bg_light','app_txt','app_fs','app_nav','app_card'].forEach(function(k){localStorage.removeItem(k);});
+  document.getElementById('bgMode').value = 'img';
+  document.getElementById('bgLight').value = 55;
+  document.querySelectorAll('.card').forEach(function(c){c.style.background='';});
+  document.getElementById('navColor').value='#000000';
+  document.body.style.color=''; apFont(13);
+  document.querySelector('nav').style.background='';
   document.getElementById('bgColor').value='#d9d9d9'; document.getElementById('txtColor').value='#000000';
   document.getElementById('fontSize').value=13; document.getElementById('fontSizeVal').textContent='13px';
-  document.getElementById('navColor').value='#333333';
+  apBgUI();
   document.getElementById('toastSize').value = 14;
   document.getElementById('toastSizeVal').textContent = '14px';
   document.getElementById('toastContainer').style.fontSize = '14px';
@@ -12768,12 +12914,16 @@ function resetAppearance() {
 (function applyAppearance(){
   var bg=localStorage.getItem('app_bg'),txt=localStorage.getItem('app_txt'),
       fs=localStorage.getItem('app_fs'),nav=localStorage.getItem('app_nav');
-  if(bg){document.body.style.background=bg;var el=document.getElementById('bgColor');if(el)el.value=bg;}
+    var bgMode=localStorage.getItem('app_bg_mode')||'img', bgLight=localStorage.getItem('app_bg_light')||55;
+  var bgC=document.getElementById('bgColor'), bgM=document.getElementById('bgMode'), bgL=document.getElementById('bgLight');
+  if(bg&&bgC)bgC.value=bg; if(bgM)bgM.value=bgMode; if(bgL)bgL.value=bgLight;
+  apBgApply(bgMode, bg||'#d9d9d9', bgLight);
   if(txt){document.body.style.color=txt;var el=document.getElementById('txtColor');if(el)el.value=txt;}
-  if(fs){document.body.style.fontSize=fs+'px';var el=document.getElementById('fontSize');if(el){el.value=fs;document.getElementById('fontSizeVal').textContent=fs+'px';}}
-  if(nav){document.querySelector('nav').style.background=nav;var el=document.getElementById('navColor');if(el)el.value=nav;}
-var card=localStorage.getItem('app_card');
-if(card){document.querySelectorAll('.card').forEach(function(c){c.style.background=card;});var el=document.getElementById('cardColor');if(el)el.value=card;}
+    if(fs){apFont(fs);var el=document.getElementById('fontSize');if(el)el.value=fs;}
+ if(nav){document.querySelector('nav').style.background=nav;var nEl=document.getElementById('navColor');if(nEl)nEl.value=nav;}
+localStorage.removeItem('app_card');
+var ts=localStorage.getItem('toastSize');
+if(ts){var tEl=document.getElementById('toastSize');if(tEl){tEl.value=ts;document.getElementById('toastSizeVal').textContent=ts+'px';}}
 })();
 
   // ===== Overdue Samples Alert =====
