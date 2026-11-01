@@ -59,6 +59,28 @@ body,
   background-position: center !important;
   background-attachment: fixed !important;
 }
+  /* الهاتف: طبقة خلفية ثابتة بديلة عن attachment:fixed + إظهار الجانب المزخرف */
+@media (max-width: 1100px) {
+  body { background-image: none !important; }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--app-bg-img);
+    background-size: cover;
+    background-position: right center;
+    background-repeat: no-repeat;
+  }
+  #treatment > .top-bar::before,
+  #breeder > .bd-top::before,
+  #vaccination > #vacc_topBarMain::before,
+  #samples > #topBarMain::before,
+  #dashboard > .top-bar::before {
+    background-attachment: scroll !important;
+  }
+}
 /* إزالة الشريط الملوّن فوق الشريط العلوي مع الإبقاء على ظله */
 #treatment > .top-bar        { box-shadow: 0 4px 14px rgba(0,78,102,.25) !important; }
 #breeder > .bd-top           { box-shadow: 0 4px 14px rgba(0,78,102,.25) !important; }
