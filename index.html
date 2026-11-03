@@ -14172,7 +14172,7 @@ function sendTelegram(text) {
         lines.push("... و " + (cases.length - 20) + " حالة أخرى");
  
       lines.push("━━━━━━━━━━━━━━━━━━━━");
-      lines.push("⚠️ يرجى مراجعة هذه الحالات وإكمال بياناتها.");
+      lines.push("⚠️ يرجى مراجعة هذه الحالات وإكمال بياناتها. المرسل: " + clinic);
  
       sendTelegram(lines.join("\n"));
  
@@ -14267,7 +14267,7 @@ function sendTelegram(text) {
         lines.push("... و " + (overdue.length - 20) + " عينة أخرى");
  
       lines.push("━━━━━━━━━━━━━━━━━━━━");
-      lines.push("⏰ يرجى متابعة هذه العينات مع المختبر وإدخال النتائج.");
+      lines.push("⏰ يرجى متابعة هذه العينات مع المختبر وإدخال النتائج. المرسل: " + clinic);
  
       sendTelegram(lines.join("\n"));
  
