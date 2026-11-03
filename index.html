@@ -14153,10 +14153,11 @@ function sendTelegram(text) {
         return;
       }
  
+      var clinic = (global._sbProfile && global._sbProfile.wilayat && global._sbProfile.wilayat.name) || "غير معروف";
       var lines = [
         "📋 تنبيه: حالات علاجية غير مكتملة",
         "━━━━━━━━━━━━━━━━━━━━",
-        "👤 المستخدم: " + username,
+        "🏥 المرسل: " + clinic,
         "🕐 وقت الفتح: " + timeStr + " — " + dateStr,
         "📊 عدد الحالات: " + cases.length + " حالة غير مكتملة",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -14166,9 +14167,7 @@ function sendTelegram(text) {
       for (var i = 0; i < maxShow; i++) {
         var c = cases[i];
         lines.push(
-          (i + 1) + ". رقم الحالة: " + (c.caseNumber || "—") +
-                  " | مدخل: "     + (c.dataEntry || "—")
-        );
+        lines.push((i + 1) + ". رقم الحالة: " + (c.caseNumber || "—"));
       }
       if (cases.length > 20)
         lines.push("... و " + (cases.length - 20) + " حالة أخرى");
@@ -14245,10 +14244,11 @@ function sendTelegram(text) {
       /* ترتيب تنازلي حسب أيام الانتظار */
       overdue.sort(function (a, b) { return b.diffDays - a.diffDays; });
  
+      var clinic = (global._sbProfile && global._sbProfile.wilayat && global._sbProfile.wilayat.name) || "غير معروف";
       var lines = [
         "🧪 تنبيه: عينات تجاوزت 7 أيام بدون نتيجة",
         "━━━━━━━━━━━━━━━━━━━━",
-        "👤 المستخدم: " + username,
+        "🏥 المرسل: " + clinic,
         "🕐 وقت الفتح: " + timeStr + " — " + dateStr,
         "📊 عدد العينات: " + overdue.length + " عينة متأخرة",
         "━━━━━━━━━━━━━━━━━━━━",
