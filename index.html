@@ -14166,7 +14166,6 @@ function sendTelegram(text) {
       var maxShow = Math.min(cases.length, 20);
       for (var i = 0; i < maxShow; i++) {
         var c = cases[i];
-        lines.push(
         lines.push((i + 1) + ". رقم الحالة: " + (c.caseNumber || "—"));
       }
       if (cases.length > 20)
