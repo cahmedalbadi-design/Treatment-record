@@ -1279,7 +1279,7 @@ function showPage(pageId) {
   if (aniContainer) aniContainer.style.display = 'none';
   
   // مسح التقرير الشامل
-  ['rpt_tb1','rpt_tb2','rpt_tb3','rpt_tb4','rpt_tb5'].forEach(function(id){
+ ['rpt_tb1','rpt_tb2','rpt_tb3','rpt_tb4','rpt_tb5','rpt_official'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
@@ -2278,7 +2278,112 @@ function clinicInfoRefresh() {
     <button class="delete" onclick="ua_bgReset()">↺ الصورة الافتراضية</button>
   </div>
   <div style="font-size:11px;color:#777">تُصغَّر الصورة تلقائياً إلى 1920px. تظهر للمستخدمين عند فتح الصفحة أو تسجيل الدخول التالي.</div>
+<div class="card" style="grid-column:1/-1;--c:var(--ide-acc)">
+  <h3>📢 الشريط المتحرك</h3>
+  <div class="ua-bar">
+    <textarea id="ua_tk" placeholder="كل رسالة في سطر مستقل..." style="flex:1;min-width:220px;min-height:90px"
+      onfocus="if(!this.value)this.value=window._tickerRaw||''"></textarea>
+    <button class="save" onclick="ua_tkSave(document.getElementById('ua_tk').value)">💾 نشر</button>
+    <button class="delete" onclick="document.getElementById('ua_tk').value='';ua_tkSave('')">✖ إخفاء</button>
+  </div>
 </div>
+<script>
+async function ua_tkSave(v){
+  v=String(v||'').trim();
+  var sb=await ua_sb();
+  var r=v?await sb.from('app_settings').upsert({key:'ticker',value:v,updated_at:new Date().toISOString()})
+         :await sb.from('app_settings').delete().eq('key','ticker');
+  if(r.error){showToast('❌ '+r.error.message,'error');return;}
+  tickerShow(v);
+  showToast(v?'✅ تم نشر الشريط':'✅ تم إخفاء الشريط','success');
+}
+</script>
+</div><div class="card" style="grid-column:1/-1;--c:var(--ide-warn)">
+  <h3>🕒 وقت الإدخال الفعلي</h3>
+  <div class="ua-bar">
+    <select id="ua_eTable">
+      <option value="treatment_cases">سجل العلاج</option>
+      <option value="vaccination_records">سجل التحصين</option>
+      <option value="samples">العينات</option>
+      <option value="breeders">سجل المربي</option>
+    </select>
+    <select id="ua_eClinic"><option value="">كل العيادات</option></select>
+    <label>من:</label><input type="date" id="ua_eFrom">
+    <label>إلى:</label><input type="date" id="ua_eTo">
+    <label><input type="checkbox" id="ua_eDiff"> المختلفة فقط</label>
+    <button class="update" onclick="ua_entLoad()">🔍 عرض</button>
+    <span id="ua_eCount" style="font-weight:bold"></span>
+  </div>
+  <div class="table-container" style="max-height:60vh">
+    <table><thead><tr>
+      <th>الرقم</th><th>العيادة</th><th>المربي</th><th>التاريخ المُدخل</th>
+      <th>وقت الإدخال الفعلي</th><th>أدخلها</th><th>وقت آخر تعديل</th><th>عدّلها</th>
+    </tr></thead><tbody id="ua_eTb"></tbody></table>
+  </div>
+  <div style="font-size:11px;color:#777">الفترة حسب وقت الإدخال أو التعديل الفعلي. الصفوف المظللة: التاريخ الذي كتبه المستخدم يختلف عن يوم الإدخال الفعلي.</div>
+</div>
+<script>
+var UA_ENT = {
+  treatment_cases:     { no: 'case_no',   svc: 'treated_on' },
+  vaccination_records: { no: 'case_no',   svc: 'vaccinated_on' },
+  samples:             { no: 'sample_no', svc: 'sent_on' },
+  breeders:            { no: 'phone',     svc: null }
+};
+function ua_mct(v, dateOnly) {
+  if (!v) return '';
+  var d = new Date(v);
+  if (isNaN(d)) return '';
+  return dateOnly ? d.toLocaleDateString('en-CA', { timeZone: 'Asia/Muscat' })
+    : d.toLocaleString('en-GB', { timeZone: 'Asia/Muscat', day: '2-digit', month: '2-digit',
+        year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+}
+async function ua_entLoad() {
+  var $ = function (id) { return document.getElementById(id); };
+  var cs = $('ua_eClinic');
+  if (cs.options.length === 1) cs.innerHTML += ua_clinics.map(function (c) {
+    return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>'; }).join('');
+  var today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Muscat' });
+  if (!$('ua_eFrom').value) $('ua_eFrom').value = today;
+  if (!$('ua_eTo').value)   $('ua_eTo').value   = today;
+  var t = $('ua_eTable').value, cfg = UA_ENT[t], tb = $('ua_eTb');
+  var f = new Date($('ua_eFrom').value + 'T00:00:00+04:00').toISOString();
+  var e = new Date($('ua_eTo').value   + 'T23:59:59+04:00').toISOString();
+  tb.innerHTML = '<tr><td colspan="8">⏳ جاري التحميل...</td></tr>';
+  try {
+    var sb = await ua_sb();
+    var q = sb.from(t).select(cfg.no + ', ' + (cfg.svc ? cfg.svc + ', ' : '') +
+        'created_at, updated_at, wilayat:wilayat_id(name), creator:created_by(full_name), ' +
+        'editor:updated_by(full_name), ' + (t === 'breeders' ? 'name' : 'breeders(name)'))
+      .or('and(created_at.gte."' + f + '",created_at.lte."' + e + '"),' +
+          'and(updated_at.gte."' + f + '",updated_at.lte."' + e + '")')
+      .order('created_at', { ascending: false }).limit(1000);
+    if (cs.value) q = q.eq('wilayat_id', Number(cs.value));
+    var r = await q;
+    if (r.error) throw r.error;
+    var rows = (r.data || []).map(function (x) {
+      var svc = cfg.svc ? (x[cfg.svc] || '') : '', act = ua_mct(x.created_at, true);
+      return { x: x, svc: svc, diff: !!(svc && act && svc !== act) };
+    });
+    if ($('ua_eDiff').checked) rows = rows.filter(function (o) { return o.diff; });
+    $('ua_eCount').textContent = rows.length + ' سجل';
+    tb.innerHTML = rows.map(function (o) {
+      var x = o.x, br = t === 'breeders' ? x.name : (x.breeders && x.breeders.name);
+      var st = o.diff ? ' style="background:#4a3800"' : '';
+      return '<tr' + st + '><td>' + ua_esc(x[cfg.no]) + '</td>' +
+        '<td>' + ua_esc(x.wilayat ? x.wilayat.name : '—') + '</td>' +
+        '<td class="nc">' + ua_esc(br || '—') + '</td>' +
+        '<td>' + ua_esc(o.svc || '—') + (o.diff ? ' ⚠️' : '') + '</td>' +
+        '<td>' + ua_mct(x.created_at) + '</td>' +
+        '<td>' + ua_esc(x.creator ? x.creator.full_name : '—') + '</td>' +
+        '<td>' + (x.editor ? ua_mct(x.updated_at) : '—') + '</td>' +
+        '<td>' + ua_esc(x.editor ? x.editor.full_name : '—') + '</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="no-results">لا توجد سجلات في هذه الفترة</td></tr>';
+  } catch (err) {
+    tb.innerHTML = '<tr><td colspan="8" style="color:red">' + ua_esc(err.message || err) + '</td></tr>';
+  }
+}
+</script>
+
 <script>
 function ua_bgShow(url) {
   document.getElementById('ua_bgPrev').style.backgroundImage = 'url("' + (url || AP_BG_DEFAULT) + '")';
@@ -9769,6 +9874,8 @@ function fo_stLoad(v){fo_stSel=v?v.split(/[،,]/).map(function(s){return s.trim(
         <option value="الفحص غير متوفر">الفحص غير متوفر</option>
       </select>
     </div>
+    <div class="top-group"><label>من:</label><input type="date" id="testsDateFrom" onchange="foPerformTestsSearch()"></div>
+    <div class="top-group"><label>إلى:</label><input type="date" id="testsDateTo" onchange="foPerformTestsSearch()"></div>
   </div>
   <div id="testsResultsContainer"><p style="text-align:center;color:#666;padding:20px">اختر نوع الفحص واضغط بحث</p></div>
 </div>
@@ -10122,6 +10229,12 @@ function foloadTestsFilterOptions() {
 async function foPerformTestsSearch() {
   var testType     = document.getElementById('testsFilterSelect').value;
   var resultFilter = document.getElementById('testsResultFilter').value;
+  var tDf = document.getElementById('testsDateFrom').value;
+  var tDt = document.getElementById('testsDateTo').value;
+  if (tDf && tDt && tDf > tDt) {
+    foshowMessage('⚠️ تاريخ البداية يجب أن يسبق تاريخ النهاية', true);
+    return;
+  }
 
   var countEl   = document.getElementById('testsResultCount');
   var container = document.getElementById('testsResultsContainer');
@@ -10129,7 +10242,7 @@ async function foPerformTestsSearch() {
   container.innerHTML = '<p style="text-align:center;padding:20px;">⏳ جاري البحث...</p>';
 
   try {
-    var res = await focallApi("fosearchSamplesData", { showAll: true });
+     var res = await focallApi("fosearchSamplesData", { showAll: true, dateFrom: tDf, dateTo: tDt });
     if (!res.success || !res.data || !res.data.length) {
       container.innerHTML = '<p style="text-align:center;color:#e65050;padding:20px">لا توجد بيانات</p>';
       return;
@@ -10228,6 +10341,8 @@ function foClearTestsSearch() {
   var select = document.getElementById('testsFilterSelect');
   if (select.options.length > 0) select.value = select.options[0].value;
   document.getElementById('testsResultFilter').value  = '';
+  document.getElementById('testsDateFrom').value = '';
+  document.getElementById('testsDateTo').value   = '';
   document.getElementById('testsResultCount').textContent = '';
   document.getElementById('testsResultsContainer').innerHTML =
     '<p style="text-align:center;color:#666;padding:20px">اختر نوع الفحص أو اضغط بحث لعرض الكل</p>';
@@ -10236,6 +10351,8 @@ function foClearTestsSearch() {
 function foPrintTests() {
   var testType = document.getElementById('testsFilterSelect').value || 'جميع الفحوصات';
   var count = document.getElementById('testsResultCount').textContent;
+  var tF = document.getElementById('testsDateFrom').value, tT = document.getElementById('testsDateTo').value;
+  if (tF || tT) count += ' | الفترة: ' + (tF || 'البداية') + ' ← ' + (tT || 'اليوم');
   var tbl = document.getElementById('testsTable');
   if (!tbl) { foshowMessage('لا توجد بيانات للطباعة', true); return; }
   var w = window.open('', '_blank', 'width=900,height=700');
@@ -11871,11 +11988,7 @@ async function dp_loadAll() {
 <div id="comprehensiveReport" class="page">
 <div id="rpt_loadingOverlay" style="display:none;text-align:center;padding:40px;font-size:16px;font-weight:bold;color:#00b8d9;">⏳ جاري تحميل التقرير...</div>
 <div class="tabs">
-  <button class="tab-btn active" onclick="rpt_showTab('diseases')">🐄 أمراض الحيوانات</button>
-  <button class="tab-btn" onclick="rpt_showTab('poultry')">🐔 أمراض الدواجن</button>
-  <button class="tab-btn" onclick="rpt_showTab('vaccination')">💉 التحصين</button>
-  <button class="tab-btn" onclick="rpt_showTab('beneficiaries')">👥 عداد المستفيدين</button>
-   <button class="tab-btn" onclick="rpt_showTab('medicines')">💊 الأدوية المصروفة</button>
+ <button class="tab-btn active" onclick="rpt_showTab('official')">📋 التقرير الشامل</button>
   <button class="tab-btn" onclick="rpt_showTab('campaign');rptCamp_load()">🎯متابعة التحصين</button>
   <button class="tab-btn" id="rpt_refreshBtn" style="background:#e8f5e9;color:#2e7d32;border-color:#2e7d32" onclick="rpt_refreshData()">🔄 تحديث</button>
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;padding:8px 12px;border:2px solid #00b8d9;border-radius:6px">
@@ -11887,41 +12000,10 @@ async function dp_loadAll() {
   </div>
 </div>
 
-<div id="tab-diseases" class="tab-pane active">
-  <div class="card"><h3>الأمراض – حسب نوع الحيوان</h3>
-    <div class="fb"><input type="text" id="rpt_s1" placeholder="🔍 بحث عن مرض..." oninput="rpt_filterT('rpt_s1','rpt_tb1')"><button class="bp" onclick="rpt_printTab('tab-diseases')">🖨️ طباعة</button></div>
-    <div class="sw"><table><thead><tr><th>المرض</th><th>ماعز</th><th>أغنام</th><th>أبقار</th><th>جمال</th><th>خيول</th><th>غزلان</th><th>قطط</th><th>كلاب</th><th>أخرى</th><th>المجموع</th></tr></thead><tbody id="rpt_tb1"></tbody></table></div>
-  </div>
+<div id="tab-official" class="tab-pane active">
+  <div class="fb" style="margin-bottom:8px"><button class="bp" style="background:#1e7e34" onclick="rpt_exportXlsx('tab-official')">📗 تحميل التقرير كاملاً Excel</button></div>
+  <div id="rpt_official"></div>
 </div>
-
-<div id="tab-poultry" class="tab-pane">
-  <div class="card"><h3>أمراض الدواجن</h3>
-    <div class="fb"><input type="text" id="rpt_s2" placeholder="🔍 بحث..." oninput="rpt_filterT('rpt_s2','rpt_tb2')"><button class="bp" onclick="rpt_printTab('tab-poultry')">🖨️ طباعة</button></div>
-    <div class="sw"><table><thead><tr><th>م</th><th>نوع المرض</th><th>العدد</th><th>ملاحظات</th></tr></thead><tbody id="rpt_tb2"></tbody></table></div>
-  </div>
-</div>
-
-<div id="tab-vaccination" class="tab-pane">
-  <div class="card"><h3>عدد الجرعات المحصنة</h3>
-    <div class="fb"><button class="bp" onclick="rpt_printTab('tab-vaccination')">🖨️ طباعة</button></div>
-    <div class="sw"><table><thead><tr><th>م</th><th>اللقاح</th><th>ماعز</th><th>أغنام</th><th>أبقار</th><th>جمال</th><th>خيول</th><th>غزلان</th><th>قطط</th><th>كلاب</th><th>أخرى</th><th>المجموع</th></tr></thead><tbody id="rpt_tb3"></tbody></table></div>
-  </div>
-</div>
-
-<div id="tab-beneficiaries" class="tab-pane">
-  <div class="card"><h3 style="background:#2d6a2d">إجمالي عداد المستفيدين</h3>
-    <div class="fb"><button class="bp" onclick="rpt_printTab('tab-beneficiaries')">🖨️ طباعة</button></div>
-    <div class="sw"><table><thead><tr><th colspan="2" style="background:#e8e8e8;color:#333">عداد المستفيدين من الخدمات</th></tr><tr><th style="background:#e8e8e8;color:#333;width:50%">العلاجية</th><th style="background:#e8e8e8;color:#333;width:50%">التحصين</th></tr></thead><tbody id="rpt_tb5"></tbody></table></div>
-  </div>
-</div>
-
-<div id="tab-medicines" class="tab-pane">
-  <div class="card"><h3>الأدوية المصروفة</h3>
-    <div class="fb"><input type="text" id="rpt_s4" placeholder="🔍 بحث عن دواء..." oninput="rpt_filterT('rpt_s4','rpt_tb4')"><button class="bp" onclick="rpt_printTab('tab-medicines')">🖨️ طباعة</button></div>
-      <div class="sw"><table><thead><tr><th>م</th><th>اسم الدواء</th><th>الوحدة</th><th>المستخدم</th></tr></thead><tbody id="rpt_tb4"></tbody></table></div>
-  </div>
-</div>
-
 <div id="tab-campaign" class="tab-pane">
   <style>
     #tab-campaign .cmp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
@@ -12026,7 +12108,8 @@ function rpt_range() {
 
 /* جلب بيانات التقرير مباشرة من بيانات العلاج والتحصين */
 function rpt_fetchData() {
-  return rpt_callApi("getReportData", rpt_range());
+return Promise.all([rpt_callApi("getReportData", rpt_range()), rpt_loadMap(), rpt_loadSmpMap()])
+    .then(function (v) { return v[0]; });
 }
 
 function rpt_showTab(name) {
@@ -12077,48 +12160,328 @@ function rpt_printTab(tabId) {
   w.print();
 }
 
+/* ============================================================
+   التقرير الشامل — بنفس ترتيب وخانات قالب التقرير الرسمي
+   (أولاً → تاسعاً) — ربط التشخيصات عبر جدول (سجل العلاج ← التقرير)
+   ============================================================ */
+var RPT_TPL = {"t1":[["cat","","الجهاز الهضمي"],["row","1","نزلات معوية"],["row","","تخمة غذائية"],["row","","نفاخ"],["row","","إلتهاب فم"],["row","","إمساك"],["cat","","الجهاز التنفسي"],["row","2","التهاب رئوي"],["row","","نزلات شعبية"],["cat","","الجهاز البولي والتناسلي"],["row","3","عسر ولادة"],["row","","احتباس مشيمة"],["row","","التهاب رحمي"],["row","","انقلاب رحمي"],["row","","إلتواء رحمي"],["row","","إلتهاب مهبلي"],["row","","إنقلاب مهبلي"],["row","","إلتهاب ضرع"],["row","","إلتهاب خصية"],["row","","إحتباس بول"],["cat","","النقص الغذائي"],["row","4","نقص كالسيوم"],["row","","نقص نحاس"],["row","","نقص فيتامينات"],["row","","نقص جلوكوز"],["row","","نقص فسفور"],["cat","","الطفيليــات"],["sub","5","طفيليات الدم"],["row","","تريبانوسوما"],["row","","ثيليريا"],["row","","أنابلازما"],["row","","بابيزيا"],["sub","","طفيليات داخلية"],["row","","طفيليات داخلية"],["sub","","طفيليات خارجية"],["row","","جرب"],["row","","قراد"],["row","","قراع فطري"],["cat","","أمراض وبائية ومعدية"],["row","6","طاعون مجترات صغيرة"],["row","","متلازمة الشرق الأوسط التنفسية"],["row","","السل البقري"],["row","","حمى الثلاث أيام"],["row","","الجدري"],["row","","الحمى القلاعية"],["row","","تسمم معوي"],["row","","الإلتهاب الرئوي البلوري المعدي  (CCPP)"],["row","","إلتهاب الجلد العقدي"],["row","","إلتهاب الفم النفطي"],["row","","السعار"],["row","","البروسيلا"],["row","","التسمم البخصي"],["row","","نظير السل (جونز)"],["row","","السل الكاذب (CLA)"],["row","","حمى كيو (المجهولة)"],["row","","كلاميديا"],["row","","داء المقوسات (تكسوبلازما)"],["row","","داء الكزاز(تيتانوس)"],["cat","","حالات جراحية"],["row","7","عملية قيصرية"],["row","","خياطة ضرع"],["row","","تدويد"],["row","","كسور (عظام)"],["row","","إصابات حافر"],["row","","زوائد جلدية / أورام"],["row","","خراج"],["row","","جروح"],["row","","عمليات جراحية اخرى"],["cat","","أخرى ( يرجى ذكر تشخيص المرض)"],["row","8","التهاب مفاصل"],["row","","التهاب عيون"],["row","","التهاب ضرع"],["row","","خصي"],["row","","قص حوافر-أظلاف"],["row","","قص قرون"],["row","","عقم/عدم خصوبة"],["row","","فحص حمل"],["row","","إجهاض"],["row","","تسمم حمل"],["blank","",""]],"t2":[["1","نيوكاسل"],["2","جمبورو"],["3","إلتهاب الشعب الهوائية المعدي (IB)"],["4","إلتهاب الحنجرة والقصبات  الهوائية المعدي (ILT)"],["5","انفلونزا الطيور"],["6","جدري"],["7","الإلتهاب التنفسي المزمن (CRD)"],["8","الزكام المعدي (كوريزا)"],["9","سالمونيلا"],["10","كلاميديا"],["11","كوكسيديا"],["12","طفيليات خارجية"],["13","طفيليات خارجية"],["14","نقص الغذائي"],["15","اخري"]],"t4":["طاعون م.ص / جدري (مركب)","التسمم المعوي + باستريلا","الحمى القلاعية","التهاب الجلد العقدي","السعار","التسمم البخصي","البروسيلا","السل الكاذب"],"t5":["مـــــــاعز","أغـــــــنام","أبــــقــــار","جـــمــــال","خـــــــيول","غــــــزلان","قـــــــطط","كــــــلاب","آخــــــرى"],"t7":["دم","سيرم","حليب","مسحة من الفم","بثرات من الفم","مسحة شرجية","جثة كاملة","أجزاء جثة","أعلاف (سمك مجفف،......الخ)","بصمة عين","قراد","براز","قشور جلدية"],"t8":[["1","طاعون مجترات صغيرة",["ماعز","أغنام"]],["2","متلازمة الشرق الأوسط التنفسية",["جمال"]],["3","السل البقري",["أبقار"]],["4","حمى الثلاث أيام",["أبقار"]],["5","الجدري",["ماعز","أغنام","جمال"]],["6","الحمى القلاعية",["ماعز","أغنام","أبقار"]],["7","التسمم المعوي",["ماعز","أغنام","أبقار","جمال","أخرى"]],["8","الالتهاب الرئوي البلوري المعدي(CCPP)",["ماعز"]],["9","التهاب جلد عقدي",["أبقار"]],["10","التهاب الفم النفطي المعدي",["ماعز","أغنام","جمال"]],["11","السعار",["ماعز","أغنام","أبقار","جمال","أخرى"]],["12","البروسيلا",["ماعز","أغنام","أبقار","جمال"]],["13","التسمم البخصي",["ماعز","أغنام","أبقار","جمال"]],["14","نظيرالسل (جونز)",["ماعز","أغنام","أبقار","جمال"]],["15","السل الكاذب (CLA)",["ماعز","أغنام"]],["16","حمى كيو (المجهولة)",["ماعز","أغنام","أبقار","جمال","أخرى"]],["17","كلاميديا",["ماعز","أغنام","أبقار","جمال","أخرى"]],["18","داء المقوسات (تكسوبلازما)",["ماعز","أغنام","أبقار","جمال","أخرى"]],["19","داء الكزاز (تيتانوس)",["ماعز","أغنام","أبقار","جمال","خيول","أخرى"]]],"t8p":[["1","نيوكاسل"],["2","جمبورو"],["3","إلتهاب الشعب الهوائية المعدي (IB)"],["4","إلتهاب الحنجرة والقصبات الهوائية المعدي (ILT)"],["5","انفلونزا الطيور"],["6","جدري"],["7","الإلتهاب التنفسي المزمن (CRD)"],["8","الزكام المعدي (كوريزا)"],["9","سالمونيلا"],["10","كلاميديا"],["11","كوكسيديا"],["12","أخرى"]],"t9":[["Antimicrobial , Antibiotics",[["1","Oxytetracycline Inj. 20% L.A"],["2","Oxytetracycline + Flunixin  Meglumine  Inj."],["3","Ceftiofur HCL Inj."],["4","Tylosin Inj. 20%"],["5","Amoxicillin-Clavulanic acid Inj."],["6","Amoxicillin Inj. LA"],["7","Penicillin + Streptomycin Inj. LA"],["8","Sulfa +  Trimethoprim Inj. LA."],["9","Lincospectin Inj."],["10","Gentamicin +Tylosin Inj."],["11","Oxytetracycline Spray"],["12","Oxytetracycline Bollus"],["13","Ampicillin Powder WS"],["14","Sulpha + Trimethdine Bollus"],["15","Oxytetracycline WS 25%"],["16","Sulphamycin K Powder"],["17","Tylosin Powder WS 20%"],["18","Linco- Spectin Powder WS"],["19","Gentamicin +Doxycyclin  WS"],["20","Neomycin Powder"],["21","Ophthalmic Oint.with antibiotic"],["22","Eye drops (Antibiotic + Anti-inflammatory)"],["23","Intramammary Tubes with trypsin"],["24","Antibiotic wound cream"]]],["Antidiarrheal",[["25","Antidiarrheal preparation  (Per Os)"],["26","Neomycin+Sulphanonidine+vit.B+koolin+pectin powder"]]],["Antifungal",[["27","Ring Worm Spray"]]],["Antiparasitic",[["28","Buparvaquone Inj.(eg:Butalex .etc)"],["29","Imidocarb  Inj. (eg : imizol …etc  )"],["30","Diminazene Diaceturate Inj."],["31","Quinapyramine Sulphate + Quinapyramine Chloride ( eg : triquin …etc ) Inj."],["32","Doramectin inj"],["33","Ivermectin Inj."],["34","Ivermectin Drench"],["35","Amprolium Powder"],["36","levamisole syp"],["37","Oxybendazole tablets"],["38","Flumethrin Pour on"],["39","Deltamethrin for dipping"]]],["Diuretics",[["40","Furosemide Inj"],["41","Diuretic"]]],["Anti Inflammatory, Analgesic and Antipyretic",[["42","Dexamethasone Inj"],["43","Meloxicam (metacam )"],["44","FlunixinMeglumine Inj"],["45","Carprofen non-Steroidal  Antiinflammatory"],["46","Bromhexine hydrochloride Syrup"],["47","Bronchodilator inj"],["48","Bromhexine Hydrochloride Syrup"],["49","Novalgin  Inj"]]],["Vits,mineral & trace element",[["50","Multivitamin Inj"],["51","Vit. E Selenium Inj"],["52","Trace elements Inj. (with copper)"],["53","Calcium Borogluconate + Magnesium + Pphosphorus + Preservatives  + I.V Set"],["54","phosphorus + Vit B12 Inj"],["55","Water for Inj"],["56","Dextrose 20% with I.V Set"],["57","Normal Saline with I.V Set"],["58","Calcium drench"],["59","Copper capsule 2gm"],["60","Electrolyte  powder"],["61","Bicarbonated Ringer's Solution"],["62","Vitamin C Powder"],["63","Iron inj"],["64","Lactated Ringer's Solution"],["65","Vitamin B Complex Inj"],["66","Multivitamin Powder"]]],["Hormones",[["67","Oxytocin Inj"],["68","Synthetic Oestrogen   Inj"],["69","Prostaglanden F2 Alpha Inj.(eg:estrumate ..etc)"],["70","Gonadotropin Releasing Hormone Inj (eg:receptal ..etc)"],["71","LH  Injection"]]],["Astringent , Antiseptic and Disinfectant",[["72","Lotagen"],["73","Iodine wound spray"],["74","Negasunt Powder"],["75","Alcohol (spirit )"],["76","Disinfectant"],["77","Copper Sulfate (CuSO4)"],["78","Sulphar Ointment"],["79","Wound Dressing Fly Repellent Spray"],["80","Hydrogen Peroxide H2O2"]]],["Purgatives and Digestive",[["81","Anti Bloat"],["82","Magnesium Sulphate Powder"],["83","Neostigmine Inj"],["84","Laxative"],["85","Liquid Parafin"],["86","Sodium Bicarbonate Isotonic"],["87","Rumen Tonic Bolus"],["88","Propylene Glycol"],["89","Glycerine"]]],["Others",[["90","xylazine Inj"],["91","Lidocain Inj. 2%"],["92","Vaginal  Lubricant"],["93","Antiheamorrhagic inj"],["94","Udder Ointment"],["95","Anti Histamine Inj"],["96","Atropin Sulfate Inj"]]],["Syringes, Needles & sutures",[["97","Disposable Needles 18G 1½”  1"],["98","Disposable Needles 19G"],["99","Needles Hypodermic 20G  x1/2 inch"],["100","Needles 18g alaminum for vaccination"],["101","Needles 16g alaminum for vaccination"],["102","Blood collecting needles"],["103","Surgical Blade no 24"],["104","Surgical Blade no 15"],["105","disuture needle with thread"],["106","Suture Needles"],["107","surgical suture supramid"],["108","Cat Gut 0/4"],["109","Cat Gut 0/1"],["110","Cat Gut 0/2"],["111","Cat Gut 0/8"],["112","Nylon Suture 0/1"],["113","Nylon Suture 0/4"],["114","Silk suture"],["115","Disposable Syringes 01ml"],["116","Disposable Syringes 05ml"],["117","Disposable Syringes 10ml"],["118","Disposable Syringes 20 ml"],["119","Disposable Syringes 50ml"],["120","Teat canula with removable plug (small)"],["121","Teat canula with removable plug (large)"],["122","Embryotome wire"],["123","Thermometer"],["124","Tick Forceps"],["125","Infusion Set"],["126","Uterine Catheter"]]],["Cotton and bandages",[["127","Absorbent cotton gauze3\"x3\""],["128","Confirming gauze bandage"],["129","Bandag length  5 m X 6inch"],["130","Cotton 500gm"],["131","Gypsum Roll"]]],["Disposable items",[["132","Whole Blood Collecting Tubes"],["133","Serum Collecting Tubes"],["134","Disp. Mask ( 3 layers rubber band)"],["135","Ultrasound Gel"],["136","Face Mask N95 (biology)"],["137","Disposable gloves"],["138","Arm length gloves"],["139","Disposabl gown"],["140","Rubber band for castration"],["141","Plastic bottle 100ml"]]],["Vaccines",[["142","Combined PPR and Pox Vaccines"],["143","Clostridial Diseases Group Vaccine with Pasteurella"],["144","FMD Vaccine"],["145","Lumpy Skin Disease Vaccine (Pox vaccine)"],["146","Rabies Vaccine"],["147","Botulism Vaccine"],["148","Brucella Vaccine (Injection)"],["149","Brucella Vaccine (Eye drops)"],["150","Corynebacterium pseudotuberculosis vaccine"]]],["Others",[["151",""],["152",""],["153",""],["154",""],["155",""],["156",""],["157",""],["158",""]]]]};
+
+/* أسماء في جدول الربط تختلف قليلاً عن خانات القالب */
+var RPT_ALIAS = { 'نزلة معوية': 'نزلات معوية', 'إلتهاب الفم': 'إلتهاب فم' };
+/* الدواجن: البندان ١٢ و١٣ في القالب — ١٢ للداخلية و١٣ للخارجية */
+var RPT_POULTRY_ALIAS = { 'طفيليات داخلية': '12', 'طفيليات خارجية': '13' };
+/* لقاحات النظام ← ترتيبها في جدول رابعاً */
+var RPT_VACC_IDX = { 'طاعون / جدري (مركب)': 0, 'التسمم المعوي': 1, 'الحمى القلاعية': 2,
+                     'التهاب الجلد العقدي': 3, 'السعار': 4 };
+
+function rpt_n(s) {
+  return String(s == null ? '' : s).replace(/[إأآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+    .replace(/ـ/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+function rpt_nd(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9ء-ي]+/g, ''); }
+/* جدول الربط (سجل العلاج ← التقرير) — يُقرأ من قاعدة البيانات: report_disease_map */
+var rpt_mapIdx = {};
+async function rpt_loadMap() {
+  try {
+    var sb = await window.SBAuth.client();
+    var r = await sb.from('report_disease_map').select('source_name, report_name').range(0, 4999);
+    if (r.error) throw r.error;
+    var idx = {};
+    (r.data || []).forEach(function (m) { idx[rpt_n(m.source_name)] = String(m.report_name || '').trim(); });
+    rpt_mapIdx = idx;
+  } catch (e) {
+    console.warn('[rpt] جدول الربط:', e.message || e);
+    showToast('⚠️ تعذّر تحميل جدول ربط الأمراض من قاعدة البيانات', 'warning');
+  }
+}
+function rpt_mapOf(name) {
+  var t = rpt_mapIdx[rpt_n(name)];
+  return t || String(name || '').trim();
+}
+
+/* جدول ربط أنواع العينات — من قاعدة البيانات: sample_type_report_map */
+var rpt_smpIdx = {};
+async function rpt_loadSmpMap() {
+  try {
+    var sb = await window.SBAuth.client();
+    var r = await sb.from('sample_type_report_map').select('source_name, report_name').range(0, 4999);
+    if (r.error) throw r.error;
+    var idx = {};
+    (r.data || []).forEach(function (m) { idx[rpt_nd(m.source_name)] = String(m.report_name || '').trim(); });
+    rpt_smpIdx = idx;
+  } catch (e) {
+    console.warn('[rpt] ربط العينات:', e.message || e);
+    showToast('⚠️ تعذّر تحميل جدول ربط أنواع العينات من قاعدة البيانات', 'warning');
+  }
+}
+
 function rpt_buildAll() {
   if (!rpt_D) return;
-  // أمراض الحيوانات
-  var h = '';
-  rpt_D.diseases.forEach(function(row) {
-      if (row.type === 'total')
-      h += '<tr class="tot"><td class="nc">المجموع</td>' + row.values.map(function(v){ return '<td>' + (v || '') + '</td>'; }).join('') + '</tr>';
-    else
-    h += '<tr><td class="nc">' + escHtml(row.name) + '</td>' + row.values.map(function(v){ return '<td>' + (v || '') + '</td>'; }).join('') + '</tr>';
+  var T = RPT_TPL;
+  var AN = ['ماعز','أغنام','أبقار','جمال','خيول','غزلان','قطط','كلاب','أخرى'];
+  function z(n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; }
+  function add(a, b) { for (var i = 0; i < a.length; i++) a[i] += (Number(b[i]) || 0); }
+  function S(a) { return a.reduce(function (s, x) { return s + (Number(x) || 0); }, 0); }
+  function e(x) { return escHtml(String(x == null ? '' : x)); }
+  function th(a) { return a.map(function (x) { return '<th>' + e(x) + '</th>'; }).join(''); }
+  function tds(a) { return a.map(function (x) { return '<td>' + (x ? e(x) : '') + '</td>'; }).join(''); }
+  function tdn(a) { return a.map(function (x) { return '<td>' + (Number(x) || 0) + '</td>'; }).join(''); }
+  function card(id, title, inner) {
+    return '<div class="card" id="' + id + '"><h3>' + e(title) + '</h3>' +
+      '<div class="fb"><button class="bp" style="background:#1e7e34" onclick="rpt_exportXlsx(\'' + id + '\')">📗 تحميل Excel</button></div>' +
+      inner + '</div>';
+  }
+  function tbl(head, body) { return '<div class="sw"><table><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>'; }
+
+  /* ── فهارس القالب ── */
+  var rowIdx = {}, rowIdxN = {};
+  T.t1.forEach(function (r, i) {
+    if (r[0] !== 'row') return;
+    if (!(r[2] in rowIdx)) rowIdx[r[2]] = i;
+    var k = rpt_n(r[2]); if (!(k in rowIdxN)) rowIdxN[k] = i;
   });
-  document.getElementById('rpt_tb1').innerHTML = h;
+  var pIdx = {};
+  T.t2.forEach(function (r, i) { var k = rpt_n(r[1]); if (!(k in pIdx)) pIdx[k] = i; pIdx['#' + r[0]] = i; });
 
-  // الدواجن
-  h = '';
-  rpt_D.poultry.forEach(function(row) {
-    var cls = row.type === 'total' ? ' class="tot"' : '';
-       h += '<tr' + cls + '><td>' + (row.num || '') + '</td><td class="nc">' + escHtml(row.disease) + '</td><td>' + (row.count || '') + '</td><td>' + (row.notes || '') + '</td></tr>';
+  /* ── توزيع البيانات على خانات القالب ── */
+  var d1 = {}, extra = {}, pc = z(T.t2.length), pOther = [];
+  function addP(name, n) {
+    var a = RPT_POULTRY_ALIAS[name];
+    var i = a ? pIdx['#' + a] : pIdx[rpt_n(name)];
+    if (i === undefined) { i = T.t2.length - 1; if (pOther.indexOf(name) === -1) pOther.push(name); }
+    pc[i] += n;
+  }
+  (rpt_D.diseases || []).forEach(function (r) {
+    if (r.type === 'total') return;
+    var vals = (r.values || []).slice(0, 9), tg = rpt_mapOf(r.name);
+    if (/\s*-\s*دواجن$/.test(tg)) { addP(tg.replace(/\s*-\s*دواجن$/, ''), S(vals)); return; }
+    tg = RPT_ALIAS[tg] || tg;
+    var i = (tg in rowIdx) ? rowIdx[tg] : rowIdxN[rpt_n(tg)];
+    if (i === undefined) { add(extra[tg] || (extra[tg] = z(9)), vals); return; }
+    add(d1[i] || (d1[i] = z(9)), vals);
   });
-  document.getElementById('rpt_tb2').innerHTML = h;
-
-  // التحصين
-  h = '';
-  rpt_D.vaccination.forEach(function(row) {
-    var cls = row.type === 'total' ? ' class="tot"' : '';
-    h += '<tr' + cls + '><td>' + (row.num || '') + '</td><td class="nc">' + row.vaccine + '</td>' + row.values.map(function(v){ return '<td>' + (v || '') + '</td>'; }).join('') + '</tr>';
+  (rpt_D.poultry || []).forEach(function (r) {
+    if (r.type === 'total') return;
+    addP(rpt_mapOf(r.disease).replace(/\s*-\s*دواجن$/, ''), Number(r.count) || 0);
   });
-  document.getElementById('rpt_tb3').innerHTML = h;
 
-  // المستفيدون
-document.getElementById('rpt_tb5').innerHTML =
-    '<tr><td style="color:red;font-size:1.6em;font-weight:bold;padding:16px">' + Math.round(rpt_D.beneficiaries.therapeutic) +
-    '</td><td style="color:red;font-size:1.6em;font-weight:bold;padding:16px">' + Math.round(rpt_D.beneficiaries.vaccination) + '</td></tr>';
+  var html = '';
 
-  // الأدوية
+  /* ── أولاً: أمراض ── */
+  var tot1 = z(9), h = '', epi = [], inEpi = false;
+  T.t1.forEach(function (r, i) {
+    if (r[0] === 'cat') {
+      inEpi = (r[2] === 'أمراض وبائية ومعدية');
+      h += '<tr class="sec"><td colspan="12">' + e(r[2]) + '</td></tr>'; return;
+    }
+    if (r[0] === 'sub') { h += '<tr><td>' + e(r[1]) + '</td><td class="nc"><b>' + e(r[2]) + '</b></td><td colspan="10"></td></tr>'; return; }
+    if (r[0] === 'blank') {
+      var ks = Object.keys(extra);
+      if (!ks.length) h += '<tr><td></td><td class="nc"></td>' + tds(z(9)) + '<td>0</td></tr>';
+      ks.forEach(function (k) {
+        add(tot1, extra[k]);
+        h += '<tr><td></td><td class="nc">' + e(k) + '</td>' + tds(extra[k]) + '<td>' + S(extra[k]) + '</td></tr>';
+      });
+      return;
+    }
+    if (inEpi) epi.push(i);
+    var a = d1[i] || z(9); add(tot1, a);
+    h += '<tr><td>' + e(r[1]) + '</td><td class="nc">' + e(r[2]) + '</td>' + tds(a) + '<td>' + S(a) + '</td></tr>';
+  });
+  h += '<tr class="tot"><td></td><td class="nc">المجموع</td>' + tdn(tot1) + '<td>' + S(tot1) + '</td></tr>';
+  html += card('rptc_1', 'أولا: أمراض',
+    tbl('<tr><th>م</th><th>الحالة / نوع الحيوان</th>' + th(AN) + '<th>المجموع</th></tr>', h));
+
+  /* ── ثالثاً: أمراض الدواجن ── */
   h = '';
-  rpt_D.medicines.forEach(function(sec) {
-    h += '<tr class="sec"><td colspan="4">▸ ' + sec.name + '</td></tr>';
-    sec.items.forEach(function(item) {
-           h += '<tr><td>' + item.num + '</td><td class="nc">' + escHtml(item.name) + '</td><td>' + (item.unit || '') + '</td><td>' + (item.used || '') + '</td></tr>';
+  T.t2.forEach(function (r, i) {
+    var note = (i === T.t2.length - 1 && pOther.length) ? pOther.join('، ') : '';
+    h += '<tr><td>' + e(r[0]) + '</td><td class="nc">' + e(r[1]) + '</td><td>' + (pc[i] || '') + '</td><td class="nc">' + e(note) + '</td></tr>';
+  });
+  h += '<tr class="tot"><td></td><td class="nc">المجموع</td><td>' + S(pc) + '</td><td></td></tr>';
+  html += card('rptc_3', 'ثالثا:أمراض الدواجن',
+    tbl('<tr><th>م</th><th>نوع المرض</th><th>العدد</th><th>الملاحظات</th></tr>', h));
+
+  /* ── رابعاً: عدد الجرعات المحصنة ── */
+  var v4 = T.t4.map(function () { return z(9); }), tot4 = z(9);
+  (rpt_D.vaccination || []).forEach(function (r) {
+    if (r.type === 'total') return;
+    var i = RPT_VACC_IDX[String(r.vaccine || '').trim()];
+    if (i !== undefined) add(v4[i], (r.values || []).slice(0, 9));
+  });
+  h = '';
+  T.t4.forEach(function (nm, i) {
+    add(tot4, v4[i]);
+    h += '<tr><td>' + (i + 1) + '</td><td class="nc">' + e(nm) + '</td>' + tds(v4[i]) + '<td>' + S(v4[i]) + '</td></tr>';
+  });
+  h += '<tr class="tot"><td></td><td class="nc">المجموع</td>' + tdn(tot4) + '<td>' + S(tot4) + '</td></tr>';
+  html += card('rptc_4', 'رابعا: عدد الجرعات المحصنة',
+    tbl('<tr><th>م</th><th>نوع اللقاح / نوع الحيوان</th>' + th(AN) + '<th>الإجمالي</th></tr>', h));
+
+  /* ── خامساً: إجمالي حالات العلاج وجرعات التحصين ── */
+  h = '';
+  T.t5.forEach(function (nm, i) {
+    h += '<tr><td>' + (i + 1) + '</td><td class="nc">' + e(nm) + '</td><td>' + (tot1[i] || '') + '</td><td>' + (tot4[i] || '') +
+         '</td><td>' + (tot1[i] + tot4[i]) + '</td></tr>';
+  });
+  h += '<tr class="tot"><td></td><td class="nc">الــــمـجـموع</td><td>' + S(tot1) + '</td><td>' + S(tot4) + '</td><td>' + (S(tot1) + S(tot4)) + '</td></tr>';
+  html += card('rptc_5', 'خامسا: إجمالي عدد حالات العلاج وعدد جرعات التحصين',
+    tbl('<tr><th>م</th><th>نوع الحيوان</th><th>حالات العلاج</th><th>جرعات التحصين</th><th>المجموع</th></tr>', h));
+
+  /* ── سادساً: المربون المستفيدون ── */
+  var bn = rpt_D.beneficiaries || {};
+  html += card('rptc_6', 'سادسا: إجمالي أعداد المربين المستفيدين من الخدمات العلاجية والتحصين',
+    tbl('<tr><th colspan="2">أعداد المربين المستفيدين من الخدمات</th></tr><tr><th style="width:50%">العلاجية</th><th style="width:50%">التحصين</th></tr>',
+        '<tr><td style="color:red;font-size:1.6em;font-weight:bold;padding:16px">' + Math.round(Number(bn.therapeutic) || 0) +
+        '</td><td style="color:red;font-size:1.6em;font-weight:bold;padding:16px">' + Math.round(Number(bn.vaccination) || 0) + '</td></tr>'));
+
+  /* ── سابعاً: عينات المختبر ── */
+  var AN7 = ['ماعز','أغنام','أبقار','جمال','خيول','غزلان','قطط','كلاب','دواجن','أخرى'];
+  var ha = '', hb = '';
+  var s7 = {}, p7 = {}, nm7 = {}, tot7 = z(10);
+  (rpt_D.samples || []).forEach(function (s) {
+    var keys = {};
+    s.types.forEach(function (t) {
+      var tg = rpt_smpIdx[rpt_nd(t)] || t, k = rpt_n(tg);
+      nm7[k] = nm7[k] || tg; keys[k] = 1;
+    });
+    Object.keys(keys).forEach(function (k) {          /* العينة تُحسب مرة واحدة في كل خانة */
+      add(s7[k] || (s7[k] = z(10)), s.animals);
+      if (s.positive) add(p7[k] || (p7[k] = z(10)), s.animals);
     });
   });
-  document.getElementById('rpt_tb4').innerHTML = h;
+  var rows7 = T.t7.slice();
+  Object.keys(nm7).forEach(function (k) {
+    if (T.t7.every(function (n) { return rpt_n(n) !== k; })) rows7.push(nm7[k]);
+  });
+  rows7.forEach(function (nm, i) {
+    var k = rpt_n(nm), a = s7[k] || z(10), b = p7[k] || z(10);
+    add(tot7, a);
+    ha += '<tr><td>' + (i + 1) + '</td><td class="nc">' + e(nm) + '</td>' + tds(a) + '<td>' + S(a) + '</td></tr>';
+    hb += '<tr><td>' + (i + 1) + '</td><td class="nc">' + e(nm) + '</td>' + tds(b) + '</tr>';
+  });
+  ha += '<tr class="tot"><td></td><td class="nc">المجموع</td>' + tdn(tot7) + '<td>' + S(tot7) + '</td></tr>';
+  html += card('rptc_7', 'سابعا: عينات المختبر',
+    '<h4 style="margin:8px 4px">أ- العينات المرسلة للمختبر:</h4>' +
+    tbl('<tr><th>م</th><th>نوع العينة / نوع الحيوان</th>' + th(AN7) + '<th>المجموع</th></tr>', ha) +
+    '<h4 style="margin:14px 4px 8px">ب- النتائج الأيجابية للعينات المرسلة:</h4>' +
+    tbl('<tr><th>م</th><th>نوع الحيوان / عدد العينات-النتيجة</th>' + th(AN7) + '</tr>', hb));
+
+  /* ── ثامناً: الأمراض المعدية والوبائية ── */
+  h = '';
+  T.t8.forEach(function (r, j) {
+    var src = d1[epi[j]] || z(9), n = r[2].length;
+    r[2].forEach(function (sp, k) {
+      var sick = src[AN.indexOf(sp)] || 0;
+      h += '<tr>' + (k === 0 ? '<td rowspan="' + n + '">' + e(r[0]) + '</td><td class="nc" rowspan="' + n + '">' + e(r[1]) +
+           '</td><td rowspan="' + n + '"></td>' : '') +
+           '<td>' + e(sp) + '</td><td></td><td>' + (sick || '') + '</td><td></td><td></td></tr>';
+    });
+  });
+  var hp = '';
+  T.t8p.forEach(function (r) {
+    var i = pIdx[rpt_n(r[1])];
+    if (i === undefined && /أخر/.test(r[1])) i = T.t2.length - 1;
+    var sick = (i !== undefined) ? pc[i] : 0;
+    hp += '<tr><td>' + e(r[0]) + '</td><td class="nc">' + e(r[1]) + '</td><td></td><td></td><td>' + (sick || '') + '</td><td></td><td></td></tr>';
+  });
+  html += card('rptc_8', 'ثامنا: تقرير الأمراض المعدية والوبائية',
+    tbl('<tr><th>م</th><th>نوع المرض</th><th>عدد البؤر</th><th>نوع الحيوان</th><th>إجمالي القطيع</th><th>المريض</th><th>النافق</th><th>الولاية/ القرية</th></tr>', h) +
+    '<h4 style="margin:14px 4px 8px">الدواجن</h4>' +
+    tbl('<tr><th>م</th><th>المرض</th><th>عدد البؤر</th><th>إجمالي القطيع</th><th>المريض</th><th>النافق</th><th>الولاية/ القرية</th></tr>', hp));
+
+  /* ── تاسعاً: الأدوية البيطرية ── */
+  var used = {}, dIdx = {}, blanks = [], extraM = [];
+  T.t9.forEach(function (c, ci) {
+    c[1].forEach(function (it, ii) {
+      if (it[1]) { var k = rpt_nd(it[1]); if (!(k in dIdx)) dIdx[k] = ci + ':' + ii; }
+      else blanks.push(ci + ':' + ii);
+    });
+  });
+  var bNames = {};
+  (rpt_D.medicines || []).forEach(function (sec) {
+    (sec.items || []).forEach(function (it) {
+      var q = Number(it.used) || 0, key = dIdx[rpt_nd(it.name)];
+      if (key === undefined) {
+        if (blanks.length) { key = blanks.shift(); bNames[key] = it.name; }
+        else { extraM.push(it); return; }
+      }
+      used[key] = (used[key] || 0) + q;
+    });
+  });
+  h = '';
+  T.t9.forEach(function (c, ci) {
+    h += '<tr class="sec"><td colspan="3">▸ ' + e(c[0]) + '</td></tr>';
+    c[1].forEach(function (it, ii) {
+      var key = ci + ':' + ii, q = used[key];
+      h += '<tr><td>' + e(it[0]) + '</td><td class="nc">' + e(it[1] || bNames[key] || '') + '</td><td>' +
+           (q ? Math.round(q * 1000) / 1000 : '') + '</td></tr>';
+    });
+  });
+  extraM.forEach(function (it) {
+    h += '<tr><td></td><td class="nc">' + e(it.name) + '</td><td>' + (it.used || '') + '</td></tr>';
+  });
+  html += card('rptc_9', 'تاسعا : تقرير الأدوية البيطرية',
+    tbl('<tr><th>S/No</th><th>اســـــــــــــــم الـــــــــــــــــــــــــــــــــــدواء</th><th>المستخدم</th></tr>', h));
+
+  document.getElementById('rpt_official').innerHTML = html;
+}
+
+/* تحميل بطاقة واحدة أو التقرير كاملاً بصيغة Excel — ورقة لكل بطاقة */
+async function rpt_exportXlsx(id) {
+  var root = document.getElementById(id);
+  if (!root || !root.querySelector('table')) { showToast('⚠️ لا توجد بيانات — حدّث التقرير أولاً', 'warning'); return; }
+  var cards = root.classList.contains('card') ? [root] : Array.prototype.slice.call(root.querySelectorAll('.card'));
+  try {
+    showToast('⏳ جاري تجهيز ملف Excel...', 'info');
+    if (!window.XLSX) {
+      await new Promise(function (res, rej) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        s.onload = res;
+        s.onerror = function () { rej(new Error('تعذّر تحميل مكتبة Excel — تحقق من الإنترنت')); };
+        document.head.appendChild(s);
+      });
+    }
+    var wb = XLSX.utils.book_new(), names = {};
+    cards.forEach(function (card) {
+      var h3 = card.querySelector('h3'), title = h3 ? h3.textContent.trim() : 'التقرير';
+      var ws = XLSX.utils.aoa_to_sheet([[title]]), row = 2;
+      card.querySelectorAll('h4, table').forEach(function (el) {
+        if (el.tagName === 'H4') {
+          XLSX.utils.sheet_add_aoa(ws, [[el.textContent.trim()]], { origin: row });
+          row += 1;
+        } else {
+          XLSX.utils.sheet_add_dom(ws, el, { origin: row, raw: true });
+          row = XLSX.utils.decode_range(ws['!ref']).e.r + 3;
+        }
+      });
+      /* النصوص الرقمية ← أرقام + عرض الأعمدة */
+      var R = XLSX.utils.decode_range(ws['!ref']), cols = [];
+      for (var c = R.s.c; c <= R.e.c; c++) {
+        var w = 6;
+        for (var r = R.s.r; r <= R.e.r; r++) {
+          var cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+          if (!cell || cell.v == null) continue;
+          if (cell.t === 's' && /^-?\d+(\.\d+)?$/.test(String(cell.v).trim())) { cell.t = 'n'; cell.v = Number(cell.v); delete cell.w; }
+          if (r > 0) w = Math.max(w, String(cell.v).length + 2);
+        }
+        cols.push({ wch: Math.min(w, 45) });
+      }
+      ws['!cols'] = cols;
+      var nm = title.replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 28), base = nm, i = 2;
+      while (names[nm]) nm = base + ' ' + (i++);
+      names[nm] = 1;
+      XLSX.utils.book_append_sheet(wb, ws, nm);
+    });
+    wb.Workbook = { Views: [{ RTL: true }] };
+    var rg = rpt_range();
+    var fname = 'التقرير_الشامل' + (rg.dateFrom ? '_' + rg.dateFrom : '') + (rg.dateTo ? '_' + rg.dateTo : '') + '.xlsx';
+    XLSX.writeFile(wb, fname);
+    showToast('✅ تم تنزيل ملف Excel', 'success');
+  } catch (err) {
+    showToast('❌ ' + err.message, 'error');
+  }
 }
 
 /* ============================================================
@@ -16665,15 +17028,41 @@ function names(table, col, filterWilayat) {
     return c === "poultry" || n.indexOf("دواجن") !== -1 || n.indexOf("دجاج") !== -1;
   }
   function zeros(n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; }
+  /* العينات: عدد الحيوانات لكل عمود في جدول سابعاً
+     ماعز، أغنام، أبقار، جمال، خيول، غزلان، قطط، كلاب، دواجن، أخرى */
+  var SMP_COL = { goat: 0, sheep: 1, cow: 2, camel: 3, horse: 4, cat: 6, dog: 7, poultry: 8 };
+  var SMP_AR  = { "ماعز": 0, "أغنام": 1, "اغنام": 1, "ضأن": 1, "أبقار": 2, "ابقار": 2,
+                  "جمال": 3, "إبل": 3, "ابل": 3, "خيول": 4, "غزلان": 5, "قطط": 6, "كلاب": 7, "دواجن": 8 };
+  function smpRow(s) {
+    var a = zeros(10);
+    txt(s.species_detail).split(/\s*-\s*/).forEach(function (part) {
+      var m = part.trim().match(/^(\S+)(?:\s+(?:ذكر|أنثى))?(?:\s+(\d+))?$/);
+      if (!m || SMP_AR[m[1]] === undefined) return;
+      a[SMP_AR[m[1]]] += parseInt(m[2], 10) || 1;
+    });
+    if (!sum(a)) {
+      var sp = s.species || {}, c = SMP_COL[txt(sp.code).toLowerCase()];
+      if (c === undefined && txt(sp.name_ar).indexOf("غزال") !== -1) c = 5;
+      a[c === undefined ? 9 : c] = 1;
+    }
+    return {
+      types: (s.sample_specimen_types || [])
+        .map(function (x) { return x.sample_types ? txt(x.sample_types.name) : ""; }).filter(Boolean),
+      animals: a,
+      positive: (s.sample_tests || []).some(function (t) { return txt(t.result) === "إيجابي"; })
+    };
+  }
 
   function report(p) {
     return Promise.all([
       casesQuery("id, breeder_id, " +
                  "treatment_diagnoses(animal_count, diseases(name), species(code, name_ar)), " +
                  "treatment_drugs(quantity, drugs(name))", p),
-      vaccQuery("id, breeder_id, vaccination_doses(vaccine_type_id, species_id, animal_count)", p)
+      vaccQuery("id, breeder_id, vaccination_doses(vaccine_type_id, species_id, animal_count)", p),
+      rangeQuery("samples", "sent_on", "id, species_detail, species(code, name_ar), " +
+                 "sample_specimen_types(sample_types(name)), sample_tests(result)", p)
     ]).then(function (v) {
-      var tc = v[0], vr = v[1];
+      var tc = v[0], vr = v[1], sm = v[2];
       var dz = {}, pl = {}, meds = {}, trB = {}, vrB = {};
 
       /* العلاج: أمراض + دواجن + أدوية + مستفيدون */
@@ -16739,6 +17128,7 @@ function names(table, col, filterWilayat) {
       return {
         success: true,
         diseases: diseases, poultry: poultry, vaccination: vaccination, medicines: medicines,
+        samples: sm.map(smpRow),
         beneficiaries: { therapeutic: Object.keys(trB).length,
                          vaccination: Object.keys(vrB).length }
       };
@@ -18104,6 +18494,34 @@ function ua_pushSave() {
     to: ua_pAlertIds } })
     .then(function (r) { showToast(r.error ? '❌ تعذّر الحفظ' : '✅ تم الحفظ', r.error ? 'error' : 'success'); });
 }
+</script>
+<div id="ticker"><span id="tickerTxt"></span></div>
+<style>
+#ticker{display:none;position:fixed;top:14px;right:200px;left:175px;height:36px;z-index:1400;overflow:hidden;
+  background:rgba(0,78,102,.88);border:2px solid #00b8d9;border-radius:30px;color:#fff;font-weight:bold;font-size:14px}
+#tickerTxt{position:absolute;top:0;line-height:32px;white-space:nowrap;animation:tick 25s linear infinite}
+#ticker:hover #tickerTxt{animation-play-state:paused}
+@keyframes tick{from{right:100%}to{right:0;transform:translateX(100%)}}
+@media(max-width:700px){#ticker{top:62px;right:12px;left:12px}}
+@media print{#ticker{display:none!important}}
+</style>
+<script>
+function tickerShow(v){
+  var b=document.getElementById('ticker'),t=document.getElementById('tickerTxt');
+    window._tickerRaw=String(v||'').trim();
+  v=window._tickerRaw.split(/\n+/).map(function(s){return s.trim();}).filter(Boolean).join('     ✦     ');
+  t.textContent=v;
+  t.style.animationDuration=Math.max(15,v.length*.3)+'s';
+  b.style.display=(v&&window._isLoggedIn)?'block':'none';
+}
+async function tickerLoad(){
+  try{var sb=await SBAuth.client();
+    var r=await sb.from('app_settings').select('value').eq('key','ticker').maybeSingle();
+    tickerShow(r.data&&r.data.value);}catch(e){}
+}
+document.addEventListener('app:login',tickerLoad);
+document.addEventListener('app:logout',function(){tickerShow('');});
+setInterval(function(){if(window._isLoggedIn)tickerLoad();},300000);
 </script>
 </body>
 </html>
