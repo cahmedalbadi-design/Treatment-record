@@ -2295,6 +2295,7 @@ async function ua_tkSave(v){
          :await sb.from('app_settings').delete().eq('key','ticker');
   if(r.error){showToast('❌ '+r.error.message,'error');return;}
   tickerShow(v);
+  if(_tkCh&&_tkCh.send)_tkCh.send({type:'broadcast',event:'set',payload:{v:v}});
   showToast(v?'✅ تم نشر الشريط':'✅ تم إخفاء الشريط','success');
 }
 </script>
@@ -18522,6 +18523,17 @@ async function tickerLoad(){
 document.addEventListener('app:login',tickerLoad);
 document.addEventListener('app:logout',function(){tickerShow('');});
 setInterval(function(){if(window._isLoggedIn)tickerLoad();},300000);
+  var _tkCh=null;
+document.addEventListener('app:login',async function(){
+  if(_tkCh)return;
+  try{var sb=await SBAuth.client();
+    _tkCh=sb.channel('vet-ticker')
+      .on('broadcast',{event:'set'},function(e){tickerShow(e.payload&&e.payload.v);})
+      .subscribe();}catch(e){}
+});
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&window._isLoggedIn)tickerLoad();
+});
 </script>
 </body>
 </html>
