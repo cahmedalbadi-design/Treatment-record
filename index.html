@@ -14741,7 +14741,9 @@ document.addEventListener("app:login", function () {
       st.textContent = '@media print { #clinicSwitchBtn { display:none !important; } }';
       document.head.appendChild(st);
     }
-    btn.textContent = '🏥 ' + ((me.wilayat && me.wilayat.name) || '—') + '  ⇄';
+        var cName = (me.wilayat && me.wilayat.name) || '—';
+    btn.innerHTML = '🏥 <span class="cs-name">' + escHtml(cName) + '</span>  ⇄';
+    btn.title = 'تبديل العيادة — ' + cName;
   }
 
   async function switchClinic() {
@@ -18537,6 +18539,10 @@ document.addEventListener('visibilitychange',function(){
   /* ── الشريط العلوي الثابت ── */
   #navToggle,#clinicSwitchBtn{max-width:calc(50vw - 18px);overflow:hidden;text-overflow:ellipsis;
     white-space:nowrap;padding:8px 12px !important;font-size:13px !important}
+    /* زر تبديل العيادة: أيقونة فقط على الهاتف */
+  #clinicSwitchBtn .cs-name{display:none}
+  #clinicSwitchBtn{max-width:none}
+  #clinicSwitchBtn.ui-has{padding-right:44px !important}
   nav{width:min(270px,85vw)}
   #ticker{top:58px;right:8px;left:8px}
   #perm-user-badge{max-width:calc(100vw - 90px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
