@@ -759,12 +759,6 @@ nav::before {
 }
 body.nav-open nav { transform: translateX(0); visibility: visible; }
 html { overflow-x: hidden; }
-@media screen and (max-width:700px){
-  html, body { max-width:100%; overflow-x:clip; }
-  /* الشهادة بحجم A4 — تُسحب أفقياً داخل الصفحة بدل أن تزيح الشاشة كلها */
-  #settings.page { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  #settings .paper-container { margin:10px 0; }
-}
 nav button { width: calc(100% - 10px); text-align: right; margin: 4px 5px; }
 nav button:hover { transform: translateX(-4px); }
 nav button.nav-active { transform: translateX(-6px) scale(1.02) !important; }
@@ -4982,17 +4976,12 @@ function dim_printTable() {
 #treatment #tr_searchCard,#treatment #tr_animalsReportCard{border-width:1px;border-top-width:4px;border-radius:12px}
 
 /* الشاشات الأصغر */
-@media (max-width:1100px){
-  #treatment .tr-layout .right-panel{grid-template-columns:repeat(2,minmax(0,1fr));
-    grid-template-areas:"breeder visit" "diag diag" "drugs animals" "fin fin" "actions actions" "daily daily"}
-}
 @media (max-width:700px){
   #treatment .tr-layout .right-panel{grid-template-columns:minmax(0,1fr);
     grid-template-areas:"breeder" "visit" "animals" "diag" "drugs" "fin" "actions" "daily"}
   #treatment .tr-fin{grid-template-columns:1fr}
   #treatment .tr-agroup{border-left:0;padding:0;width:100%;justify-content:center}
   #treatment .tr-b{flex:1}
-  #treatment > .top-bar input{width:100%}
 }
 
 /* ═══ الأزرار: عمود طولي ثابت على اليمين ═══ */
@@ -6864,7 +6853,6 @@ async function trSelectIncompleteCase(caseNumber) {
 @media (max-width:700px){
   #breeder .bd-layout .right-panel{grid-template-columns:minmax(0,1fr);
     grid-template-areas:"info" "hold" "animals" "actions" "search"}
-  #breeder > .bd-top input{width:100% !important}
   #breeder .bd-b{flex:1}
 }
 </style>
@@ -8025,7 +8013,6 @@ function bd_printHoldList() {
 }
 @media (max-width:700px){
   #vaccination #vacc_firstRow,#vaccination #vacc_otherCards{grid-template-columns:minmax(0,1fr)}
-  #vaccination > #vacc_topBarMain input{width:100% !important}
   #vaccination .vc-b{flex:1}
 }
 
@@ -14015,11 +14002,12 @@ function remoteSyncShowToast(topic) {
     left: "50%",
     transform: "translate(-50%, -50%)",
     background: "#0097a7", color: "#fff",
-    padding: "20px 40px", borderRadius: "30px",
-    fontFamily: "Tahoma,Arial", fontSize: "18px",
+    padding: "14px 24px", borderRadius: "30px",
+    fontFamily: "Tahoma,Arial", fontSize: "clamp(14px,4vw,18px)",
     fontWeight: "bold", zIndex: "99999",
     boxShadow: "0 4px 12px rgba(0,0,0,.25)",
-    direction: "rtl", whiteSpace: "nowrap",
+    direction: "rtl", whiteSpace: "normal",
+    maxWidth: "calc(100vw - 24px)", textAlign: "center", boxSizing: "border-box",
     transition: "opacity .3s", opacity: "0"
   });
   toast.textContent = "🔄 تم تحديث " + label + " من جهاز آخر";
@@ -18503,7 +18491,6 @@ function ua_pushSave() {
 #tickerTxt{position:absolute;top:0;line-height:32px;white-space:nowrap;animation:tick 25s linear infinite}
 #ticker:hover #tickerTxt{animation-play-state:paused}
 @keyframes tick{from{right:100%}to{right:0;transform:translateX(100%)}}
-@media(max-width:700px){#ticker{top:62px;right:12px;left:12px}}
 @media print{#ticker{display:none!important}}
 </style>
 <script>
@@ -18513,7 +18500,8 @@ function tickerShow(v){
   v=window._tickerRaw.split(/\n+/).map(function(s){return s.trim();}).filter(Boolean).join('     ✦     ');
   t.textContent=v;
   t.style.animationDuration=Math.max(15,v.length*.3)+'s';
-  b.style.display=(v&&window._isLoggedIn)?'block':'none';
+    b.style.display=(v&&window._isLoggedIn)?'block':'none';
+  document.body.classList.toggle('tk-on',!!(v&&window._isLoggedIn));
 }
 async function tickerLoad(){
   try{var sb=await SBAuth.client();
@@ -18535,5 +18523,65 @@ document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'&&window._isLoggedIn)tickerLoad();
 });
 </script>
+<style id="mobileFit">
+/* ═══ ضبط الأبعاد على الهاتف — المرجع الموحّد الوحيد ═══ */
+@media screen and (max-width:700px){
+  html,body{max-width:100%;overflow-x:clip}
+  body{padding:62px 8px 10px}
+  body.tk-on{padding-top:104px}
+  img,canvas,video{max-width:100%}
+
+  /* منع تكبير iOS التلقائي عند لمس الحقول */
+  input,select,textarea{font-size:16px !important}
+
+  /* ── الشريط العلوي الثابت ── */
+  #navToggle,#clinicSwitchBtn{max-width:calc(50vw - 18px);overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;padding:8px 12px !important;font-size:13px !important}
+  nav{width:min(270px,85vw)}
+  #ticker{top:58px;right:8px;left:8px}
+  #perm-user-badge{max-width:calc(100vw - 90px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ── أشرطة البحث أعلى الصفحات: غير لاصقة وبعرض الشاشة ── */
+  #treatment > .top-bar,#breeder > .bd-top,#vaccination > #vacc_topBarMain,
+  #samples > #topBarMain,#dashboard > .top-bar{position:static !important;margin:0 0 10px !important}
+  #treatment > .top-bar::before,#breeder > .bd-top::before,#vaccination > #vacc_topBarMain::before,
+  #samples > #topBarMain::before,#dashboard > .top-bar::before{display:none !important}
+  .top-bar{gap:8px !important;padding:8px 10px !important}
+  .top-group{flex:1 1 100%;flex-wrap:wrap;min-width:0;gap:6px}
+  .top-group label{white-space:normal}
+  .top-bar input,.top-group input{width:100% !important;min-width:0;max-width:100%}
+
+  /* ── النوافذ المنبثقة: داخل الشاشة دائماً مع تمرير داخلي ── */
+  .custom-modal,.modal-overlay,.overdue-overlay,#perm-modal,#dim_calcOverlay,#bd_inactiveModal,
+  #bd_holdModal,#disease-alert-modal,#tr-speed-warning-modal,#netguard-modal{padding:10px !important}
+  .modal-box,.overdue-box,.dim_calc-box,.custom-modal > div,#perm-modal > div,
+  #bd_inactiveModal > div,#bd_holdModal > div,#disease-alert-modal > div,
+  #tr-speed-warning-modal > div,#netguard-modal > div{
+    width:100% !important;max-width:100% !important;margin:0 !important;overflow:auto !important;
+    max-height:calc(100vh - 20px) !important;max-height:calc(100dvh - 20px) !important}
+  .modal-box,#perm-modal > div,#bd_inactiveModal > div,#bd_holdModal > div,
+  #tr-speed-warning-modal > div,#netguard-modal > div{padding:18px 14px !important}
+  .modal-buttons{flex-wrap:wrap;gap:8px}
+  .overdue-body{overflow:auto}
+
+  /* الإشعارات وشاشة التحميل الأولي */
+  #toastContainer{max-width:calc(100vw - 20px) !important}
+  #toastContainer > div{padding:10px 18px !important;max-width:100% !important}
+  #bootLoadingOverlay > div{max-width:calc(100vw - 24px) !important}
+  #bootLoadingOverlay div[style*="width:320px"]{width:100% !important}
+
+  /* ── عناصر بعرض ثابت ── */
+  #login .login-wrap{padding:10px;min-height:auto}
+  #login .lcard{padding:26px 16px 22px}
+  #tab-campaign .cmp-grid,#tab-campaign [style*="minmax(300px"]{grid-template-columns:1fr !important}
+  #diseaseTracking .card{overflow-x:auto}
+  .fb input[type=text],.dp_srch{width:100%}
+  .dp_tbl_head{flex-wrap:wrap;gap:6px}
+
+  /* شهادة التحصين بحجم A4 — تُسحب أفقياً داخل الصفحة فقط */
+  #settings.page{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #settings .paper-container{margin:10px 0}
+}
+</style>
 </body>
 </html>
