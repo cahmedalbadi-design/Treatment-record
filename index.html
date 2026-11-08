@@ -18589,5 +18589,49 @@ document.addEventListener('visibilitychange',function(){
   #settings .paper-container{margin:10px 0}
 }
 </style>
+<script>
+/* ═══ تأكيد الخروج عند الضغط على "رجوع" — الهاتف فقط ═══ */
+(function () {
+  "use strict";
+  if (!/Android|iPhone|iPod|Mobi/i.test(navigator.userAgent)) return;
+
+  var armed = false, asking = false, leaving = false;
+
+  /* يُضاف القيد بعد لمسة من المستخدم — المتصفح يتجاهل القيود المضافة بدون تفاعل */
+  function arm() {
+    if (armed || asking || leaving) return;
+    armed = true;
+    history.pushState({ vetGuard: 1 }, '');
+  }
+  document.addEventListener('pointerdown', arm, true);
+
+  window.addEventListener('popstate', function () {
+    if (leaving || !armed) return;
+    armed = false;
+
+    /* القائمة الجانبية مفتوحة: أغلقها فقط */
+    if (document.body.classList.contains('nav-open')) {
+      if (typeof navToggle === 'function') navToggle(false);
+      return;
+    }
+
+    if (asking) return;
+    asking = true;
+    ask('هل تريد الخروج من النظام؟\nالبيانات غير المحفوظة ستُفقد.',
+        { title: 'تأكيد الخروج', ok: 'خروج', danger: true })
+      .then(function (ok) {
+        asking = false;
+        if (!ok) { arm(); return; }
+        leaving = true;
+        document.removeEventListener('pointerdown', arm, true);
+        history.back();
+        /* لا توجد صفحة سابقة (فُتح الرابط مباشرة) */
+        setTimeout(function () {
+          showToast('اضغط رجوع مرة أخرى للخروج', 'info');
+        }, 400);
+      });
+  });
+})();
+</script>
 </body>
 </html>
