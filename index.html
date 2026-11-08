@@ -15225,7 +15225,7 @@ window.SBU = (function (g) {
               var real = s && s.data && s.data.session && s.data.session.user;
               if (!real || real.id === p.id) return;   /* حدث وارد من تبويب آخر — تجاهله */
               if (global.showToast) global.showToast('⚠️ تغيّر الحساب في هذه الجلسة — سيُعاد تحميل الصفحة', 'warning');
-              setTimeout(function () { location.reload(); }, 2500);
+              setTimeout(function () { window._skipUnloadPrompt = true; location.reload(); }, 2500);
             });
           }
         });
@@ -18036,7 +18036,9 @@ function route(name, routes, soft) {
       'border-radius:6px;padding:7px 18px;font-weight:bold;cursor:pointer;font-family:inherit;">' +
       '🔄 تحديث الآن</button>';
     document.body.appendChild(b);
-    document.getElementById('updateNowBtn').onclick = function () { location.reload(); };
+        document.getElementById('updateNowBtn').onclick = function () {
+      window._skipUnloadPrompt = true; location.reload();
+    };
   }
 
   function check() {
@@ -18528,7 +18530,7 @@ document.addEventListener('visibilitychange',function(){
 <style id="mobileFit">
 /* ═══ ضبط الأبعاد على الهاتف — المرجع الموحّد الوحيد ═══ */
 @media screen and (max-width:700px){
-  html,body{max-width:100%;overflow-x:clip}
+ html,body{max-width:100%;overflow-x:clip;overscroll-behavior-y:contain}
   body{padding:62px 8px 10px}
   body.tk-on{padding-top:104px}
   img,canvas,video{max-width:100%}
@@ -18603,7 +18605,14 @@ document.addEventListener('visibilitychange',function(){
     armed = true;
     history.pushState({ vetGuard: 1 }, '');
   }
-  document.addEventListener('pointerdown', arm, true);
+    document.addEventListener('pointerdown', arm, true);
+
+  /* تأكيد عند تحديث الصفحة أو إغلاقها — نافذة المتصفح الأصلية */
+  window.addEventListener('beforeunload', function (e) {
+    if (leaving || window._skipUnloadPrompt || !window._isLoggedIn) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
   window.addEventListener('popstate', function () {
     if (leaving || !armed) return;
