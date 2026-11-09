@@ -2935,42 +2935,112 @@ async function ua_msgDel(id) {
   var r = await sb.from('announcements').delete().eq('id', id);
   if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
   showToast('✅ تم حذف الرسالة', 'success');
+  if (_annCh && _annCh.send) _annCh.send({ type: 'broadcast', event: 'new', payload: {} });
   ua_msgLoad();
 }
+  
+/* ── الرسائل المنبثقة + صندوق الوارد (لكل المستخدمين) ── */
+async function annFetch() {
+  var sb = await window.SBAuth.client();
+  var r = await Promise.all([
+    sb.from('announcements').select('id, title, body, show_from, show_until')
+      .lte('show_from', new Date().toISOString()).order('show_from', { ascending: false }),
+    sb.from('announcement_reads').select('announcement_id')
+  ]);
+  if (r[0].error) throw r[0].error;
+  var rd = {};
+  (r[1].data || []).forEach(function (x) { rd[x.announcement_id] = 1; });
+  var list = (r[0].data || []).map(function (x) { x.read = !!rd[x.id]; return x; });
+  annBadge(list.filter(function (x) { return !x.read; }).length);
+  return list;
+}
+function annRead(id) {
+  return window.SBAuth.client().then(function (sb) {
+    return sb.from('announcement_reads').insert({ announcement_id: id });   /* التكرار يُتجاهل */
+  });
+}
+function annBadge(n) {
+  var b = document.getElementById('annInboxBtn');
+  if (!b) {
+    b = document.createElement('button');
+    b.id = 'annInboxBtn'; b.type = 'button'; b.title = 'صندوق الوارد'; b.onclick = annInbox;
+    b.style.cssText = 'position:fixed;bottom:115px;left:12px;z-index:9998;width:52px;height:52px;' +
+      'border-radius:50%;padding:0;background:#004e66;color:#fff;border:3px solid #00b8d9;font-size:22px;' +
+      'box-shadow:0 4px 12px rgba(0,184,217,.4)';
+    b.innerHTML = '📥<span id="annCount" style="position:absolute;top:-6px;right:-6px;background:#e65050;' +
+      'color:#fff;border-radius:12px;min-width:22px;height:22px;font-size:12px;line-height:22px;display:none"></span>';
+    document.body.appendChild(b);
+  }
+  var c = document.getElementById('annCount');
+  c.textContent = n > 99 ? '99+' : n;
+  c.style.display = n ? 'block' : 'none';
+}
+async function annInbox() {
+  var m = document.createElement('div');
+  m.className = 'custom-modal'; m.style.zIndex = '100001';
+  m.innerHTML = '<div class="modal-box" style="max-width:520px;text-align:right"><h3>📥 صندوق الوارد</h3>' +
+    '<div id="annList" style="max-height:60vh;overflow:auto">⏳ جاري التحميل...</div>' +
+    '<div class="modal-buttons" style="margin-top:12px"><button class="cancel-btn">إغلاق</button></div></div>';
+  document.body.appendChild(m);
+  m.querySelector('.cancel-btn').onclick = function () { m.remove(); };
+  m.onclick = function (e) { if (e.target === m) m.remove(); };
+  var box = m.querySelector('#annList'), list;
+  try { list = await annFetch(); } catch (e) { box.textContent = '❌ ' + (e.message || e); return; }
+  function show() {
+    box.innerHTML = list.length ? list.map(function (a, i) {
+      return '<div data-i="' + i + '" style="cursor:pointer;padding:9px 10px;border-bottom:1px solid #eee;' +
+        (a.read ? 'color:#777' : 'font-weight:bold;background:#f0fbff') + '">' + (a.read ? '' : '🔵 ') +
+        escHtml(a.title) + '<div style="font-size:11px;color:#999;font-weight:normal">' +
+        new Date(a.show_from).toLocaleString('ar-OM') + '</div></div>';
+    }).join('') : '<p style="text-align:center;color:#888">لا توجد رسائل</p>';
+  }
+  box.onclick = function (e) {
+    var d = e.target.closest('[data-i]');
+    if (!d) return;
+    var a = list[+d.dataset.i];
+    box.innerHTML = '<h4 style="color:#004e66;margin-bottom:8px">' + escHtml(a.title) + '</h4>' +
+      '<p style="white-space:pre-line;line-height:1.9;text-align:right">' + escHtml(a.body) + '</p>' +
+      '<button class="update" id="annBack">⬅️ رجوع للقائمة</button>';
+    box.querySelector('#annBack').onclick = function (ev) { ev.stopPropagation(); show(); };
+    if (!a.read) {
+      a.read = true;
+      annRead(a.id).then(function () { annBadge(list.filter(function (x) { return !x.read; }).length); });
+    }
+  };
+  show();
+}
 
-/* ── الرسائل المنبثقة: العرض (لكل المستخدمين) ── */
 var _annNext = 0;
 async function annCheck() {
-  var me = window._sbProfile;
-  if (!window._isLoggedIn || window._bootRunning || !me || Date.now() < _annNext ||
+  if (!window._isLoggedIn || window._bootRunning || !window._sbProfile || Date.now() < _annNext ||
       document.getElementById('annModal')) return;
   _annNext = Date.now() + 300000;                       /* فحص كل 5 دقائق */
   try {
-    var sb = await window.SBAuth.client();
-    var r = await sb.from('announcements').select('id, title, body, show_from, show_until').order('show_from');
-    if (r.error) return;
-    var key = 'ann_seen_' + me.id, seen = [], now = new Date();
-    try { seen = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
-    var a = (r.data || []).filter(function (x) {
-      return seen.indexOf(x.id) === -1 && new Date(x.show_from) <= now && new Date(x.show_until) >= now;
-    })[0];
+    var now = new Date();
+    var a = (await annFetch()).filter(function (x) {
+      return !x.read && new Date(x.show_until) >= now;
+    }).pop();                                           /* أقدم رسالة غير مقروءة ضمن مدة العرض */
     if (!a) return;
     var m = document.createElement('div');
     m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
     m.innerHTML = '<div class="modal-box" style="max-width:480px"><div style="font-size:42px">📢</div>' +
       '<h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p>' +
-       '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button></div></div>';
+      '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button>' +
+      '<button class="cancel-btn">لاحقاً</button></div></div>';
     document.body.appendChild(m);
     annBeep();
     m.querySelector('.confirm-btn').onclick = function () {
-      seen.push(a.id);
-      try { localStorage.setItem(key, JSON.stringify(seen.slice(-200))); } catch (e) {}
       m.remove();
-      _annNext = 0;                                     /* عرض الرسالة التالية إن وُجدت */
+      annRead(a.id).then(function () { _annNext = 0; annCheck(); });   /* الرسالة التالية إن وُجدت */
     };
+    m.querySelector('.cancel-btn').onclick = function () { m.remove(); };   /* تبقى غير مقروءة */
   } catch (e) {}
 }
 setInterval(annCheck, 20000);
+document.addEventListener('app:login',  function () { setTimeout(function () { annFetch().catch(function () {}); }, 3000); });
+document.addEventListener('app:logout', function () { var b = document.getElementById('annInboxBtn'); if (b) b.remove(); });
+(function () { var s = document.createElement('style');
+  s.textContent = '@media print{#annInboxBtn{display:none!important}}'; document.head.appendChild(s); })();
 
 /* ── تنبيه فوري عند نشر رسالة + صوت ── */
 var _annCh = null;
