@@ -929,11 +929,20 @@ window.attachPop = function (btn, pop, onOpen) {
     if (isOpen()) { close(); return; }
     pop.style.display = 'block';
     delete pop.dataset.dragged;
+    front();
     place();
     if (onOpen) onOpen();
   };
+  /* النافذة الملموسة تظهر فوق غيرها */
+  function front() { pop.style.zIndex = (window._popZ = (window._popZ || 60) + 1); }
+  pop.addEventListener('pointerdown', front);
+
   document.addEventListener('click', function (e) {
-    if (isOpen() && !pop.contains(e.target) && !btn.contains(e.target)) close();
+    if (!isOpen() || pop.contains(e.target) || btn.contains(e.target)) return;
+    /* نوافذ نفس المجموعة لا تغلق بعضها */
+    var g = pop.dataset.popGroup;
+    if (g && e.target.closest && e.target.closest('[data-pop-group="' + g + '"]')) return;
+    close();
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen()) close(); });
   window.addEventListener('resize', place);
@@ -8742,6 +8751,10 @@ function vaccBindEvents() {
   document.getElementById('vacc_searchRecordBtn').onclick = function(){ vaccShowSubView('vacc_searchRecordCard'); };
 
       /* ── إجمالي الجرعات: نافذة منبثقة من الزر ── */
+   /* نافذتا الجرعات والحيوانات المحصنة تظهران معاً */
+  ['vacc_allTotalBtn', 'vacc_allTotalCard', 'vacc_maxAnimalsBtn', 'vacc_maxAnimalsCard'].forEach(function (id) {
+    document.getElementById(id).dataset.popGroup = 'vacc';
+  });
   window.vaccCloseTotalPop = attachPop(document.getElementById('vacc_allTotalBtn'),
     document.getElementById('vacc_allTotalCard'), function () { vaccDoGetAllTotal(); }).close;
 
