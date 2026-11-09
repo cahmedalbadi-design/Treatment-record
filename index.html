@@ -904,7 +904,7 @@ window.attachPop = function (btn, pop, onOpen) {
   function isOpen() { return pop.style.display !== 'none'; }
   function close()  { pop.style.display = 'none'; }
   function place() {
-    if (!isOpen()) return;
+    if (!isOpen() || pop.dataset.dragged) return;
     var r = btn.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
     if (!r.width || r.bottom < 0 || r.top > H) { close(); return; }
         var pg = pop.closest('.page'), z = pg ? (parseFloat(getComputedStyle(pg).zoom) || 1) : 1;
@@ -928,6 +928,7 @@ window.attachPop = function (btn, pop, onOpen) {
     e.stopPropagation();
     if (isOpen()) { close(); return; }
     pop.style.display = 'block';
+    delete pop.dataset.dragged;
     place();
     if (onOpen) onOpen();
   };
@@ -18589,6 +18590,11 @@ document.addEventListener('visibilitychange',function(){
   /* شهادة التحصين بحجم A4 — تُسحب أفقياً داخل الصفحة فقط */
   #settings.page{overflow-x:auto;-webkit-overflow-scrolling:touch}
   #settings .paper-container{margin:10px 0}
+
+  /* النوافذ المنبثقة قابلة للسحب من شريط العنوان */
+  .tr-pop-head,.vc-pop-head{touch-action:none;cursor:move;user-select:none;-webkit-user-select:none}
+  .tr-pop-head > span:first-child::before,.vc-pop-head > span:first-child::before{content:"⠿ ";opacity:.5}
+  #treatment .tr-pop[data-dragged]::after,#vaccination .vc-pop[data-dragged]::after{display:none !important}
 }
 </style>
 <script>
@@ -18639,6 +18645,44 @@ document.addEventListener('visibilitychange',function(){
           showToast('اضغط رجوع مرة أخرى للخروج', 'info');
         }, 400);
       });
+  });
+})();
+</script>
+<script>
+/* ═══ سحب النوافذ المنبثقة من شريط العنوان — الهاتف فقط ═══ */
+(function () {
+  "use strict";
+  if (!/Android|iPhone|iPod|Mobi/i.test(navigator.userAgent)) return;
+
+  document.addEventListener('pointerdown', function (e) {
+    var h = e.target.closest('.tr-pop-head, .vc-pop-head');
+    if (!h || e.target.closest('button, input, select')) return;
+
+    var pop = h.parentElement;
+    var pg  = pop.closest('.page');
+    var z   = pg ? (parseFloat(getComputedStyle(pg).zoom) || 1) : 1;
+    var r   = pop.getBoundingClientRect();
+    var dx  = e.clientX - r.left, dy = e.clientY - r.top;
+
+    pop.dataset.dragged = '1';
+    h.setPointerCapture(e.pointerId);
+    e.preventDefault();
+
+    function move(ev) {
+      /* يبقى شريط العنوان داخل الشاشة دائماً */
+      var x = Math.max(0, Math.min(ev.clientX - dx, innerWidth  - r.width));
+      var y = Math.max(0, Math.min(ev.clientY - dy, innerHeight - 44));
+      pop.style.left = (x / z) + 'px';
+      pop.style.top  = (y / z) + 'px';
+    }
+    function up() {
+      h.removeEventListener('pointermove', move);
+      h.removeEventListener('pointerup', up);
+      h.removeEventListener('pointercancel', up);
+    }
+    h.addEventListener('pointermove', move);
+    h.addEventListener('pointerup', up);
+    h.addEventListener('pointercancel', up);
   });
 })();
 </script>
