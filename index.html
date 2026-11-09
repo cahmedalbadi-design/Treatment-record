@@ -18590,11 +18590,6 @@ document.addEventListener('visibilitychange',function(){
   /* شهادة التحصين بحجم A4 — تُسحب أفقياً داخل الصفحة فقط */
   #settings.page{overflow-x:auto;-webkit-overflow-scrolling:touch}
   #settings .paper-container{margin:10px 0}
-
-  /* النوافذ المنبثقة قابلة للسحب من شريط العنوان */
-  .tr-pop-head,.vc-pop-head{touch-action:none;cursor:move;user-select:none;-webkit-user-select:none}
-  .tr-pop-head > span:first-child::before,.vc-pop-head > span:first-child::before{content:"⠿ ";opacity:.5}
-  #treatment .tr-pop[data-dragged]::after,#vaccination .vc-pop[data-dragged]::after{display:none !important}
 }
 </style>
 <script>
@@ -18649,10 +18644,16 @@ document.addEventListener('visibilitychange',function(){
 })();
 </script>
 <script>
-/* ═══ سحب النوافذ المنبثقة من شريط العنوان — الهاتف فقط ═══ */
+<style>
+/* النوافذ المنبثقة قابلة للسحب من شريط العنوان — كل الأجهزة */
+.tr-pop-head,.vc-pop-head{touch-action:none;cursor:move;user-select:none;-webkit-user-select:none}
+.tr-pop-head > span:first-child::before,.vc-pop-head > span:first-child::before{content:"⠿ ";opacity:.5}
+#treatment .tr-pop[data-dragged]::after,#vaccination .vc-pop[data-dragged]::after{display:none !important}
+</style>
+<script>
+/* ═══ سحب النوافذ المنبثقة من شريط العنوان — كل الأجهزة ═══ */
 (function () {
   "use strict";
-  if (!/Android|iPhone|iPod|Mobi/i.test(navigator.userAgent)) return;
 
   document.addEventListener('pointerdown', function (e) {
     var h = e.target.closest('.tr-pop-head, .vc-pop-head');
