@@ -12349,7 +12349,8 @@ function rpt_buildAll() {
   });
   (rpt_D.poultry || []).forEach(function (r) {
     if (r.type === 'total') return;
-    addP(rpt_mapOf(r.disease).replace(/\s*-\s*دواجن$/, ''), Number(r.count) || 0);
+    var tg = rpt_mapIdx[rpt_n(String(r.disease || '').trim() + ' - دواجن')] || rpt_mapOf(r.disease);
+    addP(tg.replace(/\s*-\s*دواجن$/, ''), Number(r.count) || 0);
   });
 
   var html = '';
