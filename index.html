@@ -12278,15 +12278,26 @@ async function rptCamp_printImage(btn) {
       s.onerror = function () { no(new Error('تعذّر تحميل مكتبة الصورة')); };
       document.head.appendChild(s);
     });
-    var url = await htmlToImage.toPng(card, {
-      pixelRatio: 2,
-      backgroundColor: '#ffffff',
-      filter: function (n) { return !(n.classList && n.classList.contains('fb')); }   /* إخفاء الأزرار */
-    });
+    /* توسيع البطاقة مؤقتاً لتصبح بنسبة الصفحة العرضية — المخططات تعيد رسم نفسها */
+    var oldW = card.style.width, oldMax = card.style.maxWidth;
+    card.style.width = '1700px'; card.style.maxWidth = 'none';
+    await new Promise(function (r) { setTimeout(r, 700); });
+    var url;
+    try {
+      url = await htmlToImage.toPng(card, {
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width:  card.scrollWidth,
+        height: card.scrollHeight,
+        filter: function (n) { return !(n.classList && n.classList.contains('fb')); }   /* إخفاء الأزرار */
+      });
+    } finally {
+      card.style.width = oldW; card.style.maxWidth = oldMax;   /* إرجاع الحجم الأصلي */
+    }
     w.document.open();
     w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>لوحة متابعة المشروع الوطني للتحصين</title>' +
-      '<style>@page{size:A4;margin:8mm}body{margin:0;text-align:center}' +
-      'img{max-width:100%;max-height:280mm;object-fit:contain}</style></head>' +
+      '<style>@page{size:A4 landscape;margin:5mm}html,body{margin:0;padding:0}' +
+      'img{display:block;width:287mm;height:200mm;object-fit:contain;margin:0 auto}</style></head>' +
       '<body><img src="' + url + '" onload="setTimeout(function(){print()},300)"></body></html>');
     w.document.close();
   } catch (e) {
