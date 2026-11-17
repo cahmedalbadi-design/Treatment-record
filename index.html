@@ -18856,5 +18856,424 @@ document.addEventListener('visibilitychange',function(){
   });
 })();
 </script>
+<!-- ═══ المساعد السريع 💬 — يُلصق قبل </body> مباشرة ═══ -->
+<script>
+(function () {
+  "use strict";
+
+  /* ── الأسئلة: page = الصفحة التي يجب أن تكون مسموحة للمستخدم، sup = للمشرف والمدير فقط ── */
+  var QS = [
+    { id: 'breeder',  t: '🔍 ابحث عن مربٍّ (اسم / هاتف / مدني / حيازة)', page: 'breeder', input: 'اكتب نص البحث' },
+    { id: 'today',    t: '💊 كم حالة علاج سُجّلت اليوم؟',               page: 'treatment' },
+    { id: 'incmp',    t: '⚠️ ما حالات العلاج غير المكتملة؟',            page: 'treatment' },
+    { id: 'expiry',   t: '📅 من تنتهي حيازته خلال 30 يوماً؟',            page: 'breeder' },
+    { id: 'samples',  t: '🧪 ما العينات المتأخرة أكثر من 7 أيام؟',       page: 'samples' },
+    { id: 'notVacc',  t: '📋 من لم يُحصَّن من طلبات التحصين؟',           page: 'vaccinationRequests' },
+    { id: 'camp',     t: '🎯 ما نسبة إنجاز الحملة في عيادتي؟' },
+    { id: 'rank',     t: '🏆 ترتيب العيادات في الحملة',                  sup: true },
+    { id: 'profile',  t: '🗂️ ملف مربٍّ كامل',                            page: 'breeder', input: 'رقم هاتف المربي' },
+    { id: 'todayList',t: '📋 حالات العلاج اليوم بالتفصيل',               page: 'treatment' },
+    { id: 'income',   t: '💰 المتحصلات اليوم ومنذ بداية الشهر',           page: 'treatment' },
+    { id: 'isVacc',   t: '💉 هل المربي محصّن هذا الموسم؟',              page: 'vaccination', input: 'رقم هاتف المربي' },
+    { id: 'needDaily',t: '📈 كم يجب أن ننجز يومياً لنلحق المستهدف؟' },
+    { id: 'sample',   t: '🧪 نتيجة عينة',                                page: 'samples', input: 'رقم العينة أو هاتف المربي' },
+    { id: 'mine',     t: '🙋 إنجازي اليوم' }
+  ];
+
+  var me = function () { return window._sbProfile || null; };
+  var isSup = function () { var p = me(); return !!(p && (p.is_admin || p.is_supervisor)); };
+  var E = function (s) { return window.escHtml ? escHtml(s) : String(s == null ? '' : s); };
+  var N = function (n) { return (Number(n) || 0).toLocaleString('en-US'); };
+    var todayStr = function () { return new Date().toLocaleDateString('en-CA'); };
+
+  /* ── مساعدات الأسئلة الإضافية ── */
+  var VN  = { 1: 'التسمم المعوي', 2: 'طاعون / جدري', 3: 'الحمى القلاعية', 4: 'الجلد العقدي', 5: 'السعار' };
+  var SPN = { 1: 'ماعز', 2: 'أغنام', 3: 'أبقار', 4: 'إبل', 5: 'خيول' };
+  function vaccSum(doses) {
+    var t = {};
+    (doses || []).forEach(function (d) { t[d.vaccine_type_id] = (t[d.vaccine_type_id] || 0) + (d.animal_count || 0); });
+    return Object.keys(t).map(function (k) { return (VN[k] || k) + ' (' + t[k] + ')'; }).join('، ') || '—';
+  }
+  function smpRes(s) {
+    return [1, 2, 3, 4, 5].map(function (k) {
+      var ts = s['test' + k] && String(s['test' + k]).trim();
+      if (!ts) return null;
+      var rs = s['result' + k] && String(s['result' + k]).trim();
+      return ts + ': ' + (rs || '⏳ لم تصل');
+    }).filter(Boolean).join(' | ') || '—';
+  }
+  function seasonStart() { return vrSeasonNow() + '-05-01'; }   /* الموسم يبدأ في مايو — كما في طلبات التحصين */
+  async function findBreeder(sb, ph, cols) {
+    var w = me().wilayat_id;
+    var r = await sb.from('breeders').select(cols)
+      .or('wilayat_id.eq.' + w + ',shared_with.cs.{' + w + '}').eq('phone', ph).maybeSingle();
+    if (r.error) throw r.error;
+    return r.data;
+  }
+
+  function allowed(q) {
+    if (q.sup) return isSup();
+    if (!q.page) return true;
+    return !(window.PERM && typeof PERM.isPageAllowed === 'function') || PERM.isPageAllowed(q.page);
+  }
+
+  function table(head, rows, max) {
+    max = max || 50;
+    var more = rows.length > max ? '<div class="qa-note">… وغيرها ' + (rows.length - max) + '</div>' : '';
+    return '<table class="qa-tbl"><thead><tr>' + head.map(function (h) { return '<th>' + E(h) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + rows.slice(0, max).map(function (r) {
+        return '<tr>' + r.map(function (c) { return '<td>' + E(c) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody></table>' + more;
+  }
+
+  /* ── الإجابات — كل واحدة تعيد HTML ── */
+  var A = {
+
+    breeder: async function (txt) {
+      if (!txt) return '⚠️ اكتب نص البحث أولاً';
+      var r = await bd_callApi('bd_searchBreeders', { searchText: txt });
+      if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر البحث');
+      var rows = (r.data || []).slice(1);            /* الصف الأول = العناوين */
+      if (!rows.length) return 'لا يوجد مربٍّ مطابق لـ «' + E(txt) + '»';
+      return '<b>' + rows.length + '</b> نتيجة' + table(
+        ['الاسم', 'الهاتف', 'المنطقة', 'الحيازة', 'انتهاء الحيازة', 'ماعز', 'أغنام', 'أبقار', 'إبل'],
+        rows.map(function (x) { return [x[1], x[0], x[3], x[2], x[11], x[7], x[8], x[9], x[6]]; }));
+    },
+
+    today: async function () {
+      var sb = await SBAuth.client(), p = me();
+      var r = await sb.from('treatment_cases').select('id', { count: 'exact', head: true })
+        .eq('wilayat_id', p.wilayat_id).eq('treated_on', todayStr());
+      if (r.error) throw r.error;
+      return r.count
+        ? 'سُجّلت اليوم <b>' + N(r.count) + '</b> حالة علاج في ' + E((p.wilayat && p.wilayat.name) || 'العيادة')
+        : 'لم تُسجَّل أي حالة علاج اليوم حتى الآن';
+    },
+
+    incmp: async function () {
+      var r = await trcallApi('trgetIncompleteCases');
+      if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر الجلب');
+      var c = r.cases || [];
+      if (!c.length) return '✅ لا توجد حالات غير مكتملة';
+      return '<b>' + c.length + '</b> حالة غير مكتملة (بلا أدوية)' + table(
+        ['رقم الحالة', 'المربي', 'الهاتف', 'المُدخل'],
+        c.map(function (x) { return [x.caseNumber, x.name, x.phone, x.dataEntry]; }));
+    },
+
+    expiry: async function () {
+      var r = await bd_callApi('bd_getAllBreeders');
+      if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر الجلب');
+      var t0 = new Date(); t0.setHours(0, 0, 0, 0);
+      var list = (r.data || []).map(function (x) {
+        var d = x.financialDate ? new Date(x.financialDate) : null;
+        if (!d || isNaN(d)) return null;
+        d.setHours(0, 0, 0, 0);
+        var days = Math.ceil((d - t0) / 86400000);
+        return (days >= -365 && days <= 30) ? [x.name, x.phone, x.possession, x.financialDate, days] : null;
+      }).filter(Boolean).sort(function (a, b) { return a[4] - b[4]; });
+      if (!list.length) return '✅ لا توجد حيازات تنتهي خلال 30 يوماً';
+      return '<b>' + list.length + '</b> حيازة تنتهي خلال 30 يوماً' +
+        table(['المربي', 'الهاتف', 'الحيازة', 'تاريخ الانتهاء', 'باقي (يوم)'], list);
+    },
+
+    samples: async function () {
+      var r = await focallApi('fosearchSamplesData', { showAll: true });
+      if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر الجلب');
+      var t0 = new Date(); t0.setHours(0, 0, 0, 0);
+      var list = (r.data || []).map(function (row) {
+        var tests = [1, 2, 3, 4, 5].map(function (k) {
+          var ts = row['test' + k] && String(row['test' + k]).trim();
+          var rs = row['result' + k] && String(row['result' + k]).trim();
+          return (ts && !rs) ? ts : null;
+        }).filter(Boolean);
+        var sent = row.sampleSentDate || row.samplesentdate;
+        if (!tests.length || !sent) return null;
+        var d = new Date(sent); d.setHours(0, 0, 0, 0);
+        var days = Math.floor((t0 - d) / 86400000);
+        return days > 7 ? [row.caseNumberrt || '', row.name || '', row.sampleType || '', sent, days, tests.join('، ')] : null;
+      }).filter(Boolean).sort(function (a, b) { return b[4] - a[4]; });
+      if (!list.length) return '✅ لا توجد عينات متأخرة';
+      return '<b>' + list.length + '</b> عينة تجاوزت 7 أيام بلا نتيجة' +
+        table(['رقم العينة', 'الاسم', 'النوع', 'الإرسال', 'أيام', 'الفحوص بلا نتيجة'], list);
+    },
+
+    notVacc: async function () {
+      var r = await vr_callApi('getFortificationsData');
+      if (!r || r.error) throw new Error((r && r.error) || 'تعذّر الجلب');
+      var all = r.data || [];
+      var list = all.filter(function (x) { return !x.vaccinated && !x.refused; });
+      var refused = all.filter(function (x) { return x.refused; }).length;
+      var head = 'من أصل <b>' + all.length + '</b> طلباً هذا الموسم: <b>' + list.length +
+        '</b> لم يُحصَّن بعد، و<b>' + refused + '</b> رفض التحصين';
+      if (!list.length) return head;
+      return head + table(['المربي', 'الهاتف', 'المنطقة', 'تاريخ الطلب'],
+        list.map(function (x) { return [x.name, x.phone, x.area, x.entryDate]; }));
+    },
+
+    camp: async function () {
+      var sb = await SBAuth.client(), p = me();
+      var r = await ac_clinic(sb, p.wilayat_id);
+      if (!r.dayNow) return 'لا توجد حملة جارية لهذه العيادة، أو لم تبدأ بعد';
+      var pct  = r.cum > 0 ? Math.round(r.done / r.cum * 100) : 0;
+      var gap  = r.done - r.cum;
+      var html = 'اليوم التشغيلي <b>' + r.dayNow + '</b><br>' +
+        'المستهدف التراكمي: <b>' + N(r.cum) + '</b> — المنجز: <b>' + N(r.done) + '</b><br>' +
+        'نسبة الإنجاز: <b>' + pct + '%</b> — الفارق: <b style="color:' + (gap >= 0 ? '#1b5e20' : '#c62828') + '">' +
+        (gap >= 0 ? '+' : '−') + N(Math.abs(gap)) + '</b>';
+      if (r.target > 0)
+        html += '<br>من المستهدف الكلي (' + N(r.target) + '): <b>' + Math.round(r.done / r.target * 100) + '%</b>';
+      return html;
+    },
+
+    rank: async function (_, status) {
+      var sb = await SBAuth.client();
+      var w = await sb.from('wilayat').select('id, name, is_central').order('name');
+      if (w.error) throw w.error;
+      var cl = (w.data || []).filter(function (x) { return !x.is_central; }), out = [];
+      for (var i = 0; i < cl.length; i++) {
+        status('⏳ ' + cl[i].name + ' (' + (i + 1) + '/' + cl.length + ')');
+        var r = await ac_clinic(sb, cl[i].id);
+        out.push({ n: cl[i].name, cum: r.cum, done: r.done, p: r.cum > 0 ? r.done / r.cum * 100 : 0 });
+      }
+      out.sort(function (a, b) { return b.p - a.p; });
+      return table(['#', 'العيادة', 'المستهدف التراكمي', 'المنجز', 'النسبة'],
+        out.map(function (x, i) { return [i + 1, x.n, N(x.cum), N(x.done), Math.round(x.p) + '%']; }));
+    },
+
+    profile: async function (ph) {
+      if (!ph) return '⚠️ اكتب رقم الهاتف';
+      var sb = await SBAuth.client();
+      var x = await findBreeder(sb, ph,
+        'id, name, phone, possession_no, holding_expiry, goats, sheep, cattle, camels, location_lat, regions(name)');
+      if (!x) return 'الرقم ' + E(ph) + ' غير مسجّل في سجل المربي';
+      var res = await Promise.all([
+        sb.from('treatment_cases').select('case_no, treated_on, amount, is_complete')
+          .eq('breeder_id', x.id).order('treated_on', { ascending: false }).limit(5),
+        sb.from('vaccination_records').select('case_no, vaccinated_on, vaccination_doses(vaccine_type_id, animal_count)')
+          .eq('breeder_id', x.id).order('vaccinated_on', { ascending: false }).limit(5),
+        focallApi('fosearchSamplesData', { phone: ph, showAll: true, limit: 5 })
+      ]);
+      if (res[0].error) throw res[0].error;
+      if (res[1].error) throw res[1].error;
+      var tc = res[0].data || [], vr = res[1].data || [], sm = (res[2] && res[2].data) || [];
+      return '<b>' + E(x.name) + '</b> — ' + E(x.phone) + ' — ' + E((x.regions && x.regions.name) || '') +
+        '<br>الحيازة: ' + E(x.possession_no || '—') + ' — تنتهي: ' + E(x.holding_expiry || '—') +
+        '<br>ماعز ' + N(x.goats) + ' | أغنام ' + N(x.sheep) + ' | أبقار ' + N(x.cattle) + ' | إبل ' + N(x.camels) +
+        ' — الموقع: ' + (x.location_lat != null ? '✅ مسجّل' : '❌ غير مسجّل') +
+        '<br><b>💊 آخر العلاجات</b>' + (tc.length ? table(['رقم الحالة', 'التاريخ', 'المبلغ', 'الحالة'],
+          tc.map(function (c) { return [c.case_no, c.treated_on, c.amount == null ? '' : c.amount, c.is_complete ? 'مكتملة' : 'غير مكتملة']; })) : ' — لا يوجد') +
+        '<br><b>💉 آخر التحصينات</b>' + (vr.length ? table(['رقم الحالة', 'التاريخ', 'اللقاحات (عدد الحيوانات)'],
+          vr.map(function (v) { return [v.case_no, v.vaccinated_on, vaccSum(v.vaccination_doses)]; })) : ' — لا يوجد') +
+        '<br><b>🧪 آخر العينات</b>' + (sm.length ? table(['رقم العينة', 'النوع', 'الإرسال', 'النتائج'],
+          sm.map(function (s) { return [s.caseNumberrt, s.sampleType, s.sampleSentDate, smpRes(s)]; })) : ' — لا يوجد');
+    },
+
+    todayList: async function () {
+      var r = await trcallApi('trgetAAAData', { startDate: todayStr() });
+      if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر الجلب');
+      var rows = (r.data || []).slice(1);
+      if (!rows.length) return 'لم تُسجَّل أي حالة علاج اليوم حتى الآن';
+      return '<b>' + rows.length + '</b> حالة اليوم' + table(
+        ['رقم الحالة', 'المربي', 'الهاتف', 'الإيصال', 'المبلغ', 'الحالة', 'المُدخل'],
+        rows.map(function (x) { return [x[0], x[2], x[1], x[3], x[4], x[6], x[7]]; }));
+    },
+
+    income: async function () {
+      var sb = await SBAuth.client(), w = me().wilayat_id, t = todayStr(), m = t.slice(0, 8) + '01';
+      var rows = await ac_all(function () {
+        return sb.from('treatment_cases').select('amount, treated_on')
+          .eq('wilayat_id', w).gte('treated_on', m).lte('treated_on', t).order('id');
+      });
+      var day = 0, mon = 0, nd = 0, nm = 0;
+      rows.forEach(function (r) {
+        var a = Number(r.amount) || 0;
+        if (!a) return;
+        mon += a; nm++;
+        if (r.treated_on === t) { day += a; nd++; }
+      });
+      return 'اليوم: <b>' + day.toFixed(3) + '</b> ريال (' + nd + ' حالة)' +
+        '<br>منذ بداية الشهر: <b>' + mon.toFixed(3) + '</b> ريال (' + nm + ' حالة)';
+    },
+
+    isVacc: async function (ph) {
+      if (!ph) return '⚠️ اكتب رقم الهاتف';
+      var sb = await SBAuth.client();
+      var b = await findBreeder(sb, ph, 'id, name');
+      if (!b) return 'الرقم ' + E(ph) + ' غير مسجّل في سجل المربي';
+      var r = await sb.from('vaccination_records')
+        .select('case_no, vaccinated_on, vaccination_doses(vaccine_type_id, species_id, animal_count)')
+        .eq('breeder_id', b.id).gte('vaccinated_on', seasonStart()).order('vaccinated_on');
+      if (r.error) throw r.error;
+      var recs = r.data || [];
+      if (!recs.length) return '❌ <b>' + E(b.name) + '</b> لم يُحصَّن هذا الموسم (منذ ' + seasonStart() + ')';
+      var rows = [];
+      recs.forEach(function (v) {
+        (v.vaccination_doses || []).forEach(function (d) {
+          rows.push([v.case_no, v.vaccinated_on, VN[d.vaccine_type_id] || d.vaccine_type_id,
+                     SPN[d.species_id] || d.species_id, d.animal_count]);
+        });
+      });
+      return '✅ <b>' + E(b.name) + '</b> محصّن هذا الموسم (' + recs.length + ' زيارة)' +
+        table(['رقم الحالة', 'التاريخ', 'اللقاح', 'النوع', 'العدد'], rows);
+    },
+
+    needDaily: async function () {
+      var sb = await SBAuth.client(), w = me().wilayat_id;
+      var cr = await sb.from('vacc_campaigns').select('date_from, date_to, work_days, target_count')
+        .eq('wilayat_id', w).eq('is_active', true).order('id', { ascending: false }).limit(1);
+      if (cr.error) throw cr.error;
+      var c = (cr.data && cr.data[0]) || null;
+      if (!c || !c.date_from || !c.date_to) return 'لا توجد حملة نشطة لهذه العيادة';
+      var dFrom = rptCamp_d(c.date_from), dTo = rptCamp_d(c.date_to);
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      if (today > dTo) return 'انتهت الحملة في ' + E(c.date_to);
+      var days   = parseInt(c.work_days, 10) || rptCamp_workDays(dFrom, dTo);
+      var target = Number(c.target_count) || 0;
+      if (!target) return 'لم يُحدَّد مستهدف للحملة';
+      var started = today >= dFrom;
+      var yest = new Date(today); yest.setDate(yest.getDate() - 1);
+      var past = started ? rptCamp_workDays(dFrom, yest) : 0;     /* أيام العمل قبل اليوم */
+      var left = Math.max(days - past, 1);                          /* المتبقي بما فيه اليوم */
+      var done = started ? (await ac_clinic(sb, w)).done : 0;
+      var remain = Math.max(target - done, 0);
+      if (!remain) return '✅ تحقق المستهدف الكلي (' + N(target) + ')';
+      var need = Math.ceil(remain / left), plan = Math.ceil(target / days);
+      var avg  = past > 0 ? Math.round(done / past) : 0;
+      return 'المتبقي من المستهدف: <b>' + N(remain) + '</b> من ' + N(target) +
+        '<br>أيام العمل المتبقية (بما فيها اليوم): <b>' + left + '</b>' +
+        '<br>المطلوب يومياً الآن: <b style="color:' + (need > plan ? '#c62828' : '#1b5e20') + '">' + N(need) + '</b> حيوان' +
+        '<br>المعدل المخطط: ' + N(plan) + (past > 0 ? ' — معدلنا الفعلي حتى أمس: ' + N(avg) : '');
+    },
+
+    sample: async function (v) {
+      if (!v) return '⚠️ اكتب رقم العينة أو الهاتف';
+      var r = await focallApi('fosearchSamplesData', { phone: v, showAll: true, limit: 10 });
+      if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر الجلب');
+      var d = r.data || [];
+      if (!d.length) return 'لا توجد عينة بهذا الرقم';
+      return table(['رقم العينة', 'المربي', 'النوع', 'الإرسال', 'النتائج'],
+        d.map(function (s) { return [s.caseNumberrt, s.name, s.sampleType, s.sampleSentDate, smpRes(s)]; }));
+    },
+
+    mine: async function () {
+      var sb = await SBAuth.client(), p = me(), t = todayStr();
+      var res = await Promise.all([
+        sb.from('treatment_cases').select('id', { count: 'exact', head: true })
+          .eq('created_by', p.id).eq('treated_on', t),
+        sb.from('vaccination_records').select('id, vaccination_doses(animal_count)')
+          .eq('created_by', p.id).eq('vaccinated_on', t)
+      ]);
+      if (res[0].error) throw res[0].error;
+      if (res[1].error) throw res[1].error;
+      var vr = res[1].data || [], an = 0;
+      vr.forEach(function (v) { (v.vaccination_doses || []).forEach(function (d) { an += d.animal_count || 0; }); });
+      return '<b>' + E(p.full_name || p.username) + '</b> — اليوم ' + t +
+        '<br>💊 حالات علاج أدخلتها: <b>' + N(res[0].count) + '</b>' +
+        '<br>💉 زيارات تحصين أدخلتها: <b>' + N(vr.length) + '</b> — جرعات: <b>' + N(an) + '</b>';
+    }
+  };
+  /* ── الواجهة ── */
+  var st = document.createElement('style');
+  st.textContent =
+    '#qaBtn{position:fixed;bottom:175px;left:12px;z-index:9998;width:52px;height:52px;border-radius:50%;padding:0;' +
+    'background:#004e66;color:#fff;border:3px solid #00b8d9;font-size:22px;cursor:pointer;' +
+    'box-shadow:0 4px 12px rgba(0,184,217,.4);display:none}' +
+    '#qaPanel{position:fixed;bottom:12px;left:76px;z-index:100002;width:min(560px,calc(100vw - 90px));max-height:85vh;background:#fff;' +
+    'border:2px solid #00b8d9;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;flex-direction:column;' +
+    'direction:rtl;font-family:Tahoma,Arial;font-size:13px;overflow:hidden}' +
+    '#qaPanel .qa-h{background:#00b8d9;color:#fff;padding:10px 14px;font-weight:bold;display:flex;justify-content:space-between}' +
+     '#qaPanel .qa-h span{cursor:pointer}' +
+    '#qaPanel #qaBack{background:rgba(255,255,255,.25);border-radius:6px;padding:0 8px;font-size:12px}' +
+    '#qaPanel .qa-qs{padding:8px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #eee}' +
+    '#qaPanel .qa-q{background:#f0fbfd;border:1px solid #b2ebf2;border-radius:8px;padding:7px 10px;text-align:right;cursor:pointer;font-family:inherit}' +
+    '#qaPanel .qa-q:hover{background:#d9f5fa}' +
+    '#qaPanel .qa-in{display:none;gap:6px;padding:0 8px 8px}' +
+    '#qaPanel .qa-in input{flex:1;padding:6px;border:1px solid #00b8d9;border-radius:6px;font-family:inherit}' +
+    '#qaPanel .qa-a{padding:10px 12px;overflow:auto;line-height:1.9}' +
+    '#qaPanel .qa-tbl{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}' +
+    '#qaPanel .qa-tbl th{background:#00b8d9;color:#fff;padding:5px;position:sticky;top:0}' +
+    '#qaPanel .qa-tbl td{border:1px solid #ddd;padding:4px;text-align:center}' +
+    '#qaPanel .qa-note{color:#888;font-size:11px;margin-top:4px}' +
+    '@media print{#qaBtn,#qaPanel{display:none!important}}';
+  document.head.appendChild(st);
+
+  var btn = document.createElement('button');
+  btn.id = 'qaBtn'; btn.title = 'المساعد السريع'; btn.textContent = '💬';
+  var pn = document.createElement('div');
+  pn.id = 'qaPanel';
+  pn.innerHTML =
+      '<div class="qa-h"><span id="qaBack" style="display:none">→ الأسئلة</span>💬 المساعد السريع <span id="qaX">✖</span></div>' +
+    '<div class="qa-qs" id="qaQs"></div>' +
+    '<div class="qa-in" id="qaIn"><input id="qaTxt"><button class="qa-q" id="qaGo">بحث</button></div>' +
+    '<div class="qa-a" id="qaA">اختر سؤالاً من القائمة</div>';
+  document.body.appendChild(btn);
+  document.body.appendChild(pn);
+
+  var $ = function (id) { return document.getElementById(id); };
+  var cur = null, busy = false;
+
+  /* عرض القائمة أو الإجابة — واحدة فقط في كل مرة */
+  function view(ans) {
+    $('qaQs').style.display   = ans ? 'none' : 'flex';
+    $('qaBack').style.display = ans ? 'inline' : 'none';
+    if (!ans) { $('qaIn').style.display = 'none'; $('qaA').innerHTML = 'اختر سؤالاً من القائمة'; }
+  }
+
+  function build() {
+    view(false);
+    $('qaQs').innerHTML = QS.filter(allowed).map(function (q) {
+      return '<button class="qa-q" data-q="' + q.id + '">' + E(q.t) + '</button>';
+    }).join('');
+    $('qaIn').style.display = 'none';
+    $('qaA').innerHTML = 'اختر سؤالاً من القائمة';
+  }
+
+  async function run(q, val) {
+    if (busy) return;
+    busy = true;
+    var a = $('qaA');
+    a.innerHTML = '⏳ جارٍ الجلب...';
+    try {
+      a.innerHTML = await A[q.id](val, function (s) { a.textContent = s; });
+    } catch (e) {
+      a.innerHTML = '<span style="color:#c62828">❌ ' + E((e && e.message) || e) + '</span>';
+    } finally {
+      busy = false;
+    }
+  }
+
+  btn.onclick = function () {
+    var open = pn.style.display === 'flex';
+    if (!open) build();
+    pn.style.display = open ? 'none' : 'flex';
+  };
+  $('qaX').onclick = function () { pn.style.display = 'none'; };
+  $('qaBack').onclick = function () { if (!busy) view(false); };
+  $('qaQs').onclick = function (e) {
+    var b = e.target.closest('[data-q]');
+    if (!b) return;
+        cur = QS.filter(function (q) { return q.id === b.getAttribute('data-q'); })[0];
+    view(true);
+    $('qaA').innerHTML = '<b>' + E(cur.t) + '</b>';
+    if (cur.input) {
+      $('qaIn').style.display = 'flex';
+      $('qaTxt').placeholder = cur.input;
+      $('qaTxt').value = '';
+      $('qaTxt').focus();
+      $('qaA').innerHTML = '';
+    } else {
+      $('qaIn').style.display = 'none';
+      run(cur);
+    }
+  };
+  $('qaGo').onclick = function () { if (cur) run(cur, $('qaTxt').value.trim()); };
+  $('qaTxt').onkeydown = function (e) { if (e.key === 'Enter') $('qaGo').click(); };
+
+  /* يظهر بعد الدخول فقط */
+  document.addEventListener('app:login',  function () { btn.style.display = 'block'; });
+  document.addEventListener('app:logout', function () { btn.style.display = 'none'; pn.style.display = 'none'; });
+  if (window._isLoggedIn) btn.style.display = 'block';
+})();
+</script>
 </body>
 </html>
