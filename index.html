@@ -4114,7 +4114,8 @@ if (!u || !p) {
   async function sbDoLogin(uname, pass) {
     var sb = await window.SBAuth.client(true);
 
-     var au = await lSignIn(sb, uname, pass);
+     var au = uname ? await lSignIn(sb, uname, pass) : await sb.auth.getUser();
+     if (au.error || !au.data || !au.data.user) throw new Error('انتهت الجلسة — سجّل الدخول');
 
     var pr = await sb.from('profiles')
       .select('id, username, full_name, job_title, wilayat_id, role, ' +
@@ -4144,7 +4145,9 @@ if (!u || !p) {
       throw new Error('هذا الحساب غير مرتبط بأي عيادة — راجع مدير النظام');
     }
     if (isSup) {
-      var clinic = await window.ClinicPicker.pick(sb, true);
+      var rw = !uname && sessionStorage.getItem('vet_restore_clinic');
+      sessionStorage.removeItem('vet_restore_clinic');
+      var clinic = rw ? JSON.parse(rw) : await window.ClinicPicker.pick(sb, true);
       if (!clinic) {
         try { await sb.auth.signOut(); } catch (e) {}
         throw new Error('لم يتم اختيار عيادة');
@@ -4175,7 +4178,16 @@ if (!u || !p) {
     return true;
   }
 
-  document.getElementById('l_loginBtn').addEventListener('click', lDoLogin);
+    document.getElementById('l_loginBtn').addEventListener('click', lDoLogin);
+
+  /* بعد زر "تحديث الآن": استعادة الجلسة القائمة بدل طلب الدخول */
+  window.addEventListener('load', function () {
+    if (!sessionStorage.getItem('vet_restore')) return;
+    sessionStorage.removeItem('vet_restore');
+    sbDoLogin().catch(function () {
+      sessionStorage.removeItem('vet_restore_clinic');   /* فشلت — تبقى شاشة الدخول */
+    });
+  });
   document.getElementById('l_username').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('l_password').focus(); });
   document.getElementById('l_password').addEventListener('keydown', e=>{ if(e.key==='Enter') lDoLogin(); });
 
@@ -18133,14 +18145,24 @@ function route(name, routes, soft) {
       'justify-content:center;font-family:Tahoma,Arial;font-size:13px;direction:rtl;' +
       'box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:94vw;';
     b.innerHTML =
-      '<span>🆕 <b>تحديث جديد للنظام متاح</b> — احفظ عملك الحالي ثم اضغط تحديث ' +
-      '(ستحتاج لإعادة تسجيل الدخول)</span>' +
+      '<span>🆕 <b>تحديث جديد للنظام متاح</b> — احفظ عملك الحالي ثم اضغط تحديث</span>' +
       '<button id="updateNowBtn" style="background:#2bb673;color:#fff;border:none;' +
       'border-radius:6px;padding:7px 18px;font-weight:bold;cursor:pointer;font-family:inherit;">' +
       '🔄 تحديث الآن</button>';
     document.body.appendChild(b);
         document.getElementById('updateNowBtn').onclick = function () {
-      window._skipUnloadPrompt = true; location.reload();
+      window._skipUnloadPrompt = true;
+      try {
+        var me = window._sbProfile;
+        sessionStorage.setItem('vet_restore', '1');
+        if (me && me.wilayat_id)
+          sessionStorage.setItem('vet_restore_clinic', JSON.stringify({
+            id: me.wilayat_id,
+            name:  (me.wilayat && me.wilayat.name)  || '',
+            phone: (me.wilayat && me.wilayat.phone) || ''
+          }));
+      } catch (e) {}
+      location.reload();
     };
   }
 
