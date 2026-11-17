@@ -12121,9 +12121,9 @@ async function dp_loadAll() {
     #tab-campaign .cmp-bar div{height:100%;width:0%;background:#00b8d9;border-radius:20px;transition:width .5s ease;}
   </style>
 
-  <div class="card"><h3>لوحة متابعة المشروع الوطني للتحصين</h3>
+  <div class="card" id="rptCamp_card"><h3>لوحة متابعة المشروع الوطني للتحصين</h3>
     <div class="fb">
-      <button class="bp" style="background:#6c5ce7" onclick="rpt_printTab('tab-campaign')">🖨️ طباعة</button>
+      <button class="bp" style="background:#6c5ce7" onclick="rptCamp_printImage(this)">🖨️ طباعة</button>
       <span id="rptCamp_status" style="display:none;font-size:12px;font-weight:bold;"></span>
     </div>
 
@@ -12260,6 +12260,41 @@ function rpt_printTab(tabId) {
   w.document.write('<html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Tahoma;font-size:12px;direction:rtl}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aaa;padding:4px;text-align:center}.nc{text-align:right}.cat td,.sec td{background:#e0f7fa;font-weight:bold}.tot td{background:#fffbe6;font-weight:bold}.fb,.bp{display:none}</style></head><body>' + content + '</body></html>');
   w.document.close();
   w.print();
+}
+
+/* طباعة لوحة متابعة التحصين كصورة طبق الأصل (مع المخططات) */
+async function rptCamp_printImage(btn) {
+  var card = document.getElementById('rptCamp_card');
+  if (!card) return;
+  var w = window.open('', '_blank');          /* تُفتح فوراً حتى لا يحجبها المتصفح */
+  if (!w) { showToast('⚠️ اسمح بالنوافذ المنبثقة للطباعة', 'warning'); return; }
+  w.document.write('<p style="font-family:Tahoma;text-align:center;margin-top:40px">⏳ جارٍ تجهيز الصورة...</p>');
+  btn.disabled = true;
+  try {
+    if (!window.htmlToImage) await new Promise(function (ok, no) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+      s.onload = ok;
+      s.onerror = function () { no(new Error('تعذّر تحميل مكتبة الصورة')); };
+      document.head.appendChild(s);
+    });
+    var url = await htmlToImage.toPng(card, {
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      filter: function (n) { return !(n.classList && n.classList.contains('fb')); }   /* إخفاء الأزرار */
+    });
+    w.document.open();
+    w.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>لوحة متابعة المشروع الوطني للتحصين</title>' +
+      '<style>@page{size:A4;margin:8mm}body{margin:0;text-align:center}' +
+      'img{max-width:100%;max-height:280mm;object-fit:contain}</style></head>' +
+      '<body><img src="' + url + '" onload="setTimeout(function(){print()},300)"></body></html>');
+    w.document.close();
+  } catch (e) {
+    w.close();
+    showToast('❌ ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 /* ============================================================
