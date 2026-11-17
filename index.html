@@ -3336,7 +3336,7 @@ function ua_saveCampaign() {
   </div>
   <div class="table-container" style="max-height:none">
     <table id="ac_table"><thead><tr>
-      <th>العيادة</th><th>المستهدف التراكمي</th><th>المنجز الفعلي</th><th>نسبة الإنجاز</th>
+    <th>العيادة</th><th>المستهدف الكلي</th><th>المستهدف التراكمي</th><th>المنجز الفعلي</th><th>نسبة الإنجاز</th><th>نسبة الإنجاز من الكلي</th>
       <th>الفارق عن المستهدف</th><th>حالة الأداء</th><th>مستفيدو العلاج</th><th>مستفيدو التحصين</th>
       <th>الحيوانات المعالجة</th><th>عدد الجرعات</th><th>الحيوانات المحصنة</th>
     </tr></thead><tbody id="ac_tb"></tbody><tfoot id="ac_tf"></tfoot></table>
@@ -3463,7 +3463,7 @@ async function ac_clinic(sb, wid, pf, pt) {
   });
 
   return {
-    cum: cum, done: done, dayNow: dayNow,
+    target: target, cum: cum, done: done, dayNow: dayNow,
     trt: Object.keys(tb).length, vb: Object.keys(vb).length,
     animals: animals, doses: doses, vacc: vacc
   };
@@ -3473,13 +3473,16 @@ async function ac_clinic(sb, wid, pf, pt) {
 function ac_row(name, r, cls) {
   var gap = r.done - r.cum;
   var pct = r.cum > 0 ? Math.round(r.done / r.cum * 100) + '%' : '—';
+  var pctT = r.target > 0 ? Math.round(r.done / r.target * 100) + '%' : '—';
   var p   = ac_perf(r.dayNow, r.cum, gap);
   var gc  = gap >= 0 ? '#1b5e20' : '#c62828';
   return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' +
-    '<td class="nc">' + escHtml(name) + '</td>' +
+     '<td class="nc">' + escHtml(name) + '</td>' +
+    '<td>' + rptCamp_num(r.target) + '</td>' +
     '<td>' + rptCamp_num(r.cum) + '</td>' +
     '<td>' + rptCamp_num(r.done) + '</td>' +
     '<td><b>' + pct + '</b></td>' +
+    '<td><b>' + pctT + '</b></td>' +
     '<td style="color:' + gc + ';font-weight:bold">' + (gap >= 0 ? '+' : '−') + rptCamp_num(Math.abs(gap)) + '</td>' +
     '<td><span class="badge" style="background:' + p[1] + '">' + p[0] + '</span></td>' +
     '<td>' + rptCamp_num(r.trt) + '</td>' +
@@ -3557,7 +3560,7 @@ async function ac_load() {
   if (w.error) { showToast('❌ ' + w.error.message, 'error'); return; }
   var clinics = (w.data || []).filter(function (x) { return !x.is_central; });
 
-  var T = { cum: 0, done: 0, dayNow: 0, trt: 0, vb: 0, animals: 0, doses: 0, vacc: 0 };
+  var T = { target: 0, cum: 0, done: 0, dayNow: 0, trt: 0, vb: 0, animals: 0, doses: 0, vacc: 0 };
   var html = '';
   ac_loadDaily();
   btn.disabled = true;
@@ -3572,7 +3575,7 @@ async function ac_load() {
         Object.keys(T).forEach(function (k) { T[k] = (k === 'dayNow') ? Math.max(T[k], r[k]) : T[k] + r[k]; });
         html += ac_row(c.name, r);
       } catch (e) {
-        html += '<tr><td class="nc">' + escHtml(c.name) + '</td><td colspan="10" style="color:#c62828">❌ ' +
+        html += '<tr><td class="nc">' + escHtml(c.name) + '</td><td colspan="12" style="color:#c62828">❌ ' +
                 escHtml(e.message || e) + '</td></tr>';
       }
       tb.innerHTML = html;
