@@ -9859,7 +9859,7 @@ function vr_printTable() {
 <datalist id="sampleTypeList"></datalist>
 </div></div>
 <script>
-var FO_AT=['ماعز','أغنام','أبقار','جمال','خيول'],FO_SX=['ذكر','أنثى'],fo_atSel={};
+var FO_AT=['ماعز','أغنام','أبقار','جمال','خيول','دواجن'],FO_SX=['ذكر','أنثى'],fo_atSel={};
 function fo_atToggle(){var d=document.getElementById('fo_atDrop');if(d.style.display==='none'){fo_atBuild();d.style.display='block';setTimeout(function(){document.addEventListener('click',fo_atClose);},50);}else fo_atClose();}
 function fo_atClose(e){var d=document.getElementById('fo_atDrop');if(e&&d&&d.contains(e.target))return;if(d)d.style.display='none';document.removeEventListener('click',fo_atClose);}
 function fo_atBuild(){var h='<div style="display:flex;gap:8px;margin-bottom:4px;font-weight:bold;color:#004e66;font-size:12px;text-align:center;"><span style="width:55px;"></span><span style="flex:1;">ذكر</span><span style="flex:1;">أنثى</span></div>';h+=FO_AT.map(function(n,i){return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0;"><span style="width:55px;font-weight:bold;">'+n+'</span>'+FO_SX.map(function(s,j){return '<input type="number" min="0" placeholder="العدد" value="'+(fo_atSel[n+'|'+s]||'')+'" oninput="fo_atSet('+i+','+j+',this.value)" style="flex:1;min-width:0;text-align:center;">';}).join('')+'</div>';}).join('');document.getElementById('fo_atDrop').innerHTML=h;}
@@ -17494,9 +17494,10 @@ function names(table, col, filterWilayat) {
   var SPECIES_ALIAS = {
     "ماعز": "goat", "أغنام": "sheep", "اغنام": "sheep", "ضأن": "sheep", "غنم": "sheep",
     "أبقار": "cow", "ابقار": "cow", "بقر": "cow",
-    "جمال": "camel", "إبل": "camel", "ابل": "camel", "خيول": "horse"
+    "جمال": "camel", "إبل": "camel", "ابل": "camel", "خيول": "horse",
+    "دواجن": "poultry"
   };
-  var FORM_LABEL = { goat: "ماعز", sheep: "أغنام", cow: "أبقار", camel: "جمال", horse: "خيول" };
+  var FORM_LABEL = { goat: "ماعز", sheep: "أغنام", cow: "أبقار", camel: "جمال", horse: "خيول", poultry: "دواجن" };
 
   function loadSpecies() {
     if (ref.species) return Promise.resolve(ref.species);
