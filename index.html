@@ -18869,6 +18869,7 @@ document.addEventListener('visibilitychange',function(){
     { id: 'expiry',   t: '📅 من تنتهي حيازته خلال 30 يوماً؟',            page: 'breeder' },
     { id: 'samples',  t: '🧪 ما العينات المتأخرة أكثر من 7 أيام؟',       page: 'samples' },
     { id: 'notVacc',  t: '📋 من لم يُحصَّن من طلبات التحصين؟',           page: 'vaccinationRequests' },
+    { id: 'refused',  t: '⛔ من رفض التحصين ولماذا؟',                   page: 'vaccinationRequests' },
     { id: 'camp',     t: '🎯 ما نسبة إنجاز الحملة في عيادتي؟' },
     { id: 'rank',     t: '🏆 ترتيب العيادات في الحملة',                  sup: true },
     { id: 'profile',  t: '🗂️ ملف مربٍّ كامل',                            page: 'breeder', input: 'رقم هاتف المربي' },
@@ -18877,8 +18878,7 @@ document.addEventListener('visibilitychange',function(){
     { id: 'isVacc',   t: '💉 هل المربي محصّن هذا الموسم؟',              page: 'vaccination', input: 'رقم هاتف المربي' },
     { id: 'needDaily',t: '📈 كم يجب أن ننجز يومياً لنلحق المستهدف؟' },
     { id: 'sample',   t: '🧪 نتيجة عينة',                                page: 'samples', input: 'رقم العينة أو هاتف المربي' },
-      { id: 'mine',     t: '🙋 إنجازي اليوم' },
-    { id: 'refused',  t: '⛔ من رفض التحصين ولماذا؟',                   page: 'vaccinationRequests' }
+    { id: 'mine',     t: '🙋 إنجازي اليوم' }
   ];
   var me = function () { return window._sbProfile || null; };
   var isSup = function () { var p = me(); return !!(p && (p.is_admin || p.is_supervisor)); };
