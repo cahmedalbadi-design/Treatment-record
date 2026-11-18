@@ -18877,9 +18877,9 @@ document.addEventListener('visibilitychange',function(){
     { id: 'isVacc',   t: '💉 هل المربي محصّن هذا الموسم؟',              page: 'vaccination', input: 'رقم هاتف المربي' },
     { id: 'needDaily',t: '📈 كم يجب أن ننجز يومياً لنلحق المستهدف؟' },
     { id: 'sample',   t: '🧪 نتيجة عينة',                                page: 'samples', input: 'رقم العينة أو هاتف المربي' },
-    { id: 'mine',     t: '🙋 إنجازي اليوم' }
+      { id: 'mine',     t: '🙋 إنجازي اليوم' },
+    { id: 'refused',  t: '⛔ من رفض التحصين ولماذا؟',                   page: 'vaccinationRequests' }
   ];
-
   var me = function () { return window._sbProfile || null; };
   var isSup = function () { var p = me(); return !!(p && (p.is_admin || p.is_supervisor)); };
   var E = function (s) { return window.escHtml ? escHtml(s) : String(s == null ? '' : s); };
@@ -19170,6 +19170,25 @@ document.addEventListener('visibilitychange',function(){
       return '<b>' + E(p.full_name || p.username) + '</b> — اليوم ' + t +
         '<br>💊 حالات علاج أدخلتها: <b>' + N(res[0].count) + '</b>' +
         '<br>💉 زيارات تحصين أدخلتها: <b>' + N(vr.length) + '</b> — جرعات: <b>' + N(an) + '</b>';
+    },
+
+    refused: async function () {
+      var r = await vr_callApi('getFortificationsData');
+      if (!r || r.error) throw new Error((r && r.error) || 'تعذّر الجلب');
+      var list = (r.data || []).filter(function (x) { return x.refused; });
+      if (!list.length) return '✅ لا يوجد رافضون للتحصين هذا الموسم';
+      var cnt = {};
+      var rows = list.map(function (x) {
+        var why = (String(x.notes || '').match(/⛔ سبب رفض التحصين:\s*([^\n]*)/) || [])[1];
+        why = (why || '').trim() || 'غير مسجَّل';
+        cnt[why] = (cnt[why] || 0) + 1;
+        return [x.name, x.phone, x.area, why];
+      });
+      var sum = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })
+        .map(function (k) { return [k, cnt[k]]; });
+      return '<b>' + list.length + '</b> مربٍّ رفض التحصين هذا الموسم' +
+        '<br><b>حسب السبب</b>' + table(['السبب', 'العدد'], sum) +
+        '<br><b>الأسماء</b>' + table(['المربي', 'الهاتف', 'المنطقة', 'سبب الرفض'], rows);
     }
   };
   /* ── الواجهة ── */
