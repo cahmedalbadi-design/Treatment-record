@@ -3008,12 +3008,22 @@ async function annInbox() {
         new Date(a.show_from).toLocaleString('ar-OM') + '</div></div>';
     }).join('') : '<p style="text-align:center;color:#888">لا توجد رسائل</p>';
   }
+  /* نص الرسالة الآمن مع روابط قابلة للنقر: [نص](رابط) أو رابط مباشر */
+function annLinkify(s) {
+  var A = function (url, label) {
+    return '<a href="' + url + '" target="_blank" rel="noopener" ' +
+      'style="color:#0077b6;font-weight:bold;text-decoration:underline">' + label + '</a>';
+  };
+  return escHtml(s)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)<]+)\)/g, function (_, t, u) { return A(u, t); })
+    .replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, function (_, p, u) { return p + A(u, u); });
+}
   box.onclick = function (e) {
     var d = e.target.closest('[data-i]');
     if (!d) return;
     var a = list[+d.dataset.i];
     box.innerHTML = '<h4 style="color:#004e66;margin-bottom:8px">' + escHtml(a.title) + '</h4>' +
-      '<p style="white-space:pre-line;line-height:1.9;text-align:right">' + escHtml(a.body) + '</p>' +
+   '<p style="white-space:pre-line;line-height:1.9;text-align:right">' + annLinkify(a.body) + '</p>' +
       '<button class="update" id="annBack">⬅️ رجوع للقائمة</button>';
     box.querySelector('#annBack').onclick = function (ev) { ev.stopPropagation(); show(); };
     if (!a.read) {
@@ -3036,9 +3046,10 @@ async function annCheck() {
     }).pop();                                           /* أقدم رسالة غير مقروءة ضمن مدة العرض */
     if (!a) return;
     var m = document.createElement('div');
-    m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
+        m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
+    m.addEventListener('click', function (e) { if (e.target.closest('a')) e.stopPropagation(); });
     m.innerHTML = '<div class="modal-box" style="max-width:480px"><div style="font-size:42px">📢</div>' +
-      '<h3>' + escHtml(a.title) + '</h3><p>' + escHtml(a.body) + '</p>' +
+  '<h3>' + escHtml(a.title) + '</h3><p style="white-space:pre-line">' + annLinkify(a.body) + '</p>' +
       '<div class="modal-buttons"><button class="confirm-btn">تم الاطلاع</button>' +
       '<button class="cancel-btn">لاحقاً</button></div></div>';
     document.body.appendChild(m);
