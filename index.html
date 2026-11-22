@@ -783,6 +783,12 @@ body.nav-start nav { background: transparent !important; box-shadow: none; }
 @keyframes pg3d { from { opacity: 0; transform: perspective(1400px) rotateY(-180deg); } }
 @media (prefers-reduced-motion: reduce), print { .page.active { animation: none; backface-visibility: visible; } }
 @media print { body::before { display: none !important; } }
+  @media print {
+  html, body { height: auto !important; min-height: 0 !important; }
+  #settings.page.active { padding: 0 !important; }
+  #settings .paper-container { break-inside: avoid; break-after: avoid; }
+  #perm-user-badge, #fabToggle { display: none !important; }
+}
   #settings.page.active { animation: none; backface-visibility: visible; }
 @media print { #navToggle, #navBackdrop { display: none !important; } body { padding-top: 0 !important; } }
 .page { zoom: var(--ui-zoom, 1); }
