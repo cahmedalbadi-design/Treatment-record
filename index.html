@@ -783,6 +783,7 @@ body.nav-start nav { background: transparent !important; box-shadow: none; }
 @keyframes pg3d { from { opacity: 0; transform: perspective(1400px) rotateY(-180deg); } }
 @media (prefers-reduced-motion: reduce), print { .page.active { animation: none; backface-visibility: visible; } }
 @media print { body::before { display: none !important; } }
+  #settings.page.active { animation: none; backface-visibility: visible; }
 @media print { #navToggle, #navBackdrop { display: none !important; } body { padding-top: 0 !important; } }
 .page { zoom: var(--ui-zoom, 1); }
 @media print { .page { zoom: 1 !important; } }
