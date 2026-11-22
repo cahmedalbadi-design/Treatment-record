@@ -775,6 +775,13 @@ html { overflow-x: hidden; }
   opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 10000;
 }
 body.nav-open #navBackdrop { opacity: 1; pointer-events: auto; }
+  /* انبثاق القائمة عند فتح التطبيق: بلا تعتيم وبلا لوح أسود */
+body.nav-start #navBackdrop { background: transparent; backdrop-filter: none; }
+body.nav-start nav { background: transparent !important; box-shadow: none; }
+  /* تأثير ثلاثي الأبعاد عند فتح الصفحات */
+.page.active { animation: pg3d .55s cubic-bezier(.22,1,.36,1); transform-origin: 50% 0; backface-visibility: hidden; }
+@keyframes pg3d { from { opacity: 0; transform: perspective(1400px) rotateY(-180deg); } }
+@media (prefers-reduced-motion: reduce), print { .page.active { animation: none; } }
 @media print { #navToggle, #navBackdrop { display: none !important; } body { padding-top: 0 !important; } }
 .page { zoom: var(--ui-zoom, 1); }
 @media print { .page { zoom: 1 !important; } }
@@ -1086,6 +1093,7 @@ window.showToast = function(message, type) {
 function navToggle(force) {
   var open = (typeof force === 'boolean') ? force : !document.body.classList.contains('nav-open');
   document.body.classList.toggle('nav-open', open);
+    if (!open) document.body.classList.remove('nav-start');
   if (!open) setTimeout(function () { document.querySelector('nav').scrollTop = 0; }, 450);
 }
 function navSetLabel() {
@@ -1507,6 +1515,17 @@ function bootBindOnce() {
 }
 
 function bootOpenTreatment() {
+  var cur = (document.querySelector('.page.active') || {}).id;
+  /* أول دخول: تنبثق القائمة فقط دون فتح أي صفحة ودون تعتيم الشاشة */
+  if (!cur || cur === 'login') {
+    document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
+    document.querySelectorAll('nav button').forEach(function (b) { b.classList.remove('nav-active'); });
+    document.getElementById('navCurrent').textContent = 'القائمة';
+    document.body.classList.add('nav-start');
+    setTimeout(function () { navToggle(true); }, 120);
+    return;
+  }
+  if (cur !== 'treatment') return;   /* تحديث/تبديل عيادة: تبقى الصفحة الحالية */
   if (typeof PERM !== 'undefined' && PERM.isPageAllowed &&
       !PERM.isPageAllowed('treatment')) return;
   setTimeout(function () {
