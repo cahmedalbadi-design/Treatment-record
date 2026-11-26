@@ -19360,6 +19360,9 @@ document.addEventListener('visibilitychange',function(){
     '#qaPanel .qa-tbl th{background:#00b8d9;color:#fff;padding:5px;position:sticky;top:0}' +
     '#qaPanel .qa-tbl td{border:1px solid #ddd;padding:4px;text-align:center}' +
     '#qaPanel .qa-note{color:#888;font-size:11px;margin-top:4px}' +
+        '#qaPanel .qa-qs,#qaPanel .qa-a{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}' +
+    '@media (max-width:600px){#qaPanel{left:8px;right:8px;bottom:8px;width:auto;max-height:calc(100dvh - 70px)}' +
+    '#qaPanel .qa-q{padding:9px 10px;font-size:13px}}' +
     '@media print{#qaBtn,#qaPanel{display:none!important}}';
   document.head.appendChild(st);
 
