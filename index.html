@@ -2087,12 +2087,16 @@ document.addEventListener('DOMContentLoaded', function () {
         <label for="btnSound" style="font-weight:bold;width:130px">صوت الأزرار:</label>
         <input type="checkbox" id="btnSound" style="width:20px;height:20px"
           onchange="try{localStorage.setItem('vet_btnSound',this.checked?'1':'0')}catch(e){}">
+        <input type="range" id="btnVol" min="1" max="100" style="flex:1"
+          oninput="try{localStorage.setItem('vet_btnVol',this.value)}catch(e){}">
       </div>
       <script>
       (function () {
         var ctx = null;
         function on() { try { return localStorage.getItem('vet_btnSound') !== '0'; } catch (e) { return true; } }
         document.getElementById('btnSound').checked = on();
+        function vol() { try { return +(localStorage.getItem('vet_btnVol') || 30); } catch (e) { return 30; } }
+        document.getElementById('btnVol').value = vol();
         document.addEventListener('pointerdown', function (e) {
           var b = e.target.closest && e.target.closest('button');
           if (!b || b.disabled || !on()) return;
@@ -2101,7 +2105,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (ctx.state === 'suspended') ctx.resume();
             var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
             o.frequency.value = 900;
-            g.gain.setValueAtTime(0.08, t);
+            g.gain.setValueAtTime(0.25 * vol() / 100, t);
             g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
             o.connect(g); g.connect(ctx.destination);
             o.start(t); o.stop(t + 0.06);
