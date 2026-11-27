@@ -1595,6 +1595,11 @@ async function bootLoadAll() {
     ov.close();
     if (msg) showToast(msg, type || 'success');
     bootOpenTreatment();
+    steps.forEach(function (s) {
+      if (s.bg) Promise.resolve().then(s.fn).catch(function (e) {
+        console.warn('[boot] ' + s.name + ':', (e && e.message) || e);
+      });
+    });
   }
 
   if (!window._sbProfile || !window._sbProfile.wilayat_id) {
@@ -1704,7 +1709,8 @@ async function bootLoadAll() {
         }
         bootBindOnce();
       },
-      check: null
+      check: null,
+      bg: true      /* يُحمَّل في الخلفية بعد فتح النظام */
     }
   ];
 
@@ -1718,6 +1724,7 @@ ov.set(5, 'جاري تجهيز القوائم الثابتة...');
   var failed = [];
   for (var i = 0; i < steps.length; i++) {
     var st = steps[i];
+    if (st.bg) continue;
     ov.set(Math.max(0, st.pct - 12), st.msg);
     try {
       await bootRetry(st.fn, 2);
@@ -3269,6 +3276,7 @@ function annBeep() {
       o.connect(g); g.connect(a.destination);
       o.start(t); o.stop(t + 0.6);
     });
+    setTimeout(function () { try { a.close(); } catch (e) {} }, 1500);
   } catch (e) {}
 }
 async function annListen() {
@@ -5548,7 +5556,6 @@ async function trloadIncompleteCount() {
 async function trloadIncompleteCases() {
   try {
     const res = await trcallApi("trgetIncompleteCases");
-    console.log("=== trgetIncompleteCases response ===", JSON.stringify(res));
     return res.cases || [];
   } catch (err) {
     console.warn("خطأ في جلب الحالات غير المكتملة:", err);
@@ -7379,7 +7386,9 @@ async function bd_refreshDropdowns() {
   try {
         var results = await Promise.all([bd_callApi("bd_getPhoneNumbers"),bd_callApi("bd_getRegionOptions")]);
     function fill(id,arr){var dl=document.getElementById(id);if(!dl)return;dl.innerHTML="";(arr||[]).sort().forEach(function(v){var o=document.createElement("option");o.value=v;dl.appendChild(o);});}
-    if(results[0].success)["bd_phoneList","tr_phoneList","vacc_phoneList","phoneList"].forEach(function(id){fill(id,results[0].data);});
+    /* قوائم الصفحات الأخرى تحوي المربين المشتركين أيضاً — نضيف الناقص فقط ولا نمسحها */
+    function merge(id,arr){var dl=document.getElementById(id);if(!dl)return;var have=new Set(Array.prototype.map.call(dl.options,function(o){return o.value;}));var f=document.createDocumentFragment();(arr||[]).forEach(function(v){if(!have.has(v)){var o=document.createElement("option");o.value=v;f.appendChild(o);}});dl.appendChild(f);}
+    if(results[0].success){fill("bd_phoneList",results[0].data);["tr_phoneList","vacc_phoneList","phoneList"].forEach(function(id){merge(id,results[0].data);});}
     if(results[1].success)fill("bd_regionList",results[1].data);
     if(!results[0].success) throw new Error(results[0].message || "تعذّر جلب أرقام الهواتف");
     if(!results[0].data || !results[0].data.length) throw new Error("قاعدة البيانات أعادت صفر مربي — تحقق من ترحيل بيانات العيادة أو من صلاحيات RLS");
@@ -7509,36 +7518,6 @@ async function bd_loadCaseData(phone) {
     }
     else bd_showMessage(res.message, true);
   } catch (err) { bd_showMessage("خطأ: " + err.message, true); }
-}
-
-async function bd_updatePossession() {
-  var phone = bd_getValue("bd_phoneInput"), possession = bd_getValue("bd_possessionInput");
-  if (!phone) { bd_showMessage("الرجاء اختيار رقم الهاتف", true); return; }
-  if (!possession) { bd_showMessage("رقم الحيازة فارغ", true); return; }
-  if (!/^(0*[1-9]\d*|\d{2}\/0*[1-9]\d*)$/.test(possession)) { bd_showMessage("رقم الحيازة غير صحيح — رقم أكبر من الصفر أو رقمان / أرقام بدون مسافات", true); return; }
-  bd_showConfirm("هل تريد تحديث رقم الحيازة في جميع سجلات العلاج للرقم: " + phone + "؟", async function () {
-    var btn = document.getElementById("bd_updatePossessionBtn");
-    btn.disabled = true;
-    bd_showMessage("جاري تحديث الحيازة...", false, "info");
-    try {
-      var res = await bd_callApi("bd_updatePossessionInTreatment", {
-        phone: phone,
-        possession: possession,
-        financialDate: bd_getValue("bd_financialDate")
-      });
-      if (res.success) {
-        bd_setLastEdited();
-        bd_showMessage("✅ تم تحديث الحيازة في سجل المربي و " + res.updatedCount + " سجل علاج", false);
-        bd_clearForm(); // ← الإضافة هنا
-      } else {
-        bd_showMessage(res.message, true);
-      }
-    } catch (err) {
-      bd_showMessage("خطأ: " + err.message, true);
-    } finally {
-      btn.disabled = false;
-    }
-  });
 }
 
 function bd_collectBreederDataForUpdate(){ return bd_collectData(true); }
@@ -12351,37 +12330,6 @@ function rpt_showTab(name) {
   });
 }
 
-function rpt_filterT(inputId, tbodyId) {
-  var q = document.getElementById(inputId).value.toLowerCase().trim();
-  var tbody = document.getElementById(tbodyId);
-  var rows = tbody.querySelectorAll('tr');
-
-  if (!q) {
-    rows.forEach(function(row) { row.style.display = ''; });
-    return;
-  }
-
-  // أخفِ كل شيء أولاً
-  rows.forEach(function(row) { row.style.display = 'none'; });
-
-  // أظهر الصفوف المطابقة فقط
-  rows.forEach(function(row) {
-    if (row.classList.contains('sec')) return;
-    if (row.textContent.toLowerCase().indexOf(q) >= 0) {
-      row.style.display = '';
-
-      // أظهر صف الفئة السابق له
-      var prev = row.previousElementSibling;
-      while (prev) {
-        if (prev.classList.contains('sec')) {
-          prev.style.display = '';
-          break;
-        }
-        prev = prev.previousElementSibling;
-      }
-    }
-  });
-}
 function rpt_printTab(tabId) {
   var content = document.getElementById(tabId).innerHTML;
   var w = window.open('', '_blank');
@@ -15666,7 +15614,7 @@ window.SBU = (function (g) {
       if (action === "bd_getAllBreeders") {
       return pageAll(function () {
         return sb.from("breeders").select(SELECT_COLS)
-                 .eq("wilayat_id", me.wilayat_id).order("name");
+                 .eq("wilayat_id", me.wilayat_id).order("name").order("id");
       }).then(function (rows) {
         return { success: true, data: rows.map(toApp) };
       });
@@ -15674,7 +15622,8 @@ window.SBU = (function (g) {
 
     /* ٦) بحث نصّي — يعيد [صف الرؤوس, ...الصفوف] */
     if (action === "bd_searchBreeders") {
-      var q = txt(payload.searchText);
+      /* الفاصلة والأقواس تكسر صيغة .or() في PostgREST */
+      var q = txt(payload.searchText).replace(/[,()"\\]/g, " ").trim();
       if (!q) return Promise.resolve({ success: true, data: [] });
 
            var like = "%" + q + "%";
@@ -15867,15 +15816,19 @@ reset: function () { ready = null; me = null; global._sbProfile = null; },
 
   var cache = { species: null, places: null, diseases: null, drugs: null, regions: null };
 
+  var refPending = {};   /* طلب واحد لكل مرجع حتى لو طُلب 5 مرات معاً */
   function loadRef(name, table, cols) {
     if (cache[name]) return Promise.resolve(cache[name]);
-    var q = sb.from(table).select(cols);
-    if (table === "regions") q = q.eq("wilayat_id", me.wilayat_id);
-    return q.then(function (r) {
-      if (r.error) throw r.error;
-      cache[name] = r.data || [];
+    if (refPending[name]) return refPending[name];
+    return (refPending[name] = SBU.pageAll(function () {
+      var q = sb.from(table).select(cols).order("id");
+      if (table === "regions") q = q.eq("wilayat_id", me.wilayat_id);
+      return q;
+    }).then(function (rows) {
+      delete refPending[name];
+      cache[name] = rows || [];
       return cache[name];
-    });
+    }, function (e) { delete refPending[name]; throw e; }));
   }
 
   /* توحيد تسميات الأنواع: ورقة المربين تكتب "ضأن"، والعلاج "أغنام" */
@@ -16466,6 +16419,7 @@ function names(table, col, filterWilayat) {
     log("✅ سجل العلاج موصول بـ Supabase");
   }
 
+  patch();
   if (document.readyState === "complete") setTimeout(patch, 1000);
   else global.addEventListener("load", function () { setTimeout(patch, 1000); });
 
@@ -16499,7 +16453,7 @@ function names(table, col, filterWilayat) {
                                                  "goat,sheep,cow,camel,entry_date,is_refused,vaccinated,summary")
                  .eq("wilayat_id", me.wilayat_id)
                  .eq("season", global.vr_season || global.vrSeasonNow())
-                 .order("name");
+                 .order("name").order("phone");
       }),
       pageAll(function () {
         return sb.from("breeders")
@@ -16848,7 +16802,7 @@ function names(table, col, filterWilayat) {
     return pageAll(function () {
           var q = sb.from("vaccination_records").select(REC_COLS)
                 .eq("wilayat_id", me.wilayat_id)
-                .order("vaccinated_on", { ascending: false });
+                .order("vaccinated_on", { ascending: false }).order("id");
       if (txt(f.caseNumber)) q = q.eq("case_no", int(f.caseNumber));
       if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
       if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
@@ -16874,7 +16828,7 @@ function names(table, col, filterWilayat) {
     return pageAll(function () {
       var q = sb.from("vaccination_records")
                 .select("id, vaccination_doses(vaccine_type_id, species_id, animal_count)")
-                .eq("wilayat_id", me.wilayat_id);
+                .eq("wilayat_id", me.wilayat_id).order("id");
       if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
       if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
       return q;
@@ -16909,7 +16863,7 @@ function names(table, col, filterWilayat) {
       var q = sb.from("vaccination_records")
                 .select("id, breeders(phone, name, regions(name)), " +
                         "vaccination_doses(species_id, animal_count)")
-                .eq("wilayat_id", me.wilayat_id);
+                .eq("wilayat_id", me.wilayat_id).order("id");
       if (toISO(f.dateFrom)) q = q.gte("vaccinated_on", toISO(f.dateFrom));
       if (toISO(f.dateTo))   q = q.lte("vaccinated_on", toISO(f.dateTo));
       return q;
@@ -18196,9 +18150,15 @@ function route(name, routes, soft) {
     if (!dl) return;
 
     var q = norm(el.value), starts = [], has = [];
-    Array.prototype.forEach.call(dl.options, function (o) {
-      var v = o.value, i = q ? norm(v).indexOf(q) : 0;
-      if (i === 0) starts.push(v); else if (i > 0) has.push(v);
+    var n = dl.options.length;
+    var key = n + '|' + (n ? dl.options[0].value + '|' + dl.options[n - 1].value : '');
+    if (dl._acKey !== key) {   /* تُعاد التهيئة فقط عند تغيّر القائمة */
+      dl._acKey = key;
+      dl._acVals = Array.prototype.map.call(dl.options, function (o) { return [o.value, norm(o.value)]; });
+    }
+    dl._acVals.forEach(function (p) {
+      var i = q ? p[1].indexOf(q) : 0;
+      if (i === 0) starts.push(p[0]); else if (i > 0) has.push(p[0]);
     });
     var res = starts.concat(has).slice(0, 60);   /* المطابِق من البداية أولاً */
 
@@ -18476,7 +18436,6 @@ window.SharedChip = (function () {
   return { check: check, hide: hide };
 })();
 </script>
-</script>
 <style>
 .ui-ico{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-left:6px}
 h3 .ui-ico,h4 .ui-ico,label .ui-ico,.cmp-t .ui-ico,.dp_tbl_head .ui-ico{width:26px;height:26px;border-radius:8px;
@@ -18633,12 +18592,11 @@ nav button[onclick*="'login'"] .nav-ico{margin:0}
   new MutationObserver(function (ms) {
     ms.forEach(function (m) {
       if (m.type === 'characterData') queue.add(m.target);
-      else m.addedNodes.forEach(function (n) { queue.add(n); });
+      else m.addedNodes.forEach(function (n) { if (n.nodeName !== 'OPTION') queue.add(n); });
     });
     if (!busy) { busy = true; requestAnimationFrame(flush); }
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
 })();
-</script>
 </script>
 <script>
 /* ═══ دائرة التحميل على الزر المضغوط طوال طلبات قاعدة البيانات التي بدأها ═══ */
