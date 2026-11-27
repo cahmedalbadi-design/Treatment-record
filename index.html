@@ -775,6 +775,7 @@ html { overflow-x: hidden; }
   opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 10000;
 }
 body.nav-open #navBackdrop { opacity: 1; pointer-events: auto; }
+body:not(.nav-open) #navBackdrop { backdrop-filter: none; }
   /* انبثاق القائمة عند فتح التطبيق: بلا تعتيم وبلا لوح أسود */
 body.nav-start #navBackdrop { background: transparent; backdrop-filter: none; }
 body.nav-start nav { background: transparent !important; box-shadow: none; }
@@ -1118,6 +1119,19 @@ document.querySelector('nav').addEventListener('click', function (e) {
   }
 });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') navToggle(false); });
+
+/* أغلق القائمة أولاً ثم افتح الصفحة بعد أن يبدأ الإغلاق — لا تبقى القائمة متجمدة أمام المستخدم */
+document.querySelector('nav').addEventListener('click', function (e) {
+  var b = e.target.closest('button[onclick^="showPage("]');
+  if (!b || !document.body.classList.contains('nav-open')) return;
+  var m = (b.getAttribute('onclick') || '').match(/showPage\(['"](\w+)['"]\)/);
+  if (!m) return;
+  e.stopPropagation();            /* يمنع تشغيل onclick الأصلي — نشغّله نحن بعد بدء الإغلاق */
+  navToggle(false);
+  requestAnimationFrame(function () {
+    setTimeout(function () { showPage(m[1]); navSetLabel(); }, 0);
+  });
+}, true);
 
 /* تأكيد قبل التحديث لتجنب الضغط الخطأ */
 function appRefresh() {
