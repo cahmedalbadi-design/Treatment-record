@@ -2084,6 +2084,32 @@ document.addEventListener('DOMContentLoaded', function () {
         <input type="color" id="txtColor" value="#000000" oninput="document.body.style.color=this.value">
       </div>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <label for="btnSound" style="font-weight:bold;width:130px">صوت الأزرار:</label>
+        <input type="checkbox" id="btnSound" style="width:20px;height:20px"
+          onchange="try{localStorage.setItem('vet_btnSound',this.checked?'1':'0')}catch(e){}">
+      </div>
+      <script>
+      (function () {
+        var ctx = null;
+        function on() { try { return localStorage.getItem('vet_btnSound') !== '0'; } catch (e) { return true; } }
+        document.getElementById('btnSound').checked = on();
+        document.addEventListener('pointerdown', function (e) {
+          var b = e.target.closest && e.target.closest('button');
+          if (!b || b.disabled || !on()) return;
+          try {
+            ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+            if (ctx.state === 'suspended') ctx.resume();
+            var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
+            o.frequency.value = 900;
+            g.gain.setValueAtTime(0.08, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(t); o.stop(t + 0.06);
+          } catch (e) {}
+        }, true);
+      })();
+      </script>
+      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">حجم الخط:</label>
         <input type="hidden" id="fontSize" value="13">
         <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px">
@@ -15082,7 +15108,8 @@ document.addEventListener("app:login", function () {
     var m = ((init && init.method) || 'GET').toUpperCase();
     if (m === 'GET' || m === 'HEAD') return '';
     if (url.indexOf('/rest/v1/') === -1)     return '';
-    if (url.indexOf('/rest/v1/rpc/') !== -1) return '';   /* الدوال: next_case_no وlogin_email */
+        if (url.indexOf('/rest/v1/rpc/') !== -1 &&
+        !/\/rpc\/(save|update)_treatment_case/.test(url)) return '';   /* الدوال: next_case_no وlogin_email */
     return m;
   }
 
@@ -16003,7 +16030,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
           .then(function (r) {
  if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
             row.case_no = r.data;
-            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
+            return sb.rpc("save_treatment_case", { p_case: row, p_diag: diag, p_drugs: meds });
           })
           .then(function (r) {
             if (r.error && r.error.code === "23505" && /case_no/.test(r.error.message || "") && n < 5)
@@ -16014,18 +16041,8 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
         return attempt(1)
           .then(function (r) {
             if (r.error) throw r.error;
-            var id = r.data.id;
-            var jobs = [];
-            if (diag.length) jobs.push(sb.from("treatment_diagnoses")
-              .insert(diag.map(function (x) { x.case_id = id; return x; })));
-            if (meds.length) jobs.push(sb.from("treatment_drugs")
-              .insert(meds.map(function (x) { x.case_id = id; return x; })));
-
-              return Promise.all(jobs).then(function (res) {
-              res.forEach(function (x) { if (x.error) throw x.error; });
-              return { success: true, message: "تم الحفظ",
-              caseNumber: r.data.case_no, rowId: id };
-            });
+            return { success: true, message: "تم الحفظ",
+                     caseNumber: r.data.case_no, rowId: r.data.id };
           });
       });
   }
@@ -16049,25 +16066,10 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
             row.updated_at  = new Date().toISOString();
             row.is_complete = v[3].length > 0;
 
-          return sb.from("treatment_cases").update(row).eq("id", id)
+            row.id = id;
+            return sb.rpc("update_treatment_case", { p_case: row, p_diag: v[2], p_drugs: v[3] })
               .then(function (u) {
                 if (u.error) throw u.error;
-                return Promise.all([
-                  sb.from("treatment_diagnoses").delete().eq("case_id", id),
-                  sb.from("treatment_drugs").delete().eq("case_id", id)
-                ]);
-              })
-             .then(function (del) {
-                del.forEach(function (x) { if (x.error) throw x.error; });
-                var jobs = [];
-                if (v[2].length) jobs.push(sb.from("treatment_diagnoses")
-                  .insert(v[2].map(function (x) { x.case_id = id; return x; })));
-                if (v[3].length) jobs.push(sb.from("treatment_drugs")
-                  .insert(v[3].map(function (x) { x.case_id = id; return x; })));
-                return Promise.all(jobs);
-              })
-.then(function (ins) {
-                (ins || []).forEach(function (x) { if (x.error) throw x.error; });
                 return { success: true, message: "تم التحديث" };
               });
           });
