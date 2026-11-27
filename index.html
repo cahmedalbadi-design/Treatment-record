@@ -7180,9 +7180,6 @@ async function trSelectIncompleteCase(caseNumber) {
           <button type="button" class="bd-b bd-b-clear"  id="bd_clearBtn">🧹 مسح</button>
           <button type="button" class="bd-b bd-b-red"    id="bd_deleteBtn">🗑️ حذف</button>
         </div>
-        <div class="bd-agroup"><span class="bd-glabel">الحيازة</span>
-          <button type="button" class="bd-b bd-b-purple" id="bd_updatePossessionBtn">🔗 تحديث الحيازة في العلاج</button>
-        </div>
         <div class="bd-agroup"><span class="bd-glabel">طلبات التحصين</span>
           <button type="button" class="bd-b bd-b-green"   id="bd_saveVaccinationBtn">💉 حفظ الطلب</button>
           <button type="button" class="bd-b bd-b-orange"  id="bd_updateVaccinationBtn">✏️ تحديث الطلب</button>
@@ -7435,18 +7432,6 @@ bd_showMessage("تم الحفظ بنجاح",false);bd_clearForm();bd_refreshDrop
 
 async function bd_updateData() {
   if(!bd_validateUpdate())return;
-  /* سجل مضاف سابقاً بدون حيازة ← الإضافة تتم عبر زر تحديث الحيازة في العلاج */
-  if (bd_getValue("bd_private") !== "" &&
-      window._bd_origPossession === "" &&
-      bd_getValue("bd_possessionInput") !== "") {
-    bd_showMessage("⚠️ هذا المربي مسجَّل سابقاً بدون حيازة\nلإضافة الحيازة اضغط زر (تحديث الحيازة في العلاج)\nليتم تحديثها في سجل المربي وسجل العلاج معاً", true, "warning");
-    var pb = document.getElementById("bd_updatePossessionBtn");
-    if (pb) {
-      pb.style.boxShadow = "0 0 0 4px #f39c12";
-      setTimeout(function () { pb.style.boxShadow = ""; }, 4000);
-    }
-    return;
-  }
   var data  = bd_collectData(true);
   var phone = data.phone;
     bd_showConfirm("هل أنت متأكد من تحديث بيانات الرقم: "+phone+"؟",async function(){
@@ -7641,7 +7626,6 @@ function bd_bindEvents() {
   document.getElementById("bd_updateBtn").onclick=bd_updateData;
   document.getElementById("bd_clearBtn").onclick=bd_clearForm;
   document.getElementById("bd_deleteBtn").onclick=bd_deleteData;
-  document.getElementById("bd_updatePossessionBtn").onclick=bd_updatePossession;
   document.getElementById("bd_saveVaccinationBtn").onclick=bd_saveVaccination;
   document.getElementById("bd_updateVaccinationBtn").onclick=bd_updateVaccination;
   document.getElementById("bd_deleteVaccinationBtn").onclick=bd_deleteVaccination;
@@ -13732,7 +13716,6 @@ function foDismissOverdueAlert() {
       { id: "bd_saveVaccinationBtn",   action: "bdsave"   },
       { id: "bd_updateVaccinationBtn", action: "bdupdate" },
       { id: "bd_deleteVaccinationBtn", action: "delete" },
-      { id: "bd_updatePossessionBtn",  action: "update" },
     ],
     vaccination: [
       { id: "vacc_saveBtn",   action: "save"   },
@@ -16216,10 +16199,12 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
   function unpaidCount(p) {
     var phone = txt(p.phone);
     if (!phone) return Promise.resolve({ success: true, count: 0 });
-    return sb.from("breeders").select("id").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
+    return sb.from("breeders").select("id, possession_no").or("wilayat_id.eq." + me.wilayat_id + ",shared_with.cs.{" + me.wilayat_id + "}").eq("phone", phone).maybeSingle()
       .then(function (r) {
         if (r.error) throw r.error;
         if (!r.data) return { success: true, count: 0 };
+        /* للمربي حيازة حالياً ← لا إشعار، وتبقى حالات العلاج القديمة كما هي */
+        if (txt(r.data.possession_no) !== "") return { success: true, count: 0 };
         return sb.from("treatment_cases")
           .select("possession_no_snapshot")
           .eq("breeder_id", r.data.id)
