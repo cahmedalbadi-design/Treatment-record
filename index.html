@@ -58,7 +58,7 @@ body {
   background-position: center !important;
   background-attachment: fixed !important;
 }
-/* طبقة خلفية ثابتة واحدة لكل الشاشات بدل attachment:fixed على body */
+/* طبقة خلفية ثابتة واحدة لكل الشاشات بدل attachment:fixed على body (لا إعادة رسم مع التمرير) */
 body { background-color: transparent !important; background-image: none !important; }
 body::before {
   content: "";
@@ -776,7 +776,6 @@ html { overflow-x: hidden; }
   opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 10000;
 }
 body.nav-open #navBackdrop { opacity: 1; pointer-events: auto; }
-body:not(.nav-open) #navBackdrop { backdrop-filter: none; }
   /* انبثاق القائمة عند فتح التطبيق: بلا تعتيم وبلا لوح أسود */
 body.nav-start #navBackdrop { background: transparent; backdrop-filter: none; }
 body.nav-start nav { background: transparent !important; box-shadow: none; }
@@ -1121,19 +1120,6 @@ document.querySelector('nav').addEventListener('click', function (e) {
 });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') navToggle(false); });
 
-/* أغلق القائمة أولاً ثم افتح الصفحة بعد أن يبدأ الإغلاق — لا تبقى القائمة متجمدة أمام المستخدم */
-document.querySelector('nav').addEventListener('click', function (e) {
-  var b = e.target.closest('button[onclick^="showPage("]');
-  if (!b || !document.body.classList.contains('nav-open')) return;
-  var m = (b.getAttribute('onclick') || '').match(/showPage\(['"](\w+)['"]\)/);
-  if (!m) return;
-  e.stopPropagation();            /* يمنع تشغيل onclick الأصلي — نشغّله نحن بعد بدء الإغلاق */
-  navToggle(false);
-  requestAnimationFrame(function () {
-    setTimeout(function () { showPage(m[1]); navSetLabel(); }, 0);
-  });
-}, true);
-
 /* تأكيد قبل التحديث لتجنب الضغط الخطأ */
 function appRefresh() {
   if (window._bootRunning) { showToast('⏳ التحديث قيد التنفيذ', 'info'); return; }
@@ -1150,10 +1136,10 @@ function appRefresh() {
     '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a085" stroke-width="2.2" ' +
     'stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4"/>' +
     '<path d="M4 13a8 8 0 0 0 14.9 4M20 20v-4h-4"/></svg></div>' +
-    '<div style="font-size:18px;font-weight:700;color:#1a2535;margin-bottom:20px;">هل تريد إعادة تحميل التطبيق؟</div>' +
+    '<div style="font-size:18px;font-weight:700;color:#1a2535;margin-bottom:20px;">هل تريد تحديث بيانات التطبيق؟</div>' +
     '<div style="display:flex;gap:10px;">' +
     '<button type="button" id="ar_yes" style="flex:1;padding:11px;border:none;border-radius:10px;' +
-    'background:#16a085;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;">نعم، تحميل</button>' +
+    'background:#16a085;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;">نعم، تحديث</button>' +
     '<button type="button" id="ar_no" style="flex:1;padding:11px;border:1.5px solid #d0dae6;border-radius:10px;' +
     'background:#fff;color:#1a2535;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;">إلغاء</button>' +
     '</div></div>';
@@ -2084,36 +2070,6 @@ document.addEventListener('DOMContentLoaded', function () {
         <label style="font-weight:bold;width:130px">لون النص:</label>
         <input type="color" id="txtColor" value="#000000" oninput="document.body.style.color=this.value">
       </div>
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <label for="btnSound" style="font-weight:bold;width:130px">صوت الأزرار:</label>
-        <input type="checkbox" id="btnSound" style="width:20px;height:20px"
-          onchange="try{localStorage.setItem('vet_btnSound',this.checked?'1':'0')}catch(e){}">
-        <input type="range" id="btnVol" min="1" max="100" style="flex:1"
-          oninput="try{localStorage.setItem('vet_btnVol',this.value)}catch(e){}">
-      </div>
-      <script>
-      (function () {
-        var ctx = null;
-        function on() { try { return localStorage.getItem('vet_btnSound') !== '0'; } catch (e) { return true; } }
-        document.getElementById('btnSound').checked = on();
-        function vol() { try { return +(localStorage.getItem('vet_btnVol') || 30); } catch (e) { return 30; } }
-        document.getElementById('btnVol').value = vol();
-        document.addEventListener('pointerdown', function (e) {
-          var b = e.target.closest && e.target.closest('button');
-          if (!b || b.disabled || !on()) return;
-          try {
-            ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-            if (ctx.state === 'suspended') ctx.resume();
-            var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
-            o.frequency.value = 900;
-            g.gain.setValueAtTime(0.25 * vol() / 100, t);
-            g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(t); o.stop(t + 0.06);
-          } catch (e) {}
-        }, true);
-      })();
-      </script>
       <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <label style="font-weight:bold;width:130px">حجم الخط:</label>
         <input type="hidden" id="fontSize" value="13">
@@ -9174,7 +9130,7 @@ async function vaccInit() {
       </select>
       <span id="vr_countRange" style="display:none;align-items:center;gap:4px;">
         <label>من:</label>
-        <input type="number" id="vr_countMin" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_renderSoon()">
+        <input type="number" id="vr_countMin" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_render()">
         <label>إلى:</label>
         <input type="number" id="vr_countMax" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_render()">
       </span>
@@ -9303,6 +9259,9 @@ async function vr_loadData() {
   document.getElementById("vr_searchResultsTable").style.display = "none";
 
   try {
+    /* مواقع الطلبات تُجلب بالتوازي مع البيانات */
+    var locP = null;
+    try { locP = vr_fetchReqLocs(); locP.catch(function () {}); } catch (e) { locP = null; }
     var res = await vr_callApi("getFortificationsData");
     if (res.error) {
       vr_showMsg('خطأ: ' + res.error, true);
@@ -9310,18 +9269,22 @@ async function vr_loadData() {
     }
 vr_allData = res.data || [];
     vr_dataLoaded = true;
-    // جلب أرقام هواتف المربين المسجلين — من جسر سجل المربي (Supabase)
-    try {
-      var bdRes = await bd_callApi("bd_getPhoneNumbers");
-      vr_registeredPhones = new Set((bdRes.data || []).map(function(p){ return p.toString().trim(); }));
-    } catch(e) {
-      vr_registeredPhones = new Set();
+    // أرقام المربين المسجلين — تأتي مع نفس الرد (بلا طلب إضافي)
+    if (res.registered) {
+      vr_registeredPhones = new Set(res.registered.map(function(p){ return String(p).trim(); }));
+    } else {
+      try {
+        var bdRes = await bd_callApi("bd_getPhoneNumbers");
+        vr_registeredPhones = new Set((bdRes.data || []).map(function(p){ return p.toString().trim(); }));
+      } catch(e) {
+        vr_registeredPhones = new Set();
+      }
     }
+    await vr_loadLocations(res.breederLocs, locP, true);
     vr_hideMsg();
     document.getElementById("vr_searchResultsTable").style.display = "";
-    vr_render();
-    vr_loadLocations();
-    document.getElementById('vr_searchInput').oninput = vr_renderSoon;
+    vr_render();   /* رسم واحد بعد جاهزية المواقع */
+    document.getElementById('vr_searchInput').oninput = function() { vr_render(); };
     document.getElementById('vr_sortBy').onchange = function() { vr_render(); };
   } catch (err) {
     vr_showMsg('خطأ في الاتصال: ' + err.message, true);
@@ -9437,15 +9400,7 @@ function vr_hasUncovered(r, type) {
   });
 }
 
-var vr_renderTimer = null;
-function vr_renderSoon() {
-  clearTimeout(vr_renderTimer);
-  vr_renderTimer = setTimeout(vr_render, 250);
-}
-var vr_collator = new Intl.Collator("ar");
-
 function vr_render() {
-  clearTimeout(vr_renderTimer);
   var q      = (document.getElementById("vr_searchInput").value || '').trim();
   var status = document.getElementById("vr_statusFilter").value;
   var sortBy = document.getElementById("vr_sortBy").value;
@@ -9511,8 +9466,8 @@ if (sortBy === "date") {
   var db = vr_parseDate(b.entryDate);
   return da - db;  // من الأقدم إلى الأحدث
 }
-    if (sortBy === "area")   return vr_collator.compare(a.area || "", b.area || "");
-    return vr_collator.compare(a.name || "", b.name || "");
+    if (sortBy === "area")   return (a.area   || "").localeCompare(b.area   || "", "ar");
+    return (a.name || "").localeCompare(b.name || "", "ar");
   });
 
   // الإحصائيات
@@ -9548,7 +9503,6 @@ if (sortBy === "date") {
   // رسم الجدول
   var tbody = document.getElementById("vr_searchResultsBody");
   tbody.innerHTML = "";
-  var frag = document.createDocumentFragment();
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="no-results">لا توجد نتائج مطابقة</td></tr>';
@@ -9589,35 +9543,46 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
             '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + vr_locBtn(r) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + (r.vaccinated ? vr_escapeHtml(r.summary || "—") : vr_requestSummary(r)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
-    frag.appendChild(tr);
+    tbody.appendChild(tr);
   });
-  tbody.appendChild(frag);
 }
 /* ── مواقع المربين (من النموذج الخارجي) ── */
 var vr_locMap = {};
 
-async function vr_loadLocations() {
-  vr_locMap = {};
+/* مواقع الطلبات (كل المواسم، الأحدث أولاً) — على دفعات بلا حد الألف صف */
+function vr_fetchReqLocs() {
+  return window.SBAuth.client().then(function (sb) {
+    var w = window._sbProfile.wilayat_id;
+    return SBU.pageAll(function () {
+      return sb.from('vaccination_requests').select('phone, location_lat, location_lng, location_acc')
+        .eq('wilayat_id', w).not('location_lat', 'is', null)
+        .order('entry_date', { ascending: false }).order('id', { ascending: false });
+    });
+  });
+}
+/* breederLocs: مواقع المربين إن جاءت مسبقاً | reqLocsP: وعد مواقع الطلبات | noRender: بلا إعادة رسم */
+async function vr_loadLocations(breederLocs, reqLocsP, noRender) {
   try {
     var sb = await window.SBAuth.client();
     var w  = window._sbProfile.wilayat_id;
     var res = await Promise.all([
-      sb.from('breeders').select('phone, location_lat, location_lng, location_acc')
-        .eq('wilayat_id', w).not('location_lat', 'is', null),
-      sb.from('vaccination_requests').select('phone, location_lat, location_lng, location_acc')
-        .eq('wilayat_id', w).not('location_lat', 'is', null)
-        .order('entry_date', { ascending: false }).order('id', { ascending: false })
+      breederLocs || SBU.pageAll(function () {
+        return sb.from('breeders').select('phone, location_lat, location_lng, location_acc')
+          .eq('wilayat_id', w).not('location_lat', 'is', null).order('id');
+      }),
+      reqLocsP || vr_fetchReqLocs()
     ]);
-    if (res[0].error) throw res[0].error;
-    if (res[1].error) throw res[1].error;
+    var map = {};
     function add(x) {
       var ph = String(x.phone || '').trim();
-      if (ph && !vr_locMap[ph]) vr_locMap[ph] = { lat: x.location_lat, lng: x.location_lng, acc: x.location_acc };
+      if (ph && !map[ph]) map[ph] = { lat: x.location_lat, lng: x.location_lng, acc: x.location_acc };
     }
-    (res[0].data || []).forEach(add);   /* سجل المربي — المصدر الأساسي */
-    (res[1].data || []).forEach(add);   /* الطلب — لغير المسجَّلين فقط */
-    if (Object.keys(vr_locMap).length) vr_render();
+    (res[0] || []).forEach(add);   /* سجل المربي — المصدر الأساسي */
+    (res[1] || []).forEach(add);   /* الطلب — لغير المسجَّلين فقط */
+    vr_locMap = map;
+    if (!noRender && Object.keys(map).length) vr_render();
   } catch (e) {
+    vr_locMap = {};
     console.warn('[VR] تعذّر جلب المواقع:', e.message || e);
   }
 }
@@ -13599,7 +13564,8 @@ function foCheckOverdueSamples() {
   var _ovNow = Date.now();
   if (window._overdueLastCheck && (_ovNow - window._overdueLastCheck) < 600000) return;
   window._overdueLastCheck = _ovNow;
-  focallApi("fosearchSamplesData", { showAll: true }).then(function(res) {
+  (typeof foFetchOverdueSamples === "function" ? foFetchOverdueSamples()
+    : focallApi("fosearchSamplesData", { showAll: true })).then(function(res) {
     if (!res.success || !res.data || !res.data.length) {
       foCloseOverdueAlert();
       return;
@@ -14433,7 +14399,7 @@ document.addEventListener("app:data", function (e) {
       "box-shadow:0 4px 12px rgba(0,184,217,.4);z-index:9998;background:#fff;cursor:pointer;";
     d.title = "معلومات المصمم";
     d.innerHTML =
-      '<img src="https://drive.google.com/thumbnail?id=1SCikSeDL7RJvNZ9Zo52S2P0DIA1gMHoj&sz=w1000" ' +
+      '<img src="https://drive.google.com/thumbnail?id=1SCikSeDL7RJvNZ9Zo52S2P0DIA1gMHoj&sz=w104" ' +
       'style="width:100%;height:100%;object-fit:cover;display:block;" alt="">';
     d.onclick = showDesignerInfoModal;
     document.body.appendChild(d);
@@ -14832,7 +14798,8 @@ function sendTelegram(text) {
     if (typeof callFn !== "function") return;
  
     try {
-      var res = await callFn("fosearchSamplesData", { showAll: true });
+      var res = await (typeof global.foFetchOverdueSamples === "function"
+        ? global.foFetchOverdueSamples() : callFn("fosearchSamplesData", { showAll: true }));
       if (!res.success || !res.data || !res.data.length) return;
  
       var today = new Date();
@@ -15123,8 +15090,7 @@ document.addEventListener("app:login", function () {
     var m = ((init && init.method) || 'GET').toUpperCase();
     if (m === 'GET' || m === 'HEAD') return '';
     if (url.indexOf('/rest/v1/') === -1)     return '';
-        if (url.indexOf('/rest/v1/rpc/') !== -1 &&
-        !/\/rpc\/(save|update)_treatment_case/.test(url)) return '';   /* الدوال: next_case_no وlogin_email */
+    if (url.indexOf('/rest/v1/rpc/') !== -1) return '';   /* الدوال: next_case_no وlogin_email */
     return m;
   }
 
@@ -16045,7 +16011,7 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
           .then(function (r) {
  if (r.error || !r.data) throw new Error("تعذّر حجز رقم حالة جديد — أعد المحاولة");
             row.case_no = r.data;
-            return sb.rpc("save_treatment_case", { p_case: row, p_diag: diag, p_drugs: meds });
+            return sb.from("treatment_cases").insert(row).select("id, case_no").single();
           })
           .then(function (r) {
             if (r.error && r.error.code === "23505" && /case_no/.test(r.error.message || "") && n < 5)
@@ -16056,8 +16022,18 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
         return attempt(1)
           .then(function (r) {
             if (r.error) throw r.error;
-            return { success: true, message: "تم الحفظ",
-                     caseNumber: r.data.case_no, rowId: r.data.id };
+            var id = r.data.id;
+            var jobs = [];
+            if (diag.length) jobs.push(sb.from("treatment_diagnoses")
+              .insert(diag.map(function (x) { x.case_id = id; return x; })));
+            if (meds.length) jobs.push(sb.from("treatment_drugs")
+              .insert(meds.map(function (x) { x.case_id = id; return x; })));
+
+              return Promise.all(jobs).then(function (res) {
+              res.forEach(function (x) { if (x.error) throw x.error; });
+              return { success: true, message: "تم الحفظ",
+              caseNumber: r.data.case_no, rowId: id };
+            });
           });
       });
   }
@@ -16081,10 +16057,25 @@ return { disease_id: v[0], species_id: v[1], animal_count: int(ct[n]) || 1, _row
             row.updated_at  = new Date().toISOString();
             row.is_complete = v[3].length > 0;
 
-            row.id = id;
-            return sb.rpc("update_treatment_case", { p_case: row, p_diag: v[2], p_drugs: v[3] })
+          return sb.from("treatment_cases").update(row).eq("id", id)
               .then(function (u) {
                 if (u.error) throw u.error;
+                return Promise.all([
+                  sb.from("treatment_diagnoses").delete().eq("case_id", id),
+                  sb.from("treatment_drugs").delete().eq("case_id", id)
+                ]);
+              })
+             .then(function (del) {
+                del.forEach(function (x) { if (x.error) throw x.error; });
+                var jobs = [];
+                if (v[2].length) jobs.push(sb.from("treatment_diagnoses")
+                  .insert(v[2].map(function (x) { x.case_id = id; return x; })));
+                if (v[3].length) jobs.push(sb.from("treatment_drugs")
+                  .insert(v[3].map(function (x) { x.case_id = id; return x; })));
+                return Promise.all(jobs);
+              })
+.then(function (ins) {
+                (ins || []).forEach(function (x) { if (x.error) throw x.error; });
                 return { success: true, message: "تم التحديث" };
               });
           });
@@ -16338,68 +16329,26 @@ function names(table, col, filterWilayat) {
     return a;
   }
 
-   function searchCases(p) {
+  function searchCases(p) {
     var kw    = txt(p.keyword).toLowerCase();
     var from  = toISO(p.startDate), to = toISO(p.endDate);
     var limit = parseInt(p.limit, 10) || 0;
 
-    function result(list, total) {
-      return { success: true,
-               data: [SEARCH_HEADERS.slice()].concat(list.map(searchRow)),
-               count: total };
-    }
-
-    /* الطريقة القديمة: تُستخدم بلا كلمة، أو إن لم تكن دالة SQL موجودة */
-    function legacy() {
-      return trPageAll(function () {
-        var q = sb.from("treatment_cases").select(SEARCH_COLS)
-          .eq("wilayat_id", me.wilayat_id)
-          .order("case_no", { ascending: false }).order("id");
-        if (from) q = q.gte("treated_on", from);
-        if (to)   q = q.lte("treated_on", to);
-        return q;
-      }).then(function (list) {
-        var rows = list;
-        if (kw) rows = rows.filter(function (c) {
-          return searchRow(c).join(" ").toLowerCase().indexOf(kw) !== -1;
-        });
-        var total = rows.length;
-        if (limit > 0) rows = rows.slice(0, limit);
-        return result(rows, total);
+    return trPageAll(function () {
+      var q = sb.from("treatment_cases").select(SEARCH_COLS)
+        .eq("wilayat_id", me.wilayat_id)
+        .order("case_no", { ascending: false }).order("id");
+      if (from) q = q.gte("treated_on", from);
+      if (to)   q = q.lte("treated_on", to);
+      return q;
+    }).then(function (list) {
+      var rows = list.map(searchRow);
+      if (kw) rows = rows.filter(function (r) {
+        return r.join(" ").toLowerCase().indexOf(kw) !== -1;
       });
-    }
-
-    if (!kw) return legacy();
-
-    /* ١) الخادم يرجع أرقام الحالات المطابقة فقط */
-    return sb.rpc("search_treatment_ids", {
-      p_wilayat: me.wilayat_id, p_kw: kw, p_from: from || null, p_to: to || null
-    }).then(function (r) {
-      if (r.error) {
-        if (r.error.code === "PGRST202") return legacy();   /* الدالة غير منشأة بعد */
-        throw r.error;
-      }
-      var ids = (r.data || []).map(function (x) { return x.id; });
-      var total = ids.length;
-      if (limit > 0) ids = ids.slice(0, limit);
-      if (!ids.length) return result([], 0);
-
-      /* ٢) جلب تفاصيل المطابِق فقط: دفعات 150، و4 طلبات بالتوازي كحد أقصى */
-      var parts = [];
-      for (var i = 0; i < ids.length; i += 150) parts.push(ids.slice(i, i + 150));
-      var out = [], k = 0;
-      function next() {
-        if (k >= parts.length) return Promise.resolve();
-        var chunk = parts[k++];
-        return sb.from("treatment_cases").select(SEARCH_COLS).in("id", chunk)
-          .then(function (x) { if (x.error) throw x.error; out = out.concat(x.data || []); return next(); });
-      }
-      return Promise.all([next(), next(), next(), next()]).then(function () {
-        var pos = {};
-        ids.forEach(function (id, n) { pos[id] = n; });
-        out.sort(function (a, b) { return pos[a.id] - pos[b.id]; });   /* نفس ترتيب الخادم */
-        return result(out, total);
-      });
+      var total = rows.length;
+      if (limit > 0) rows = rows.slice(0, limit);
+      return { success: true, data: [SEARCH_HEADERS.slice()].concat(rows), count: total };
     });
   }
 
@@ -16530,7 +16479,8 @@ function names(table, col, filterWilayat) {
       }),
       pageAll(function () {
         return sb.from("breeders")
-                 .select("phone, name, possession_no, civil_id, holding_expiry, regions(name)")
+                 .select("phone, name, possession_no, civil_id, holding_expiry, regions(name), " +
+                         "location_lat, location_lng, location_acc")
                  .eq("wilayat_id", me.wilayat_id).order("id");
       })
     ]).then(function (res) {
@@ -16539,6 +16489,9 @@ function names(table, col, filterWilayat) {
       /* قيمة سجل المربي أولاً — وإن كانت فارغة تُؤخذ قيمة الطلب */
       function pick(bv, rv) { return txt(bv) ? txt(bv) : txt(rv); }
       return {
+        /* من نفس استعلام المربين — بدل bd_getPhoneNumbers واستعلام مواقع منفصل */
+        registered:  res[1].map(function (b) { return txt(b.phone); }),
+        breederLocs: res[1].filter(function (b) { return b.location_lat != null; }),
         data: rows.map(function (r) {
           var b = br[txt(r.phone)] || {};
           return {
@@ -17953,6 +17906,34 @@ function childRows(sampleId, d, tm, sm, keep) {
     });
   }
 
+  /* العينات المرسلة منذ أكثر من 7 أيام وفيها فحص بلا نتيجة فقط — بدل جلب كل العينات */
+  function overdueSamples() {
+    var d = new Date(); d.setDate(d.getDate() - 8);
+    var cut = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" +
+              String(d.getDate()).padStart(2, "0");
+    return pageAll(function () {
+      return sb.from("sample_tests").select("id, sample_id, samples!inner(wilayat_id, sent_on)")
+               .or("result.is.null,result.eq.")
+               .eq("samples.wilayat_id", me.wilayat_id)
+               .lte("samples.sent_on", cut)
+               .order("id");
+    }).then(function (rows) {
+      var seen = {}, ids = [];
+      rows.forEach(function (r) { if (!seen[r.sample_id]) { seen[r.sample_id] = 1; ids.push(r.sample_id); } });
+      var jobs = [];
+      for (var i = 0; i < ids.length; i += 150) {
+        jobs.push(sb.from("samples").select(SAMPLE_COLS).in("id", ids.slice(i, i + 150))
+          .then(function (r) { if (r.error) throw r.error; return r.data || []; }));
+      }
+      return Promise.all(jobs);
+    }).then(function (parts) {
+      var data = [].concat.apply([], parts)
+        .sort(function (a, b) { return (b.sample_no || 0) - (a.sample_no || 0); })
+        .map(toApp);
+      return { success: true, data: data, count: data.length };
+    });
+  }
+
   function uniqueCount() {
     return pageAll(function () {
       return sb.from("samples").select("breeder_id, sample_no")
@@ -17985,7 +17966,8 @@ function childRows(sampleId, d, tm, sm, keep) {
     foupdateData:           function (p) { return updateSample(p.data || {}); },
     fodeleteData:           function (p) { return deleteSample(p); },
     fosearchCaseData:       function (p) { return getSample(p); },
-    fosearchSamplesData:    function (p) { return searchSamples(p); }
+    fosearchSamplesData:    function (p) { return searchSamples(p); },
+    fogetOverdueSamples:    function ()  { return overdueSamples(); }
   };
 
   /* ════════════════════════════════════════════════════════════
@@ -18165,6 +18147,22 @@ function route(name, routes, soft) {
     log("✅ طلبات التحصين في سجل المربي موصولة بـ Supabase");
     return true;
   }
+
+  /* جلب واحد مشترك (دقيقتان) لتنبيهات العينات المتأخرة الثلاثة — وعند الخطأ نعود للطريقة القديمة */
+  g.foFetchOverdueSamples = function () {
+    var now = Date.now(), c = g._foOverdueCache;
+    if (c && now - c.t < 120000) return c.p;
+    function old() { return g.focallApi("fosearchSamplesData", { showAll: true }); }
+    var p = g.focallApi("fogetOverdueSamples", {}).then(function (r) {
+      return (r && r.success) ? r : old();
+    }, old);
+    p.catch(function () { if (g._foOverdueCache && g._foOverdueCache.p === p) g._foOverdueCache = null; });
+    g._foOverdueCache = { t: now, p: p };
+    return p;
+  };
+  /* تغيير المستخدم/العيادة يُلغي النسخة المشتركة */
+  document.addEventListener("app:login",  function () { g._foOverdueCache = null; });
+  document.addEventListener("app:logout", function () { g._foOverdueCache = null; });
 
   function patch() {
     var ok = [
@@ -19140,7 +19138,8 @@ document.addEventListener('visibilitychange',function(){
     },
 
     samples: async function () {
-      var r = await focallApi('fosearchSamplesData', { showAll: true });
+      var r = await (typeof foFetchOverdueSamples === 'function'
+        ? foFetchOverdueSamples() : focallApi('fosearchSamplesData', { showAll: true }));
       if (!r || !r.success) throw new Error((r && r.message) || 'تعذّر الجلب');
       var t0 = new Date(); t0.setHours(0, 0, 0, 0);
       var list = (r.data || []).map(function (row) {
