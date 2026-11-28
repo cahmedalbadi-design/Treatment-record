@@ -2520,6 +2520,13 @@ async function ua_tkSave(v){
   <div class="ua-bar">
     <label><input type="checkbox" id="ua_vbOn"> تشغيل الروبوت لجميع المستخدمين</label>
     <label><input type="checkbox" id="ua_vbVoice"> الصوت</label>
+    <label>الصوت <select id="ua_vbTts">
+      <option value="ar-OM-AbdullahNeural">عبدالله — عُماني (سحابي)</option>
+      <option value="ar-OM-AyshaNeural">عائشة — عُمانية (سحابي)</option>
+      <option value="ar-SA-HamedNeural">حامد — سعودي (سحابي)</option>
+      <option value="ar-AE-HamdanNeural">حمدان — إماراتي (سحابي)</option>
+      <option value="device">صوت المتصفح فقط</option>
+    </select></label>
     <label>السرعة <input type="range" id="ua_vbRate" min="0.6" max="1.6" step="0.1"
       oninput="document.getElementById('ua_vbRateV').textContent=this.value"> <b id="ua_vbRateV"></b></label>
     <label>النبرة <input type="range" id="ua_vbPitch" min="0.5" max="2" step="0.05"
@@ -2558,6 +2565,7 @@ async function ua_vbLoad() {
   document.getElementById('ua_vbRateV').textContent  = s.rate || 1;
   document.getElementById('ua_vbPitchV').textContent = s.pitch || 1.15;
   document.getElementById('ua_vbSide').value    = s.side || 'right';
+  document.getElementById('ua_vbTts').value     = s.ttsVoice || 'ar-OM-AbdullahNeural';
   document.getElementById('ua_vbSize').value    = s.size || 'm';
   document.getElementById('ua_vbWelcome').value = s.welcomeText || '';
   document.querySelectorAll('.ua_vbSrc').forEach(function (c) { c.checked = src[c.value] !== false; });
@@ -2571,6 +2579,7 @@ function ua_vbRead() {
     rate:    Number(document.getElementById('ua_vbRate').value) || 1,
     pitch:   Number(document.getElementById('ua_vbPitch').value) || 1.15,
     side:    document.getElementById('ua_vbSide').value,
+    ttsVoice: document.getElementById('ua_vbTts').value,
     size:    document.getElementById('ua_vbSize').value,
     welcomeText: document.getElementById('ua_vbWelcome').value.trim(),
     sources: src
@@ -2587,8 +2596,20 @@ async function ua_vbSave() {
 function ua_vbTest() {
   if (!window.VetBot) { showToast('⚠️ الروبوت غير محمَّل', 'warning'); return; }
   VetBot.configure(ua_vbRead());   /* معاينة على جهازك فقط حتى تضغط حفظ */
+  VetBot.resetCloud();
   VetBot.say(VetBot.welcomeMessage(), {
     title: '🤖 معاينة', actions: [{ label: '👍 ممتاز', value: 'ok', primary: true }] });
+  /* تشخيص الصوت بعد ثوانٍ */
+  setTimeout(function () {
+    var d = VetBot.diag();
+    if (d.cloudVoice === 'device') {
+      showToast(d.deviceVoice ? '🔊 صوت المتصفح: ' + d.deviceVoice : '⚠️ لا يوجد صوت عربي في هذا المتصفح', d.deviceVoice ? 'info' : 'warning');
+    } else if (d.cloudOk === true) {
+      showToast('✅ الصوت السحابي يعمل', 'success');
+    } else if (d.cloudOk === false) {
+      showToast('⚠️ الصوت السحابي لا يعمل: ' + d.cloudError, 'error');
+    }
+  }, 6000);
 }
 </script>
 </div><div class="card" style="grid-column:1/-1;--c:var(--ide-warn)">
@@ -19627,6 +19648,7 @@ document.addEventListener('visibilitychange',function(){
 
   var CFG = g.VETBOT_CONFIG || {};
   var DEF = { enabled: true, voice: true, rate: 1, pitch: 1.15, side: "right", size: "m", welcomeText: "",
+              ttsVoice: "ar-OM-AbdullahNeural",   /* "device" = صوت المتصفح فقط */
               sources: { welcome: true, ann: true, incomplete: true, overdue: true, update: true } };
   function cfg(k) { return CFG[k] !== undefined && CFG[k] !== null ? CFG[k] : DEF[k]; }
   var THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js";
@@ -19719,10 +19741,10 @@ document.addEventListener('visibilitychange',function(){
 
   /* ── الصوت ─────────────────────────────────────────────────── */
   var synth = g.speechSynthesis || null;
-  var voice = null, voicesP = null;
+  var voice = null, voicesP = null, voiceChecked = false;
   function getVoice() {
     if (!synth || cfg("voice") === false) return Promise.resolve(null);
-    if (voice) return Promise.resolve(voice);
+    if (voice || voiceChecked) return Promise.resolve(voice);
     if (voicesP) return voicesP;
     voicesP = new Promise(function (res) {
       function pick() {
@@ -19737,8 +19759,107 @@ document.addEventListener('visibilitychange',function(){
       function fin() { if (done) return; done = true; res(pick()); }
       try { synth.addEventListener("voiceschanged", fin, { once: true }); } catch (e) {}
       setTimeout(fin, 1200);
-    }).then(function (v) { voicesP = null; return v; });
+    }).then(function (v) { voicesP = null; voiceChecked = true; return v; });
     return voicesP;
+  }
+
+  /* ── الصوت السحابي: Azure عبر Supabase Edge Function "vetbot-tts" ── */
+  function cleanSpeech(t) {
+    return String(t || "").replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, "$1").replace(/https?:\/\/\S+/g, "رابط");
+  }
+  function withTimeout(p, ms) {
+    return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error("timeout")); }, ms); })]);
+  }
+  var ttsCache = {}, cloudDownUntil = 0, cloudLast = { ok: null, error: "" };
+  function cloudVoice() {
+    var v = cfg("ttsVoice");
+    return (v && v !== "device" && cfg("voice") !== false && g.SBAuth && Date.now() > cloudDownUntil) ? v : null;
+  }
+  /* → Promise(رابط صوت محلي blob: | null) */
+  function ttsAudio(text) {
+    var v = cloudVoice();
+    if (!v || !text) return Promise.resolve(null);
+    var rate = Number(cfg("rate")) || 1;
+    var pitch = Math.round(((Number(cfg("pitch")) || 1) - 1) * 100);
+    var spoken = cleanSpeech(text), key = v + "|" + rate + "|" + pitch + "|" + spoken;
+    if (ttsCache[key]) return ttsCache[key];
+    var p = g.SBAuth.client().then(function (sb) {
+      return withTimeout(sb.functions.invoke("vetbot-tts", { body: { text: spoken, voice: v, rate: rate, pitch: pitch } }), 12000);
+    }).then(function (r) {
+      /* رسالة الخطأ الفعلية من الدالة (مثل: نفد الرصيد / الخطة المجانية محظورة) */
+      if (r && r.error && r.error.context && typeof r.error.context.json === "function") {
+        return r.error.context.json().catch(function () { return {}; }).then(function (b) {
+          throw new Error((b && b.error) || r.error.message || "tts");
+        });
+      }
+      if (!r || r.error || !r.data || !r.data.url) throw new Error((r && r.error && r.error.message) || "tts");
+      return withTimeout(fetch(r.data.url), 12000);
+    }).then(function (res) {
+      if (!res.ok) throw new Error("audio " + res.status);
+      return res.blob();
+    }).then(function (b) {
+      cloudLast = { ok: true, error: "" };
+      return URL.createObjectURL(b);
+    }).catch(function (e) {
+      cloudLast = { ok: false, error: (e && e.message) || String(e) };
+      console.warn("[VetBot] الصوت السحابي غير متاح — صوت الجهاز بدلاً منه:", (e && e.message) || e);
+      delete ttsCache[key];
+      cloudDownUntil = Date.now() + 120000;   /* لا نعيد المحاولة دقيقتين */
+      return null;
+    });
+    ttsCache[key] = p;
+    return p;
+  }
+
+  /* مزامنة الفم مع الصوت الحقيقي (Web Audio) — يُفعَّل بأول نقرة/لمسة */
+  var actx = null, analyser = null, abuf = null;
+  function unlockAudio() {
+    try {
+      var AC = g.AudioContext || g.webkitAudioContext;
+      if (!AC) return;
+      if (!actx) {
+        actx = new AC();
+        analyser = actx.createAnalyser(); analyser.fftSize = 512;
+        abuf = new Uint8Array(analyser.fftSize);
+        analyser.connect(actx.destination);
+      }
+      if (actx.state === "suspended") actx.resume();
+    } catch (e) {}
+  }
+  ["pointerdown", "keydown", "touchstart"].forEach(function (ev) {
+    document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
+  });
+
+  /* → Promise(true عند انتهاء التشغيل | false عند الفشل) */
+  function playAudio(url, onMeta) {
+    return new Promise(function (res) {
+      var a = new Audio(url), fin = false, guard, iv;
+      function end(ok) {
+        if (fin) return; fin = true;
+        clearInterval(iv); clearTimeout(guard);
+        anim.analyser = null;
+        try { a.pause(); } catch (e) {}
+        res(ok);
+      }
+      try {
+        if (actx && actx.state === "running") {      /* عبر المحلِّل لتحريك الفم بحسب الصوت */
+          actx.createMediaElementSource(a).connect(analyser);
+          anim.analyser = analyser;
+        }
+      } catch (e) { anim.analyser = null; }
+      a.onloadedmetadata = function () {
+        if (isFinite(a.duration) && a.duration > 0) {
+          if (onMeta) onMeta(a.duration * 1000);
+          clearTimeout(guard); guard = setTimeout(function () { end(true); }, a.duration * 1000 + 2500);
+        }
+      };
+      a.onended = function () { end(true); };
+      a.onerror = function () { end(false); };
+      guard = setTimeout(function () { end(false); }, 30000);
+      iv = setInterval(function () { if (skipFlag) end(true); }, 100);
+      var pp = a.play();
+      if (pp && pp.catch) pp.catch(function () { end(false); });   /* منع التشغيل التلقائي ← البديل */
+    });
   }
 
   /* ── الحالة العامة ─────────────────────────────────────────── */
@@ -19964,9 +20085,14 @@ document.addEventListener('visibilitychange',function(){
 
     /* الطاقة الصوتية → فتح الفم */
     anim.energy = Math.max(0, anim.energy - dt * 2.2);
-    var target = anim.talking
-      ? 0.25 + 0.55 * Math.abs(Math.sin(t * 17)) * (0.6 + 0.4 * Math.sin(t * 5.3)) + anim.energy * 0.4
-      : 0;
+    var target = 0;
+    if (anim.talking && anim.analyser && abuf) {
+      anim.analyser.getByteTimeDomainData(abuf);
+      for (var si = 0, sum = 0; si < abuf.length; si += 4) { var dv = (abuf[si] - 128) / 128; sum += dv * dv; }
+      target = 0.06 + Math.min(1, Math.sqrt(sum / (abuf.length / 4)) * 5.5);
+    } else if (anim.talking) {
+      target = 0.25 + 0.55 * Math.abs(Math.sin(t * 17)) * (0.6 + 0.4 * Math.sin(t * 5.3)) + anim.energy * 0.4;
+    }
     F.mouth = lerp(F.mouth, Math.min(1, target), anim.talking ? 0.55 : 0.25);
 
     /* الرمش ونظرات العين */
@@ -20086,8 +20212,8 @@ document.addEventListener('visibilitychange',function(){
     try { if (synth) synth.cancel(); } catch (e) {}
   }
 
-  /* ── نطق مقطع واحد (مع بديل صامت مؤقَّت) ─────────────────────── */
-  function speakSeg(seg, v) {
+  /* ── نطق مقطع واحد: سحابي ← صوت الجهاز ← صامت مؤقَّت ─────────── */
+  function speakSeg(seg, v, urlP) {
     var text = seg.text;
     var est = Math.max(900, text.length * 85);
     var shown = textEl ? textEl.textContent : "";
@@ -20118,24 +20244,32 @@ document.addEventListener('visibilitychange',function(){
         })();
       });
     }
-    if (!v || !synth) return timed().then(done);
+    function device() {
+      if (skipFlag) return Promise.resolve();
+      if (!v || !synth) return timed();
+      return new Promise(function (res) {
+        var u = new SpeechSynthesisUtterance(cleanSpeech(text)), fin = false;
+        u.voice = v; u.lang = v.lang;
+        u.rate = Number(cfg("rate")) || 1; u.pitch = Number(cfg("pitch")) || 1.15;
+        var guard = setTimeout(end, est * 2.5 + 3000);   /* بعض المتصفحات لا تطلق onend */
+        function end() { if (fin) return; fin = true; clearTimeout(guard); res(); }
+        u.onboundary = function () { anim.energy = 1; };
+        u.onend = end;
+        u.onerror = function (e) {
+          /* "not-allowed": لا تفاعل سابق من المستخدم ← نكمل صامتين */
+          if (fin) return; fin = true; clearTimeout(guard);
+          if (e && (e.error === "interrupted" || e.error === "canceled")) return res();
+          timed().then(res);
+        };
+        try { synth.speak(u); } catch (e) { fin = true; clearTimeout(guard); timed().then(res); }
+      });
+    }
 
-    return new Promise(function (res) {
-      var spoken = text.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, "$1").replace(/https?:\/\/\S+/g, "رابط");
-      var u = new SpeechSynthesisUtterance(spoken), fin = false;
-      u.voice = v; u.lang = v.lang;
-      u.rate = Number(cfg("rate")) || 1; u.pitch = Number(cfg("pitch")) || 1.15;
-      var guard = setTimeout(end, est * 2.5 + 3000);   /* بعض المتصفحات لا تطلق onend */
-      function end() { if (fin) return; fin = true; clearTimeout(guard); res(); }
-      u.onboundary = function () { anim.energy = 1; };
-      u.onend = end;
-      u.onerror = function (e) {
-        /* "not-allowed": لا تفاعل سابق من المستخدم ← نكمل صامتين */
-        if (fin) return; fin = true; clearTimeout(guard);
-        if (e && e.error === "interrupted" || e && e.error === "canceled") return res();
-        timed().then(res);
-      };
-      try { synth.speak(u); } catch (e) { fin = true; clearTimeout(guard); timed().then(res); }
+    return (urlP || Promise.resolve(null)).then(function (url) {
+      if (skipFlag) return;
+      if (!url) return device();
+      return playAudio(url, function (ms) { est = ms; start = performance.now(); })
+        .then(function (ok) { if (!ok && !skipFlag) return device(); });
     }).then(done);
   }
 
@@ -20147,6 +20281,8 @@ document.addEventListener('visibilitychange',function(){
       while (queue.length) {
         var job = cur = queue.shift();
         skipFlag = false;
+        /* تجهيز صوت كل الجمل مسبقاً بالتوازي مع حركة الظهور */
+        var urls = job.segs.map(function (sg) { return sg.text ? ttsAudio(sg.text) : null; });
         await show();
         await sleep(450);
         if (textEl) textEl.textContent = "";
@@ -20158,7 +20294,7 @@ document.addEventListener('visibilitychange',function(){
           var seg = job.segs[i];
           if (seg.face) anim.face = seg.face;
           if (seg.gesture) { anim.gesture = seg.gesture; anim.gestureT = 0; }
-          await speakSeg(seg, v);
+          await speakSeg(seg, v, urls[i]);
         }
         var result = skipFlag ? "skip" : null;
         if (job.html != null && textEl) textEl.innerHTML = job.html;   /* النص النهائي المنسّق (روابط) */
@@ -20238,6 +20374,13 @@ document.addEventListener('visibilitychange',function(){
       });
     },
     settings: function () { return { cfg: CFG, def: DEF }; },
+    /* تشخيص الصوت: هل نجح السحابي؟ وما صوت الجهاز؟ */
+    diag: function () {
+      return { cloudVoice: cfg("ttsVoice"), cloudOk: cloudLast.ok, cloudError: cloudLast.error,
+               deviceVoice: voice ? voice.name : null, audioUnlocked: !!(actx && actx.state === "running") };
+    },
+    /* إعادة المحاولة فوراً بعد تعديل الإعداد */
+    resetCloud: function () { cloudDownUntil = 0; ttsCache = {}; },
     /* هل يُخبر الروبوت بهذا النوع من التنبيهات بدل النافذة؟ */
     use: function (src) {
       if (cfg("enabled") === false) return false;
