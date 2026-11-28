@@ -9173,7 +9173,7 @@ async function vaccInit() {
       </select>
       <span id="vr_countRange" style="display:none;align-items:center;gap:4px;">
         <label>من:</label>
-        <input type="number" id="vr_countMin" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_render()">
+        <input type="number" id="vr_countMin" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_renderSoon()">
         <label>إلى:</label>
         <input type="number" id="vr_countMax" min="0" style="width:70px" oninput="if(vr_dataLoaded) vr_render()">
       </span>
@@ -9320,7 +9320,7 @@ vr_allData = res.data || [];
     document.getElementById("vr_searchResultsTable").style.display = "";
     vr_render();
     vr_loadLocations();
-    document.getElementById('vr_searchInput').oninput = function() { vr_render(); };
+    document.getElementById('vr_searchInput').oninput = vr_renderSoon;
     document.getElementById('vr_sortBy').onchange = function() { vr_render(); };
   } catch (err) {
     vr_showMsg('خطأ في الاتصال: ' + err.message, true);
@@ -9436,7 +9436,15 @@ function vr_hasUncovered(r, type) {
   });
 }
 
+var vr_renderTimer = null;
+function vr_renderSoon() {
+  clearTimeout(vr_renderTimer);
+  vr_renderTimer = setTimeout(vr_render, 250);
+}
+var vr_collator = new Intl.Collator("ar");
+
 function vr_render() {
+  clearTimeout(vr_renderTimer);
   var q      = (document.getElementById("vr_searchInput").value || '').trim();
   var status = document.getElementById("vr_statusFilter").value;
   var sortBy = document.getElementById("vr_sortBy").value;
@@ -9502,8 +9510,8 @@ if (sortBy === "date") {
   var db = vr_parseDate(b.entryDate);
   return da - db;  // من الأقدم إلى الأحدث
 }
-    if (sortBy === "area")   return (a.area   || "").localeCompare(b.area   || "", "ar");
-    return (a.name || "").localeCompare(b.name || "", "ar");
+    if (sortBy === "area")   return vr_collator.compare(a.area || "", b.area || "");
+    return vr_collator.compare(a.name || "", b.name || "");
   });
 
   // الإحصائيات
@@ -9539,6 +9547,7 @@ if (sortBy === "date") {
   // رسم الجدول
   var tbody = document.getElementById("vr_searchResultsBody");
   tbody.innerHTML = "";
+  var frag = document.createDocumentFragment();
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="no-results">لا توجد نتائج مطابقة</td></tr>';
@@ -9579,8 +9588,9 @@ var isRegistered = vr_registeredPhones.size === 0 || vr_registeredPhones.has(r.p
             '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap;">' + badge + vr_locBtn(r) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:right;">'  + (r.vaccinated ? vr_escapeHtml(r.summary || "—") : vr_requestSummary(r)) + '</td>' +
       '<td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">' + vr_animalCell(r) + '</td>';
-    tbody.appendChild(tr);
+    frag.appendChild(tr);
   });
+  tbody.appendChild(frag);
 }
 /* ── مواقع المربين (من النموذج الخارجي) ── */
 var vr_locMap = {};
@@ -19356,7 +19366,7 @@ document.addEventListener('visibilitychange',function(){
      '#qaPanel .qa-h span{cursor:pointer}' +
     '#qaPanel #qaBack{background:rgba(255,255,255,.25);border-radius:6px;padding:0 8px;font-size:12px}' +
     '#qaPanel .qa-qs{padding:8px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #eee}' +
-    '#qaPanel .qa-q{background:#f0fbfd;border:1px solid #b2ebf2;border-radius:8px;padding:7px 10px;text-align:right;cursor:pointer;font-family:inherit}' +
+    '#qaPanel .qa-q{background:#f0fbfd;border:1px solid #b2ebf2;border-radius:8px;padding:7px 10px;text-align:right;cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1.6}' +
     '#qaPanel .qa-q:hover{background:#d9f5fa}' +
     '#qaPanel .qa-in{display:none;gap:6px;padding:0 8px 8px}' +
     '#qaPanel .qa-in input{flex:1;padding:6px;border:1px solid #00b8d9;border-radius:6px;font-family:inherit}' +
