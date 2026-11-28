@@ -1596,6 +1596,7 @@ async function bootLoadAll() {
     ov.close();
     if (msg) showToast(msg, type || 'success');
     bootOpenTreatment();
+    document.dispatchEvent(new Event('app:ready'));   /* انتهى التحميل — يستخدمه VetBot */
     steps.forEach(function (s) {
       if (s.bg) Promise.resolve().then(s.fn).catch(function (e) {
         console.warn('[boot] ' + s.name + ':', (e && e.message) || e);
@@ -2514,6 +2515,82 @@ async function ua_tkSave(v){
   showToast(v?'✅ تم نشر الشريط':'✅ تم إخفاء الشريط','success');
 }
 </script>
+</div><div class="card" style="grid-column:1/-1;--c:var(--ide-ok)">
+  <h3>🤖 الروبوت المساعد</h3>
+  <div class="ua-bar">
+    <label><input type="checkbox" id="ua_vbOn"> تشغيل الروبوت لجميع المستخدمين</label>
+    <label><input type="checkbox" id="ua_vbVoice"> الصوت</label>
+    <label>السرعة <input type="range" id="ua_vbRate" min="0.6" max="1.6" step="0.1"
+      oninput="document.getElementById('ua_vbRateV').textContent=this.value"> <b id="ua_vbRateV"></b></label>
+    <label>النبرة <input type="range" id="ua_vbPitch" min="0.5" max="2" step="0.05"
+      oninput="document.getElementById('ua_vbPitchV').textContent=this.value"> <b id="ua_vbPitchV"></b></label>
+    <label>المكان <select id="ua_vbSide"><option value="right">يمين الشاشة</option><option value="left">يسار الشاشة</option></select></label>
+    <label>الحجم <select id="ua_vbSize"><option value="s">صغير</option><option value="m">متوسط</option><option value="l">كبير</option></select></label>
+  </div>
+  <div class="ua-bar">
+    <b>يُخبر به الروبوت بدل النوافذ:</b>
+    <label><input type="checkbox" class="ua_vbSrc" value="welcome"> رسالة الترحيب</label>
+    <label><input type="checkbox" class="ua_vbSrc" value="ann"> رسائل المدير المنبثقة</label>
+    <label><input type="checkbox" class="ua_vbSrc" value="incomplete"> الحالات غير المكتملة</label>
+    <label><input type="checkbox" class="ua_vbSrc" value="overdue"> العينات المتأخرة</label>
+    <label><input type="checkbox" class="ua_vbSrc" value="update"> تحديث النظام</label>
+  </div>
+  <textarea id="ua_vbWelcome" placeholder="نص الترحيب — اتركه فارغاً للنص الافتراضي.&#10;{name} = اسم المستخدم، {clinic} = العيادة. تعابير: [happy] [wink] [love] [surprised] — حركات: [wave] [nod] [dance]&#10;مثال: [wave] [happy] صباح الخير يا {name}! بالتوفيق في عيادة {clinic}."></textarea>
+  <div class="btns">
+    <button class="update" onclick="ua_vbTest()">▶️ تجربة</button>
+    <button class="save" onclick="ua_vbSave()">💾 حفظ لجميع المستخدمين</button>
+  </div>
+  <div style="font-size:11px;color:#858585">عند إيقاف الروبوت أو أي بند تعود النوافذ المعتادة. تُطبَّق الإعدادات على المستخدمين عند تسجيل دخولهم التالي.</div>
+<script>
+var UA_VB_SRC = ['welcome', 'ann', 'incomplete', 'overdue', 'update'];
+async function ua_vbLoad() {
+  var s = {};
+  try {
+    var sb = await ua_sb();
+    var r = await sb.from('app_settings').select('value').eq('key', 'vetbot').maybeSingle();
+    if (r.data && r.data.value) s = JSON.parse(r.data.value) || {};
+  } catch (e) {}
+  var src = s.sources || {};
+  document.getElementById('ua_vbOn').checked    = s.enabled !== false;
+  document.getElementById('ua_vbVoice').checked = s.voice !== false;
+  document.getElementById('ua_vbRate').value    = s.rate || 1;
+  document.getElementById('ua_vbPitch').value   = s.pitch || 1.15;
+  document.getElementById('ua_vbRateV').textContent  = s.rate || 1;
+  document.getElementById('ua_vbPitchV').textContent = s.pitch || 1.15;
+  document.getElementById('ua_vbSide').value    = s.side || 'right';
+  document.getElementById('ua_vbSize').value    = s.size || 'm';
+  document.getElementById('ua_vbWelcome').value = s.welcomeText || '';
+  document.querySelectorAll('.ua_vbSrc').forEach(function (c) { c.checked = src[c.value] !== false; });
+}
+function ua_vbRead() {
+  var src = {};
+  document.querySelectorAll('.ua_vbSrc').forEach(function (c) { src[c.value] = c.checked; });
+  return {
+    enabled: document.getElementById('ua_vbOn').checked,
+    voice:   document.getElementById('ua_vbVoice').checked,
+    rate:    Number(document.getElementById('ua_vbRate').value) || 1,
+    pitch:   Number(document.getElementById('ua_vbPitch').value) || 1.15,
+    side:    document.getElementById('ua_vbSide').value,
+    size:    document.getElementById('ua_vbSize').value,
+    welcomeText: document.getElementById('ua_vbWelcome').value.trim(),
+    sources: src
+  };
+}
+async function ua_vbSave() {
+  var s = ua_vbRead();
+  var sb = await ua_sb();
+  var r = await sb.from('app_settings').upsert({ key: 'vetbot', value: JSON.stringify(s), updated_at: new Date().toISOString() });
+  if (r.error) { showToast('❌ ' + r.error.message, 'error'); return; }
+  if (window.VetBot) VetBot.configure(s);
+  showToast('✅ تم حفظ إعدادات الروبوت لجميع المستخدمين', 'success');
+}
+function ua_vbTest() {
+  if (!window.VetBot) { showToast('⚠️ الروبوت غير محمَّل', 'warning'); return; }
+  VetBot.configure(ua_vbRead());   /* معاينة على جهازك فقط حتى تضغط حفظ */
+  VetBot.say(VetBot.welcomeMessage(), {
+    title: '🤖 معاينة', actions: [{ label: '👍 ممتاز', value: 'ok', primary: true }] });
+}
+</script>
 </div><div class="card" style="grid-column:1/-1;--c:var(--ide-warn)">
   <h3>🕒 وقت الإدخال الفعلي</h3>
   <div class="ua-bar">
@@ -2824,7 +2901,7 @@ async function ua_init() {
         document.getElementById('ua_rgClinic').innerHTML = ua_clinics.map(function (c) {
       return '<option value="' + c.id + '">' + ua_esc(c.name) + '</option>';
     }).join('');
-        await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad(), ua_rgLoad(), ua_bgLoad()]);
+        await Promise.all([ua_load(), ua_loadCampaign(), ua_loadFormState(), ua_loadDeleted(), ua_msgLoad(), ua_shLoad(), ua_rgLoad(), ua_bgLoad(), ua_vbLoad()]);
   } catch (e) { showToast('❌ ' + (e.message || e), 'error'); }
 }
 
@@ -3205,16 +3282,6 @@ async function annInbox() {
         new Date(a.show_from).toLocaleString('ar-OM') + '</div></div>';
     }).join('') : '<p style="text-align:center;color:#888">لا توجد رسائل</p>';
   }
-  /* نص الرسالة الآمن مع روابط قابلة للنقر: [نص](رابط) أو رابط مباشر */
-function annLinkify(s) {
-  var A = function (url, label) {
-    return '<a href="' + url + '" target="_blank" rel="noopener" ' +
-      'style="color:#0077b6;font-weight:bold;text-decoration:underline">' + label + '</a>';
-  };
-  return escHtml(s)
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)<]+)\)/g, function (_, t, u) { return A(u, t); })
-    .replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, function (_, p, u) { return p + A(u, u); });
-}
   box.onclick = function (e) {
     var d = e.target.closest('[data-i]');
     if (!d) return;
@@ -3231,6 +3298,17 @@ function annLinkify(s) {
   show();
 }
 
+/* نص الرسالة الآمن مع روابط قابلة للنقر: [نص](رابط) أو رابط مباشر */
+function annLinkify(s) {
+  var A = function (url, label) {
+    return '<a href="' + url + '" target="_blank" rel="noopener" ' +
+      'style="color:#0077b6;font-weight:bold;text-decoration:underline">' + label + '</a>';
+  };
+  return escHtml(s)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)<]+)\)/g, function (_, t, u) { return A(u, t); })
+    .replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, function (_, p, u) { return p + A(u, u); });
+}
+
 var _annNext = 0;
 async function annCheck() {
   if (!window._isLoggedIn || window._bootRunning || !window._sbProfile || Date.now() < _annNext ||
@@ -3242,6 +3320,20 @@ async function annCheck() {
       return !x.read && new Date(x.show_until) >= now;
     }).pop();                                           /* أقدم رسالة غير مقروءة ضمن مدة العرض */
     if (!a) return;
+    /* 🤖 الروبوت يقرأ الرسالة بدل النافذة (حسب لوحة التحكم) */
+    if (window.VetBot && VetBot.use('ann')) {
+      if (window._annBotOn) return;
+      window._annBotOn = true;
+      var vb = await VetBot.say([
+        { text: 'رسالة جديدة من إدارة النظام.', face: 'surprised', gesture: 'wave' },
+        { text: a.title, face: 'normal' },
+        { text: a.body }
+      ], { title: '📢 ' + a.title, html: annLinkify(a.body), timeout: 180000,
+           actions: [{ label: '✅ تم الاطلاع', value: 'read', primary: true }, { label: 'لاحقاً', value: 'later' }] });
+      window._annBotOn = false;
+      if (vb === 'read') annRead(a.id).then(function () { _annNext = 0; annCheck(); });
+      return;
+    }
     var m = document.createElement('div');
         m.id = 'annModal'; m.className = 'custom-modal'; m.style.zIndex = '100001';
     m.addEventListener('click', function (e) { if (e.target.closest('a')) e.stopPropagation(); });
@@ -5547,6 +5639,7 @@ async function trloadIncompleteCount() {
     if (count > 0) {
       text.textContent    = count + " حالة غير مكتملة";
       badge.style.display = "flex";
+      if (window.vbNotifyIncomplete) vbNotifyIncomplete(count);   /* 🤖 تنبيه صوتي مرة لكل جلسة */
     } else {
       badge.style.display = "none";
     }
@@ -13612,10 +13705,32 @@ function foCheckOverdueSamples() {
     });
     html += '</tbody></table>';
     document.getElementById('overdueTableContainer').innerHTML = html;
-    var overlay = document.getElementById('overdueOverlay');
-    overlay.style.display = 'flex';
-    setTimeout(function(){ overlay.classList.add('show'); }, 10);
+    /* 🤖 الروبوت يُخبر بدل النافذة — والنافذة تفتح من زر "عرض العينات" */
+    if (window.VetBot && VetBot.use('overdue')) {
+      var o0 = overdue[0];
+      VetBot.whenReady(function () {
+        VetBot.say('[surprised] تنبيه! لديك ' +
+          VetBot.num(overdue.length, 'عينة واحدة', 'عينتان', 'عينات', 'عينة') +
+          ' تجاوزت 7 أيام بدون نتيجة. [point] أقدمها العينة رقم ' + (o0.caseNumberrt || '') + ' منذ ' +
+          VetBot.num(o0._diffDays, 'يوم واحد', 'يومين', 'أيام', 'يوماً') + '.',
+          { title: '🧪 عينات متأخرة',
+            actions: [{ label: '📋 عرض العينات', value: 'show', primary: true },
+                      { label: 'تجاهل لهذه الجلسة', value: 'dismiss' }] })
+        .then(function (v) {
+          if (v === 'show') foOpenOverdueOverlay();
+          else if (v === 'dismiss') overdueSessionDismissed = true;
+        });
+      });
+      return;
+    }
+    foOpenOverdueOverlay();
   }).catch(function(){});
+}
+
+function foOpenOverdueOverlay() {
+  var overlay = document.getElementById('overdueOverlay');
+  overlay.style.display = 'flex';
+  setTimeout(function(){ overlay.classList.add('show'); }, 10);
 }
 
 function foCloseOverdueAlert() {
@@ -18359,6 +18474,12 @@ function route(name, routes, soft) {
       'border-radius:6px;padding:7px 18px;font-weight:bold;cursor:pointer;font-family:inherit;">' +
       '🔄 تحديث الآن</button>';
     document.body.appendChild(b);
+    if (window.VetBot && VetBot.use('update')) {
+      VetBot.say('[happy] يوجد تحديث جديد للنظام! [point] احفظ عملك الحالي ثم اضغط تحديث الآن.',
+        { title: '🆕 تحديث النظام',
+          actions: [{ label: '🔄 تحديث الآن', value: 'go', primary: true }, { label: 'لاحقاً', value: 'later' }] })
+      .then(function (v) { if (v === 'go') { var u = document.getElementById('updateNowBtn'); if (u) u.click(); } });
+    }
         document.getElementById('updateNowBtn').onclick = function () {
       window._skipUnloadPrompt = true;
       try {
@@ -19479,6 +19600,723 @@ document.addEventListener('visibilitychange',function(){
   };
   document.body.appendChild(b);
 })();
+</script>
+<!-- ═══ 🤖 VetBot — الروبوت المتحدث ثلاثي الأبعاد ═══ -->
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   🤖 VetBot — روبوت ثلاثي الأبعاد يتحدث برسالة مبرمجة ثم يختفي
+   ───────────────────────────────────────────────────────────────────
+   الاستخدام:
+     VetBot.say("مرحباً [happy] أهلاً بك [wave] في النظام");
+     VetBot.say([{ text: "تنبيه مهم", face: "surprised", gesture: "point" }]);
+   الوسوم داخل النص:
+     تعابير : [normal] [happy] [sad] [surprised] [wink] [angry] [thinking] [love]
+     حركات  : [wave] [nod] [shrug] [point] [dance]
+   أزرار بعد الكلام (ترجع قيمة الزر المختار):
+     VetBot.say("نص", { title: "عنوان", actions: [{ label: "عرض", value: "show", primary: true }] })
+       .then(function (v) { ... });   // v = قيمة الزر | "skip" عند التخطي | null عند انتهاء المهلة
+   الإعداد: من لوحة "🤖 الروبوت المساعد" في إدارة النظام (app_settings: vetbot)،
+     أو محلياً قبل هذا السكربت: window.VETBOT_CONFIG = { voice: true, rate: 1, pitch: 1.15 };
+   • يُحمَّل Three.js عند أول ظهور فقط، ويتوقف الرسم ويُحرَّر WebGL بعد الاختفاء.
+   • إن لم يوجد صوت عربي في الجهاز يتحدث بالفقاعة وحركة الفم فقط.
+   • النقر على الروبوت أو × يتخطى الرسالة.
+   ═══════════════════════════════════════════════════════════════════ */
+(function (g) {
+  "use strict";
+  if (g.VetBot) return;
+
+  var CFG = g.VETBOT_CONFIG || {};
+  var DEF = { enabled: true, voice: true, rate: 1, pitch: 1.15, side: "right", size: "m", welcomeText: "",
+              sources: { welcome: true, ann: true, incomplete: true, overdue: true, update: true } };
+  function cfg(k) { return CFG[k] !== undefined && CFG[k] !== null ? CFG[k] : DEF[k]; }
+  var THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js";
+  var ACCENT = 0x00b8d9;
+  var FACES = ["normal", "happy", "sad", "surprised", "wink", "angry", "thinking", "love"];
+  var GESTURES = ["wave", "nod", "shrug", "point", "dance"];
+
+  /* ── تحميل Three.js عند الحاجة ─────────────────────────────── */
+  var threeP = null;
+  function loadThree() {
+    if (g.THREE) return Promise.resolve(g.THREE);
+    if (threeP) return threeP;
+    threeP = new Promise(function (res, rej) {
+      var s = document.createElement("script");
+      s.src = THREE_URL;
+      s.onload = function () { res(g.THREE); };
+      s.onerror = function () { threeP = null; rej(new Error("three.js")); };
+      document.head.appendChild(s);
+    });
+    return threeP;
+  }
+
+  /* ── الأنماط ───────────────────────────────────────────────── */
+  var css = document.createElement("style");
+  css.textContent =
+    "#vetbot{position:fixed;right:12px;bottom:12px;z-index:99990;display:flex;flex-direction:column;" +
+    "align-items:flex-end;pointer-events:none;direction:rtl;font-family:Tahoma,Arial,sans-serif}" +
+    "#vetbot .vb-bubble{pointer-events:auto;position:relative;max-width:min(300px,calc(100vw - 40px));" +
+    "background:rgba(255,255,255,.97);border:2px solid #00b8d9;border-radius:16px;padding:10px 14px 10px 30px;" +
+    "margin:0 18px 4px 0;font-size:14px;line-height:1.8;color:#0b2a3a;box-shadow:0 8px 24px rgba(0,78,102,.28);" +
+    "max-height:40vh;overflow-y:auto;opacity:0;transform:translateY(10px) scale(.92);transform-origin:bottom right;" +
+    "transition:opacity .25s ease,transform .25s ease;white-space:pre-wrap;word-break:break-word}" +
+    "#vetbot .vb-bubble.show{opacity:1;transform:none}" +
+    "#vetbot .vb-bubble::after{content:'';position:absolute;bottom:-10px;right:46px;border:10px solid transparent;" +
+    "border-bottom:0;border-top-color:#00b8d9}" +
+    "#vetbot .vb-x{position:absolute;top:4px;left:6px;width:20px;height:20px;border:0;border-radius:50%;" +
+    "background:#e8f8fc;color:#00879f;font-size:13px;line-height:20px;cursor:pointer;padding:0}" +
+    "#vetbot .vb-stage{pointer-events:auto;width:190px;height:220px;cursor:pointer}" +
+    "#vetbot .vb-stage canvas{display:block;width:100%!important;height:100%!important}" +
+    "#vetbot .vb-emoji{font-size:64px;line-height:1;margin:0 30px 8px 0;pointer-events:auto;cursor:pointer;" +
+    "animation:vbHop .6s ease-in-out infinite alternate}" +
+    "@keyframes vbHop{to{transform:translateY(-8px)}}" +
+    "#vetbot .vb-title{font-weight:bold;color:#00879f;margin-bottom:2px}#vetbot .vb-title:empty{display:none}" +
+    "#vetbot .vb-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}" +
+    "#vetbot .vb-acts button{font:bold 12px Tahoma,Arial;border:0;border-radius:16px;padding:6px 12px;cursor:pointer;" +
+    "background:#e8f8fc;color:#00879f}#vetbot .vb-acts button.vb-p{background:#00b8d9;color:#fff}" +
+    "#vetbot .vb-text a{color:#0077b6;font-weight:bold;text-decoration:underline}" +
+    "#vetbot.vb-left{right:auto;left:76px;align-items:flex-start}" +
+    "#vetbot.vb-left .vb-bubble{margin:0 0 4px 18px;transform-origin:bottom left}" +
+    "#vetbot.vb-left .vb-bubble::after{right:auto;left:46px}" +
+    "#vetbot.vb-s .vb-stage{width:150px;height:174px}#vetbot.vb-l .vb-stage{width:240px;height:278px}" +
+    "@media (max-width:600px){#vetbot .vb-stage{width:140px;height:162px}#vetbot .vb-bubble{font-size:13px}" +
+    "#vetbot.vb-s .vb-stage{width:118px;height:136px}#vetbot.vb-l .vb-stage{width:170px;height:196px}" +
+    "#vetbot.vb-left{left:70px}}" +
+    "@media print{#vetbot{display:none!important}}";
+  document.head.appendChild(css);
+
+  /* ── تقسيم الرسالة إلى مقاطع بوسومها ───────────────────────── */
+  function splitText(t) {
+    return String(t || "").replace(/([.!؟?،:\n])\s*/g, "$1\u0001").split("\u0001")
+      .map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  function parse(msg) {
+    var raw = [];
+    if (Array.isArray(msg)) {
+      raw = msg.map(function (x) { return { text: String(x.text || ""), face: x.face || null, gesture: x.gesture || null }; });
+    } else {
+      var face = null, gesture = null;
+      String(msg || "").split(/(\[[a-z]+\])/i).forEach(function (part) {
+        var m = part.match(/^\[([a-z]+)\]$/i);
+        if (m) {
+          var k = m[1].toLowerCase();
+          if (FACES.indexOf(k) !== -1) { face = k; return; }
+          if (GESTURES.indexOf(k) !== -1) { gesture = k; return; }
+        }
+        if (!part.trim()) return;
+        raw.push({ text: part, face: face, gesture: gesture });
+        face = null; gesture = null;
+      });
+      if (face || gesture) raw.push({ text: "", face: face, gesture: gesture });
+    }
+    var out = [];
+    raw.forEach(function (r) {
+      var parts = splitText(r.text);
+      if (!parts.length) { if (r.face || r.gesture) out.push({ text: "", face: r.face, gesture: r.gesture }); return; }
+      parts.forEach(function (t, n) { out.push({ text: t, face: n ? null : r.face, gesture: n ? null : r.gesture }); });
+    });
+    return out;
+  }
+
+  /* ── الصوت ─────────────────────────────────────────────────── */
+  var synth = g.speechSynthesis || null;
+  var voice = null, voicesP = null;
+  function getVoice() {
+    if (!synth || cfg("voice") === false) return Promise.resolve(null);
+    if (voice) return Promise.resolve(voice);
+    if (voicesP) return voicesP;
+    voicesP = new Promise(function (res) {
+      function pick() {
+        var vs = synth.getVoices() || [];
+        var ar = vs.filter(function (v) { return /^ar/i.test(v.lang); });
+        voice = ar.filter(function (v) { return /google|microsoft|online|natural|maged|laila|hamed|zariyah|tarik/i.test(v.name); })[0] ||
+                ar[0] || null;
+        return voice;
+      }
+      if (pick()) return res(voice);
+      var done = false;
+      function fin() { if (done) return; done = true; res(pick()); }
+      try { synth.addEventListener("voiceschanged", fin, { once: true }); } catch (e) {}
+      setTimeout(fin, 1200);
+    }).then(function (v) { voicesP = null; return v; });
+    return voicesP;
+  }
+
+  /* ── الحالة العامة ─────────────────────────────────────────── */
+  var queue = [], busy = false, skipFlag = false;
+  var root = null, bubble = null, textEl = null, titleEl = null, stage = null;
+  var R = null;                 /* مشهد Three الحالي */
+  var anim = { talking: false, energy: 0, face: "normal", gesture: null, gestureT: 0, state: "idle", stateT: 0 };
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ═════════════════════ الوجه (رسم على Canvas) ═════════════════════ */
+  var FW = 512, FH = 320;
+  function rr(c, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+  }
+  function heart(c, x, y, s) {
+    c.beginPath();
+    c.moveTo(x, y + s * 0.9);
+    c.bezierCurveTo(x - s * 1.6, y - s * 0.2, x - s * 0.7, y - s * 1.3, x, y - s * 0.45);
+    c.bezierCurveTo(x + s * 0.7, y - s * 1.3, x + s * 1.6, y - s * 0.2, x, y + s * 0.9);
+    c.fill();
+  }
+
+  function drawFace(F) {
+    var c = F.ctx, face = anim.face, t = F.t;
+    var col = face === "angry" ? "#ff6b6b" : face === "love" ? "#ff7eb6" : "#5ff3ff";
+    c.clearRect(0, 0, FW, FH);
+
+    /* الشاشة */
+    var gr = c.createLinearGradient(0, 0, 0, FH);
+    gr.addColorStop(0, "#0d2740"); gr.addColorStop(1, "#06121f");
+    rr(c, 4, 4, FW - 8, FH - 8, 70); c.fillStyle = gr; c.fill();
+    c.lineWidth = 6; c.strokeStyle = "rgba(95,243,255,.35)"; c.stroke();
+    /* خطوط مسح خفيفة */
+    c.save(); rr(c, 4, 4, FW - 8, FH - 8, 70); c.clip();
+    c.fillStyle = "rgba(95,243,255,.05)";
+    for (var y = (t * 40) % 8; y < FH; y += 8) c.fillRect(0, y, FW, 2);
+    c.restore();
+
+    c.fillStyle = col; c.strokeStyle = col; c.lineCap = "round"; c.lineJoin = "round";
+    c.shadowColor = col; c.shadowBlur = 22;
+
+    var ex = F.lookX * 18, ey = F.lookY * 12;
+    var L = { x: 172 + ex, y: 138 + ey }, Rr = { x: 340 + ex, y: 138 + ey };
+    var blink = F.blink;                       /* 1 مفتوحة ← 0 مغلقة */
+
+    function pill(p, w, h) { var hh = Math.max(8, h * blink); rr(c, p.x - w / 2, p.y - hh / 2, w, hh, w / 2); c.fill(); }
+    function arcUp(p) { c.lineWidth = 15; c.beginPath(); c.arc(p.x, p.y + 22, 36, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); }
+
+    switch (face) {
+      case "happy":     arcUp(L); arcUp(Rr); break;
+      case "wink":      pill(L, 50, 74); arcUp(Rr); break;
+      case "surprised": c.beginPath(); c.arc(L.x, L.y, 34 * Math.max(.25, blink), 0, 7); c.fill();
+                        c.beginPath(); c.arc(Rr.x, Rr.y, 34 * Math.max(.25, blink), 0, 7); c.fill(); break;
+      case "love":      heart(c, L.x, L.y, 30 + Math.sin(t * 8) * 3); heart(c, Rr.x, Rr.y, 30 + Math.sin(t * 8) * 3); break;
+      case "sad":       pill(L, 46, 58); pill(Rr, 46, 58);
+                        c.lineWidth = 10; c.beginPath(); c.moveTo(L.x - 34, L.y - 40); c.lineTo(L.x + 24, L.y - 54); c.stroke();
+                        c.beginPath(); c.moveTo(Rr.x + 34, Rr.y - 40); c.lineTo(Rr.x - 24, Rr.y - 54); c.stroke(); break;
+      case "angry":     pill(L, 50, 60); pill(Rr, 50, 60);
+                        c.lineWidth = 11; c.beginPath(); c.moveTo(L.x - 34, L.y - 58); c.lineTo(L.x + 30, L.y - 36); c.stroke();
+                        c.beginPath(); c.moveTo(Rr.x + 34, Rr.y - 58); c.lineTo(Rr.x - 30, Rr.y - 36); c.stroke(); break;
+      case "thinking":  pill({ x: L.x + 14, y: L.y - 14 }, 44, 56); pill({ x: Rr.x + 14, y: Rr.y - 22 }, 44, 46);
+                        c.lineWidth = 9; c.beginPath(); c.moveTo(Rr.x - 18, Rr.y - 62); c.lineTo(Rr.x + 38, Rr.y - 70); c.stroke(); break;
+      default:          pill(L, 50, 74); pill(Rr, 50, 74);
+    }
+
+    /* الفم */
+    var mx = 256, my = 238, open = F.mouth;
+    if (anim.talking || open > 0.04) {
+      var w = face === "happy" || face === "love" ? 104 : 86;
+      var h = 12 + open * 48;
+      if (face === "surprised") { c.beginPath(); c.ellipse(mx, my, 20 + open * 10, 16 + open * 26, 0, 0, 7); c.fill(); }
+      else { rr(c, mx - w / 2, my - h / 2, w, h, Math.min(h, w) / 2); c.fill();
+             if (h > 26) { c.shadowBlur = 0; c.fillStyle = "rgba(6,18,31,.55)"; rr(c, mx - w / 2 + 12, my - h / 2 + 8, w - 24, h - 16, 10); c.fill(); } }
+    } else {
+      c.lineWidth = 12;
+      switch (face) {
+        case "happy": case "love": case "wink":
+          c.beginPath(); c.arc(mx, my - 40, 58, Math.PI * 0.18, Math.PI * 0.82); c.stroke(); break;
+        case "sad":
+          c.beginPath(); c.arc(mx, my + 46, 50, Math.PI * 1.2, Math.PI * 1.8); c.stroke(); break;
+        case "surprised":
+          c.lineWidth = 9; c.beginPath(); c.arc(mx, my, 18, 0, 7); c.stroke(); break;
+        case "angry":
+          c.beginPath(); c.moveTo(mx - 40, my + 8); c.quadraticCurveTo(mx, my - 12, mx + 40, my + 8); c.stroke(); break;
+        case "thinking":
+          c.beginPath(); c.moveTo(mx - 30, my + 4); c.lineTo(mx + 26, my - 6); c.stroke();
+          c.shadowBlur = 10;
+          for (var i = 0; i < 3; i++) { if (Math.floor(t * 3) % 4 > i) { c.beginPath(); c.arc(mx + 70 + i * 26, my - 50 - i * 10, 7, 0, 7); c.fill(); } }
+          break;
+        default:
+          rr(c, mx - 36, my - 6, 72, 12, 6); c.fill();
+      }
+    }
+    c.shadowBlur = 0;
+  }
+
+  /* ═════════════════════ بناء الروبوت ثلاثي الأبعاد ═════════════════════ */
+  function rrShape(T, w, h, r) {
+    var s = new T.Shape(), x = -w / 2, y = -h / 2;
+    s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+    s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+    s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+    return s;
+  }
+  function rbox(T, w, h, d, r) {
+    var geo = new T.ExtrudeGeometry(rrShape(T, w - 2 * r, h - 2 * r, r * 0.6), {
+      depth: d - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: r,
+      bevelSegments: 5, curveSegments: 10
+    });
+    geo.center();
+    return geo;
+  }
+
+  function build(T, host) {
+    var W = host.clientWidth || 190, H = host.clientHeight || 220;
+    var renderer = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
+    renderer.setPixelRatio(Math.min(g.devicePixelRatio || 1, 2));
+    renderer.setSize(W, H, false);
+    if ("outputEncoding" in renderer) renderer.outputEncoding = T.sRGBEncoding;
+    host.appendChild(renderer.domElement);
+
+    var scene = new T.Scene();
+    var cam = new T.PerspectiveCamera(30, W / H, 0.1, 50);
+    cam.position.set(0, -0.3, 8.1); cam.lookAt(0, -0.42, 0);
+
+    scene.add(new T.HemisphereLight(0xffffff, 0x2a4a66, 0.95));
+    var key = new T.DirectionalLight(0xffffff, 0.95); key.position.set(3, 5, 5); scene.add(key);
+    var rim = new T.PointLight(ACCENT, 1.4, 12); rim.position.set(-3, 1.5, -3); scene.add(rim);
+
+    var disposables = [];
+    function keep(x) { disposables.push(x); return x; }
+
+    var mWhite  = keep(new T.MeshStandardMaterial({ color: 0xf4f8fc, metalness: 0.25, roughness: 0.32 }));
+    var mAccent = keep(new T.MeshStandardMaterial({ color: ACCENT, metalness: 0.4, roughness: 0.3, emissive: 0x00303a }));
+    var mDark   = keep(new T.MeshStandardMaterial({ color: 0x1b2d3f, metalness: 0.5, roughness: 0.4 }));
+    var mGlow   = keep(new T.MeshStandardMaterial({ color: 0x8ff7ff, emissive: ACCENT, emissiveIntensity: 1.2 }));
+
+    var bot = new T.Group(); scene.add(bot);
+
+    /* الرأس */
+    var head = new T.Group(); head.position.y = 0.3; bot.add(head);
+    head.add(new T.Mesh(keep(rbox(T, 2.0, 1.5, 1.5, 0.24)), mWhite));
+
+    var fc = document.createElement("canvas"); fc.width = FW; fc.height = FH;
+    var ftex = keep(new T.CanvasTexture(fc));
+    if ("encoding" in ftex) ftex.encoding = T.sRGBEncoding;
+    var faceMesh = new T.Mesh(keep(new T.PlaneGeometry(1.5, 0.94)),
+      keep(new T.MeshBasicMaterial({ map: ftex, transparent: true })));
+    faceMesh.position.z = 0.752; head.add(faceMesh);
+
+    var earGeo = keep(new T.CylinderGeometry(0.2, 0.2, 0.2, 28));
+    var earCap = keep(new T.CylinderGeometry(0.11, 0.11, 0.06, 20));
+    [-1, 1].forEach(function (sx) {
+      var e = new T.Mesh(earGeo, mAccent); e.rotation.z = Math.PI / 2; e.position.x = sx * 1.06; head.add(e);
+      var cap = new T.Mesh(earCap, mGlow); cap.rotation.z = Math.PI / 2; cap.position.x = sx * 1.18; head.add(cap);
+    });
+    var ant = new T.Mesh(keep(new T.CylinderGeometry(0.03, 0.03, 0.42, 10)), mDark);
+    ant.position.y = 0.96; head.add(ant);
+    var antBall = new T.Mesh(keep(new T.SphereGeometry(0.11, 20, 16)), mGlow);
+    antBall.position.y = 1.2; head.add(antBall);
+
+    /* الرقبة والجسم */
+    var neck = new T.Mesh(keep(new T.CylinderGeometry(0.2, 0.24, 0.3, 20)), mDark);
+    neck.position.y = -0.58; bot.add(neck);
+    var body = new T.Mesh(keep(rbox(T, 1.45, 1.15, 1.0, 0.26)), mWhite);
+    body.position.y = -1.3; bot.add(body);
+    var belt = new T.Mesh(keep(new T.CylinderGeometry(0.62, 0.5, 0.16, 28)), mAccent);
+    belt.position.y = -1.95; bot.add(belt);
+    var chest = new T.Mesh(keep(new T.CircleGeometry(0.15, 28)), mGlow);
+    chest.position.set(0, -1.18, 0.505); bot.add(chest);
+    var crossM = keep(new T.MeshBasicMaterial({ color: 0xffffff }));
+    var c1 = new T.Mesh(keep(new T.PlaneGeometry(0.16, 0.05)), crossM); c1.position.set(0, -1.18, 0.51); bot.add(c1);
+    var c2 = new T.Mesh(keep(new T.PlaneGeometry(0.05, 0.16)), crossM); c2.position.set(0, -1.18, 0.51); bot.add(c2);
+
+    /* الذراعان (محور الدوران عند الكتف) */
+    var armGeo = keep(new T.CapsuleGeometry(0.11, 0.5, 6, 14));
+    var handGeo = keep(new T.SphereGeometry(0.16, 20, 16));
+    function arm(sx) {
+      var p = new T.Group(); p.position.set(sx * 0.86, -0.95, 0); bot.add(p);
+      var a = new T.Mesh(armGeo, mAccent); a.position.y = -0.36; p.add(a);
+      var h = new T.Mesh(handGeo, mWhite); h.position.y = -0.76; p.add(h);
+      return p;
+    }
+    var armL = arm(-1), armR = arm(1);   /* armL على يسار الشاشة: باتجاه محتوى التطبيق */
+
+    /* توهّج الطيران والظل */
+    var sc = document.createElement("canvas"); sc.width = sc.height = 128;
+    var sx2 = sc.getContext("2d"), rg = sx2.createRadialGradient(64, 64, 4, 64, 64, 62);
+    rg.addColorStop(0, "rgba(0,184,217,.55)"); rg.addColorStop(1, "rgba(0,184,217,0)");
+    sx2.fillStyle = rg; sx2.fillRect(0, 0, 128, 128);
+    var shadow = new T.Mesh(keep(new T.PlaneGeometry(1.9, 0.6)),
+      keep(new T.MeshBasicMaterial({ map: keep(new T.CanvasTexture(sc)), transparent: true, depthWrite: false })));
+    shadow.position.set(0, -2.55, 0.2); scene.add(shadow);
+    var jet = new T.Mesh(keep(new T.ConeGeometry(0.28, 0.5, 24, 1, true)),
+      keep(new T.MeshBasicMaterial({ color: 0x7ff3ff, transparent: true, opacity: 0.45, depthWrite: false })));
+    jet.rotation.x = Math.PI; jet.position.y = -2.28; bot.add(jet);
+
+    return {
+      T: T, renderer: renderer, scene: scene, cam: cam, bot: bot, head: head, armL: armL, armR: armR,
+      antBall: antBall, chest: chest, shadow: shadow, jet: jet, ftex: ftex, mGlow: mGlow,
+      face: { ctx: fc.getContext("2d"), t: 0, blink: 1, lookX: 0, lookY: 0, mouth: 0 },
+      disposables: disposables, raf: 0, last: 0, t: 0,
+      nextBlink: 1.5, blinkT: -1, nextLook: 1, look: { x: 0, y: 0 }
+    };
+  }
+
+  /* ── حلقة الحركة ───────────────────────────────────────────── */
+  function easeOutBack(x) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  function frame(now) {
+    if (!R) return;
+    R.raf = requestAnimationFrame(frame);
+    var dt = Math.min(0.05, (now - (R.last || now)) / 1000); R.last = now;
+    var t = (R.t += dt), F = R.face, k = 1 - Math.pow(0.0015, dt);
+
+    /* الطاقة الصوتية → فتح الفم */
+    anim.energy = Math.max(0, anim.energy - dt * 2.2);
+    var target = anim.talking
+      ? 0.25 + 0.55 * Math.abs(Math.sin(t * 17)) * (0.6 + 0.4 * Math.sin(t * 5.3)) + anim.energy * 0.4
+      : 0;
+    F.mouth = lerp(F.mouth, Math.min(1, target), anim.talking ? 0.55 : 0.25);
+
+    /* الرمش ونظرات العين */
+    if (t > R.nextBlink && R.blinkT < 0) R.blinkT = 0;
+    if (R.blinkT >= 0) {
+      R.blinkT += dt;
+      F.blink = R.blinkT < 0.07 ? 1 - R.blinkT / 0.07 : R.blinkT < 0.14 ? (R.blinkT - 0.07) / 0.07 : 1;
+      if (R.blinkT >= 0.14) { R.blinkT = -1; F.blink = 1; R.nextBlink = t + 2.2 + Math.random() * 2.8; }
+    }
+    if (t > R.nextLook) { R.look.x = (Math.random() - 0.5) * 1.4; R.look.y = (Math.random() - 0.5) * 1.0; R.nextLook = t + 1.2 + Math.random() * 2; }
+    if (anim.face === "thinking") { R.look.x = 0.8; R.look.y = -0.8; }
+    F.lookX = lerp(F.lookX, R.look.x, k * 0.6); F.lookY = lerp(F.lookY, R.look.y, k * 0.6);
+    F.t = t;
+    drawFace(F); R.ftex.needsUpdate = true;
+
+    /* الطفو والتمايل */
+    var bot = R.bot, head = R.head;
+    var floatY = Math.sin(t * 2.1) * 0.07;
+    var yaw = Math.sin(t * 0.7) * 0.22 + F.lookX * 0.12;
+    var tilt = anim.face === "thinking" ? 0.16 : anim.face === "sad" ? -0.1 : Math.sin(t * 1.3) * 0.04;
+    head.rotation.z = lerp(head.rotation.z, tilt, k);
+    head.rotation.x = lerp(head.rotation.x, anim.talking ? Math.sin(t * 9) * 0.05 * F.mouth : (anim.face === "sad" ? 0.12 : 0), k);
+    head.rotation.y = lerp(head.rotation.y, F.lookX * 0.15, k);
+
+    /* الذراعان: راحة + إيماءات أثناء الكلام */
+    var aL = -0.14, aR = 0.14, aLx = 0, aRx = 0;
+    if (anim.talking) { aL += Math.sin(t * 4.2) * 0.18; aR -= Math.sin(t * 3.7 + 1) * 0.18; aLx = Math.sin(t * 3) * 0.25; aRx = -Math.sin(t * 3.4) * 0.25; }
+    var gst = anim.gesture;
+    if (gst) {
+      anim.gestureT += dt;
+      var gt = anim.gestureT;
+      if (gst === "wave")  { aL = -2.5 + Math.sin(gt * 11) * 0.4; aLx = -0.2; }
+      if (gst === "point") { aL = -1.45; aLx = -0.35; }
+      if (gst === "shrug") { aL = -0.75; aR = 0.75; head.rotation.z = Math.sin(gt * 3) * 0.15; }
+      if (gst === "nod")   { head.rotation.x = Math.sin(gt * 10) * 0.22; }
+      if (gst === "dance") { aL = -1.6 + Math.sin(gt * 8) * 0.8; aR = 1.6 - Math.sin(gt * 8) * 0.8; yaw += Math.sin(gt * 5) * 0.5; floatY += Math.abs(Math.sin(gt * 8)) * 0.18; }
+      if (gt > (gst === "dance" ? 3 : gst === "point" ? 2.4 : 2)) { anim.gesture = null; }
+    }
+    R.armL.rotation.z = lerp(R.armL.rotation.z, aL, k); R.armR.rotation.z = lerp(R.armR.rotation.z, aR, k);
+    R.armL.rotation.x = lerp(R.armL.rotation.x, aLx, k); R.armR.rotation.x = lerp(R.armR.rotation.x, aRx, k);
+
+    /* التوهج */
+    var glow = 0.9 + Math.sin(t * 4) * 0.3 + F.mouth * 1.4;
+    R.mGlow.emissiveIntensity = glow;
+    R.jet.scale.set(1, 0.8 + Math.sin(t * 22) * 0.12 + F.mouth * 0.2, 1);
+    R.jet.material.opacity = 0.3 + Math.sin(t * 18) * 0.08;
+
+    /* الدخول والخروج */
+    var s = 1, offY = 0, spin = 0;
+    anim.stateT += dt;
+    if (anim.state === "enter") {
+      var p = Math.min(1, anim.stateT / 0.75);
+      s = Math.max(0.001, easeOutBack(p)); offY = (1 - p) * -2.5; spin = (1 - p) * Math.PI * 1.5;
+      if (p >= 1) anim.state = "idle";
+    } else if (anim.state === "exit") {
+      var q = Math.min(1, anim.stateT / 0.55);
+      s = Math.max(0.001, 1 - q * q); offY = q * 1.2; spin = -q * Math.PI * 1.2;
+    }
+    bot.scale.setScalar(s);
+    bot.position.y = floatY + offY;
+    bot.rotation.y = yaw + spin;
+    R.shadow.scale.set(s * (1 - floatY * 1.5), s * (1 - floatY * 1.5), 1);
+    R.shadow.material.opacity = s;
+
+    R.renderer.render(R.scene, R.cam);
+  }
+
+  /* ── إظهار وإخفاء ──────────────────────────────────────────── */
+  function mount() {
+    root = document.createElement("div"); root.id = "vetbot";
+    root.className = (cfg("side") === "left" ? "vb-left " : "") + "vb-" + (cfg("size") || "m");
+    bubble = document.createElement("div"); bubble.className = "vb-bubble";
+    var x = document.createElement("button"); x.className = "vb-x"; x.textContent = "×"; x.title = "تخطي";
+    titleEl = document.createElement("div"); titleEl.className = "vb-title";
+    textEl = document.createElement("div"); textEl.className = "vb-text";
+    bubble.appendChild(x); bubble.appendChild(titleEl); bubble.appendChild(textEl);
+    stage = document.createElement("div"); stage.className = "vb-stage"; stage.title = "انقر للتخطي";
+    root.appendChild(bubble); root.appendChild(stage);
+    document.body.appendChild(root);
+    x.onclick = skip; stage.onclick = skip;
+  }
+
+  function show() {
+    if (!root) mount();
+    if (!R) { anim.state = "enter"; anim.stateT = 0; }
+    anim.face = "normal"; anim.gesture = null;
+    return loadThree().then(function (T) {
+      if (!R) { R = build(T, stage); R.raf = requestAnimationFrame(frame); }
+      return true;
+    }).catch(function () {
+      /* لا WebGL أو تعذّر التحميل → روبوت بسيط 🤖 */
+      if (!stage.querySelector(".vb-emoji")) {
+        stage.style.display = "none";
+        var e = document.createElement("div"); e.className = "vb-emoji"; e.textContent = "🤖"; e.onclick = skip;
+        root.appendChild(e);
+      }
+      return false;
+    });
+  }
+
+  function hide() {
+    anim.state = "exit"; anim.stateT = 0;
+    if (bubble) bubble.classList.remove("show");
+    return sleep(R ? 600 : 250).then(function () {
+      if (R) {
+        cancelAnimationFrame(R.raf);
+        R.disposables.forEach(function (d) { try { d.dispose(); } catch (e) {} });
+        try { R.renderer.dispose(); R.renderer.forceContextLoss(); } catch (e) {}
+        R = null;
+      }
+      if (root) { root.remove(); root = bubble = textEl = titleEl = stage = null; }
+    });
+  }
+
+  function skip() {
+    skipFlag = true;
+    try { if (synth) synth.cancel(); } catch (e) {}
+  }
+
+  /* ── نطق مقطع واحد (مع بديل صامت مؤقَّت) ─────────────────────── */
+  function speakSeg(seg, v) {
+    var text = seg.text;
+    var est = Math.max(900, text.length * 85);
+    var shown = textEl ? textEl.textContent : "";
+    var base = shown ? shown + " " : "";
+    var start = performance.now();
+    var typer = setInterval(function () {
+      if (!textEl) return;
+      var p = Math.min(1, (performance.now() - start) / (est * 0.92));
+      textEl.textContent = base + text.slice(0, Math.ceil(text.length * p));
+      bubble.scrollTop = bubble.scrollHeight;
+    }, 40);
+
+    anim.talking = !!text;
+    function done() {
+      clearInterval(typer);
+      anim.talking = false;
+      if (textEl) textEl.textContent = base + text;
+    }
+    if (!text) { done(); return sleep(seg.gesture ? 1600 : 400); }
+
+    function timed() {
+      return new Promise(function (res) {
+        var t0 = performance.now();
+        (function tick() {
+          if (skipFlag || performance.now() - t0 >= est) return res();
+          if (Math.random() < 0.12) anim.energy = 1;
+          setTimeout(tick, 60);
+        })();
+      });
+    }
+    if (!v || !synth) return timed().then(done);
+
+    return new Promise(function (res) {
+      var spoken = text.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, "$1").replace(/https?:\/\/\S+/g, "رابط");
+      var u = new SpeechSynthesisUtterance(spoken), fin = false;
+      u.voice = v; u.lang = v.lang;
+      u.rate = Number(cfg("rate")) || 1; u.pitch = Number(cfg("pitch")) || 1.15;
+      var guard = setTimeout(end, est * 2.5 + 3000);   /* بعض المتصفحات لا تطلق onend */
+      function end() { if (fin) return; fin = true; clearTimeout(guard); res(); }
+      u.onboundary = function () { anim.energy = 1; };
+      u.onend = end;
+      u.onerror = function (e) {
+        /* "not-allowed": لا تفاعل سابق من المستخدم ← نكمل صامتين */
+        if (fin) return; fin = true; clearTimeout(guard);
+        if (e && e.error === "interrupted" || e && e.error === "canceled") return res();
+        timed().then(res);
+      };
+      try { synth.speak(u); } catch (e) { fin = true; clearTimeout(guard); timed().then(res); }
+    }).then(done);
+  }
+
+  async function run() {
+    if (busy) return;
+    busy = true;
+    var cur = null;
+    try {
+      while (queue.length) {
+        var job = cur = queue.shift();
+        skipFlag = false;
+        await show();
+        await sleep(450);
+        if (textEl) textEl.textContent = "";
+        if (titleEl) titleEl.textContent = job.title || "";
+        var oldActs = bubble.querySelector(".vb-acts"); if (oldActs) oldActs.remove();
+        bubble.classList.add("show");
+        var v = await getVoice();
+        for (var i = 0; i < job.segs.length && !skipFlag; i++) {
+          var seg = job.segs[i];
+          if (seg.face) anim.face = seg.face;
+          if (seg.gesture) { anim.gesture = seg.gesture; anim.gestureT = 0; }
+          await speakSeg(seg, v);
+        }
+        var result = skipFlag ? "skip" : null;
+        if (job.html != null && textEl) textEl.innerHTML = job.html;   /* النص النهائي المنسّق (روابط) */
+        if (job.actions && job.actions.length && !skipFlag) {
+          result = await askActions(job);
+        } else {
+          /* مهلة البقاء — النقر يُنهيها فوراً */
+          for (var w = 0; w < job.hold && !skipFlag; w += 100) await sleep(100);
+          if (skipFlag) result = "skip";
+        }
+        anim.face = "happy";
+        if (!queue.length) await hide();
+        else { bubble.classList.remove("show"); await sleep(300); }
+        job.resolve(result);
+      }
+    } catch (e) {
+      console.warn("[VetBot]", e);
+      if (cur) cur.resolve(null);
+      try { await hide(); } catch (x) {}
+    } finally {
+      busy = false;
+      queue.splice(0).forEach(function (j) { j.resolve(null); });
+    }
+  }
+
+  /* أزرار داخل الفقاعة بعد انتهاء الكلام */
+  function askActions(job) {
+    return new Promise(function (res) {
+      var box = document.createElement("div"); box.className = "vb-acts";
+      var done = false, t0 = Date.now(), iv;
+      function fin(v) { if (done) return; done = true; clearInterval(iv); res(v); }
+      job.actions.forEach(function (a) {
+        var b = document.createElement("button"); b.type = "button"; b.textContent = a.label;
+        if (a.primary) b.className = "vb-p";
+        b.onclick = function (e) { e.stopPropagation(); fin(a.value); };
+        box.appendChild(b);
+      });
+      bubble.appendChild(box);
+      bubble.scrollTop = bubble.scrollHeight;
+      iv = setInterval(function () {
+        if (skipFlag) fin("skip");
+        else if (Date.now() - t0 > (job.timeout || 60000)) fin(null);
+      }, 150);
+    });
+  }
+
+  /* ── الواجهة العامة ────────────────────────────────────────── */
+  function arNum(n, one, two, few, many) {
+    n = Number(n) || 0;
+    if (n === 1) return one;
+    if (n === 2) return two;
+    if (n >= 3 && n <= 10) return n + " " + few;
+    return n + " " + many;
+  }
+
+  g.VetBot = {
+    /* say(نص أو مقاطع, { hold, title, html, actions, timeout }) → Promise(قيمة الزر | "skip" | null) */
+    say: function (msg, opts) {
+      var segs = parse(msg);
+      opts = opts || {};
+      if (!segs.length) return Promise.resolve(null);
+      return new Promise(function (resolve) {
+        queue.push({ segs: segs, hold: opts.hold || 1400, title: opts.title || "", html: opts.html,
+                     actions: opts.actions || null, timeout: opts.timeout, resolve: resolve });
+        run();
+      });
+    },
+    skip: skip,
+    clear: function () { queue.splice(0).forEach(function (j) { j.resolve(null); }); skip(); },
+    get busy() { return busy; },
+    /* إعدادات لوحة التحكم */
+    configure: function (o) {
+      if (!o) return;
+      Object.keys(o).forEach(function (k) {
+        if (k === "sources") CFG.sources = Object.assign({}, CFG.sources || {}, o.sources || {});
+        else CFG[k] = o[k];
+      });
+    },
+    settings: function () { return { cfg: CFG, def: DEF }; },
+    /* هل يُخبر الروبوت بهذا النوع من التنبيهات بدل النافذة؟ */
+    use: function (src) {
+      if (cfg("enabled") === false) return false;
+      if (src === "welcome" && CFG.welcome === false) return false;
+      var s = CFG.sources || {};
+      return s[src] !== false && DEF.sources[src] !== false;
+    },
+    /* تشغيل بعد انتهاء تحميل النظام (وليس أثناء شاشة التحميل) */
+    whenReady: function (fn) {
+      if (g._isLoggedIn && !g._bootRunning) { fn(); return; }
+      document.addEventListener("app:ready", function h() { document.removeEventListener("app:ready", h); fn(); });
+    },
+    num: arNum,
+    welcomeMessage: function (me) {
+      me = me || g._sbProfile || {};
+      var name = String(me.full_name || me.username || "").trim().split(/\s+/)[0] || "";
+      var clinicName = (me.wilayat && me.wilayat.name) || "";
+      var tpl = String(cfg("welcomeText") || "").trim();
+      if (tpl) return tpl.replace(/\{name\}/g, name).replace(/\{clinic\}/g, clinicName);
+      return "[wave] [happy] أهلاً بك" + (name ? " يا " + name : "") + "! " +
+        "أنا المساعد الآلي لنظام العيادات البيطرية" + (clinicName ? " في عيادة " + clinicName : "") + ". " +
+        "[wink] تم تحميل البيانات وكل شيء جاهز. بالتوفيق في عملك اليوم!";
+    }
+  };
+
+  /* ── تحميل إعدادات لوحة التحكم عند الدخول ─────────────────── */
+  var settingsP = null;
+  function loadSettings() {
+    if (!g.SBAuth) return Promise.resolve();
+    settingsP = g.SBAuth.client().then(function (sb) {
+      return sb.from("app_settings").select("value").eq("key", "vetbot").maybeSingle();
+    }).then(function (r) {
+      if (r && !r.error && r.data && r.data.value) {
+        try { g.VetBot.configure(JSON.parse(r.data.value)); } catch (e) {}
+      }
+    }).catch(function () {});
+    return settingsP;
+  }
+  document.addEventListener("app:login", loadSettings);
+
+  /* ── رسالة الترحيب بعد انتهاء تحميل النظام (مرة لكل جلسة) ───── */
+  document.addEventListener("app:ready", function () {
+    (settingsP || Promise.resolve()).then(function () {
+      if (!g.VetBot.use("welcome")) return;
+      try { if (sessionStorage.getItem("vetbot_welcomed")) return; sessionStorage.setItem("vetbot_welcomed", "1"); } catch (e) {}
+      var me = g._sbProfile || {};
+      var msg = typeof CFG.welcome === "function" ? CFG.welcome(me) : g.VetBot.welcomeMessage(me);
+      g.VetBot.say(msg);   /* أولاً في الطابور: الترحيب قبل أي تنبيه */
+    });
+  });
+  document.addEventListener("app:logout", function () {
+    try { sessionStorage.removeItem("vetbot_welcomed"); } catch (e) {}
+    told = {};
+    g.VetBot.clear();
+  });
+
+  /* ═══ تنبيه الحالات غير المكتملة (مرة لكل جلسة) — يُستدعى من trloadIncompleteCount ═══ */
+  var told = {};
+  g.vbNotifyIncomplete = function (count) {
+    if (!count || told.incomplete) return false;
+    told.incomplete = true;
+    g.VetBot.whenReady(function () {
+      (settingsP || Promise.resolve()).then(function () {
+        if (!g.VetBot.use("incomplete")) return;
+        g.VetBot.say("[surprised] تنبيه! لديك " +
+          arNum(count, "حالة علاج واحدة غير مكتملة", "حالتا علاج غير مكتملتين", "حالات علاج غير مكتملة", "حالة علاج غير مكتملة") +
+          " من أيام سابقة. [point] أكمِلها حتى تُحتسب في التقارير.",
+          { title: "⚠️ الحالات غير المكتملة",
+            actions: [{ label: "📋 عرض الحالات", value: "show", primary: true }, { label: "لاحقاً", value: "later" }] })
+        .then(function (v) {
+          if (v !== "show") return;
+          if (typeof g.showPage === "function") g.showPage("treatment");
+          setTimeout(function () { var b = document.getElementById("tr_incompleteCountBadge"); if (b) b.click(); }, 400);
+        });
+      });
+    });
+    return true;
+  };
+})(window);
 </script>
 </body>
 </html>
