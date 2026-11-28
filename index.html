@@ -47,7 +47,6 @@ body {
     linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.10)),
     url("https://dlivsidtmmtvrqhtxmlu.supabase.co/storage/v1/object/public/assets/artsa.png");
 }
-body,
 #treatment > .top-bar::before,
 #breeder > .bd-top::before,
 #vaccination > #vacc_topBarMain::before,
@@ -59,20 +58,22 @@ body,
   background-position: center !important;
   background-attachment: fixed !important;
 }
-  /* الهاتف: طبقة خلفية ثابتة بديلة عن attachment:fixed + إظهار الجانب المزخرف */
+/* طبقة خلفية ثابتة واحدة لكل الشاشات بدل attachment:fixed على body */
+body { background-color: transparent !important; background-image: none !important; }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--app-bg-img);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+  /* الهاتف: إظهار الجانب المزخرف */
 @media (max-width: 1100px) {
-  body { background-image: none !important; }
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background-image: var(--app-bg-img);
-    background-size: cover;
-    background-position: right center;
-    background-repeat: no-repeat;
-  }
+  body::before { background-position: right center; }
   #treatment > .top-bar::before,
   #breeder > .bd-top::before,
   #vaccination > #vacc_topBarMain::before,
