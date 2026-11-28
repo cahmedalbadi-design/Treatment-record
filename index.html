@@ -1149,10 +1149,10 @@ function appRefresh() {
     '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a085" stroke-width="2.2" ' +
     'stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4"/>' +
     '<path d="M4 13a8 8 0 0 0 14.9 4M20 20v-4h-4"/></svg></div>' +
-    '<div style="font-size:18px;font-weight:700;color:#1a2535;margin-bottom:20px;">هل تريد تحديث بيانات التطبيق؟</div>' +
+    '<div style="font-size:18px;font-weight:700;color:#1a2535;margin-bottom:20px;">هل تريد إعادة تحميل التطبيق؟</div>' +
     '<div style="display:flex;gap:10px;">' +
     '<button type="button" id="ar_yes" style="flex:1;padding:11px;border:none;border-radius:10px;' +
-    'background:#16a085;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;">نعم، تحديث</button>' +
+    'background:#16a085;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;">نعم، تحميل</button>' +
     '<button type="button" id="ar_no" style="flex:1;padding:11px;border:1.5px solid #d0dae6;border-radius:10px;' +
     'background:#fff;color:#1a2535;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;">إلغاء</button>' +
     '</div></div>';
@@ -16327,26 +16327,68 @@ function names(table, col, filterWilayat) {
     return a;
   }
 
-  function searchCases(p) {
+   function searchCases(p) {
     var kw    = txt(p.keyword).toLowerCase();
     var from  = toISO(p.startDate), to = toISO(p.endDate);
     var limit = parseInt(p.limit, 10) || 0;
 
-    return trPageAll(function () {
-      var q = sb.from("treatment_cases").select(SEARCH_COLS)
-        .eq("wilayat_id", me.wilayat_id)
-        .order("case_no", { ascending: false }).order("id");
-      if (from) q = q.gte("treated_on", from);
-      if (to)   q = q.lte("treated_on", to);
-      return q;
-    }).then(function (list) {
-      var rows = list.map(searchRow);
-      if (kw) rows = rows.filter(function (r) {
-        return r.join(" ").toLowerCase().indexOf(kw) !== -1;
+    function result(list, total) {
+      return { success: true,
+               data: [SEARCH_HEADERS.slice()].concat(list.map(searchRow)),
+               count: total };
+    }
+
+    /* الطريقة القديمة: تُستخدم بلا كلمة، أو إن لم تكن دالة SQL موجودة */
+    function legacy() {
+      return trPageAll(function () {
+        var q = sb.from("treatment_cases").select(SEARCH_COLS)
+          .eq("wilayat_id", me.wilayat_id)
+          .order("case_no", { ascending: false }).order("id");
+        if (from) q = q.gte("treated_on", from);
+        if (to)   q = q.lte("treated_on", to);
+        return q;
+      }).then(function (list) {
+        var rows = list;
+        if (kw) rows = rows.filter(function (c) {
+          return searchRow(c).join(" ").toLowerCase().indexOf(kw) !== -1;
+        });
+        var total = rows.length;
+        if (limit > 0) rows = rows.slice(0, limit);
+        return result(rows, total);
       });
-      var total = rows.length;
-      if (limit > 0) rows = rows.slice(0, limit);
-      return { success: true, data: [SEARCH_HEADERS.slice()].concat(rows), count: total };
+    }
+
+    if (!kw) return legacy();
+
+    /* ١) الخادم يرجع أرقام الحالات المطابقة فقط */
+    return sb.rpc("search_treatment_ids", {
+      p_wilayat: me.wilayat_id, p_kw: kw, p_from: from || null, p_to: to || null
+    }).then(function (r) {
+      if (r.error) {
+        if (r.error.code === "PGRST202") return legacy();   /* الدالة غير منشأة بعد */
+        throw r.error;
+      }
+      var ids = (r.data || []).map(function (x) { return x.id; });
+      var total = ids.length;
+      if (limit > 0) ids = ids.slice(0, limit);
+      if (!ids.length) return result([], 0);
+
+      /* ٢) جلب تفاصيل المطابِق فقط: دفعات 150، و4 طلبات بالتوازي كحد أقصى */
+      var parts = [];
+      for (var i = 0; i < ids.length; i += 150) parts.push(ids.slice(i, i + 150));
+      var out = [], k = 0;
+      function next() {
+        if (k >= parts.length) return Promise.resolve();
+        var chunk = parts[k++];
+        return sb.from("treatment_cases").select(SEARCH_COLS).in("id", chunk)
+          .then(function (x) { if (x.error) throw x.error; out = out.concat(x.data || []); return next(); });
+      }
+      return Promise.all([next(), next(), next(), next()]).then(function () {
+        var pos = {};
+        ids.forEach(function (id, n) { pos[id] = n; });
+        out.sort(function (a, b) { return pos[a.id] - pos[b.id]; });   /* نفس ترتيب الخادم */
+        return result(out, total);
+      });
     });
   }
 
